@@ -16,7 +16,10 @@ const desktopApi = {
   updateTaskbarProgress: (data) => ipcRenderer.send('update-taskbar-progress', data),
   notifyTaskCompleted: (task) => ipcRenderer.send('notify-task-completed', task),
   notifyTaskFailed: (data) => ipcRenderer.send('notify-task-failed', data),
-  notifyDownloadProgress: (data) => ipcRenderer.send('notify-download-progress', data)
+  notifyDownloadProgress: (data) => ipcRenderer.send('notify-download-progress', data),
+  openConfirmWindow: (probeData) => ipcRenderer.send('open-confirm-window', probeData),
+  closeConfirmWindow: () => ipcRenderer.send('close-confirm-window'),
+  onConfirmData: (cb) => { ipcRenderer.on('set-confirm-data', (e, data) => cb(data)); }
 };
 
 contextBridge.exposeInMainWorld('waterfallDesktop', desktopApi);

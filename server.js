@@ -103,23 +103,50 @@ app.get('/api/downloads', (req, res) => {
   res.json(downloadManager.getAllTasks());
 });
 
+let latestPendingConfirm = null;
+
+app.get('/api/downloads/pending-confirm', (req, res) => {
+  res.json(latestPendingConfirm || {});
+});
+
+app.post('/api/downloads/pending-confirm', (req, res) => {
+  latestPendingConfirm = req.body;
+  res.json({ ok: true });
+});
+
 app.post('/api/downloads', async (req, res) => {
   const {
     url, filename, size, saveDir, autoStart, packageName, isMedia, mediaOptions,
     downloadEngineMode, segments, singleStream, customScript, confirmed,
-    archivePassword, autoExtract, deleteAfterExtract, priority
+    archivePassword, autoExtract, deleteAfterExtract, priority,
+    allowDuplicate, updateExistingId
   } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
+
+  // Explicit URL update request for existing task
+  if (updateExistingId) {
+    try {
+      const task = downloadManager.updateTaskUrl(updateExistingId, url);
+      if (task) {
+        broadcast({ type: 'taskUpdated', task });
+        return res.json({ updated: true, task });
+      }
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
 
   const config = getConfig();
   const shouldConfirm = !config.autoDownloadWithoutConfirmation && config.showDownloadConfirmation !== false;
   if (shouldConfirm && !confirmed) {
     try {
-      const probeData = await downloadManager.probeUrl(url);
+      const probeData = await downloadManager.probeUrl(url, { filename, packageName });
       if (filename) probeData.filename = filename;
       if (packageName) probeData.packageName = packageName;
       if (isMedia !== undefined) probeData.isMedia = isMedia;
       if (mediaOptions) probeData.mediaOptions = mediaOptions;
+
+      latestPendingConfirm = probeData;
 
       // Broadcast event so UI brings window to front & opens IDM Download Confirmation
       broadcast({ type: 'showDownloadConfirmation', probeData });
@@ -128,6 +155,8 @@ app.post('/api/downloads', async (req, res) => {
       console.warn('[Waterfall] Probe for confirmation failed, continuing with direct task creation:', err.message);
     }
   }
+
+  latestPendingConfirm = null;
 
   const task = downloadManager.createTask({
     url,
@@ -145,6 +174,8 @@ app.post('/api/downloads', async (req, res) => {
     autoExtract,
     deleteAfterExtract,
     priority: priority || 'normal',
+    allowDuplicate: Boolean(allowDuplicate),
+    updateExistingId,
     autoStart: autoStart !== false
   });
   res.json(task);
@@ -152,11 +183,11 @@ app.post('/api/downloads', async (req, res) => {
 
 // URL Probe & ETA Metadata for IDM Confirmation Window
 app.post('/api/downloads/probe', async (req, res) => {
-  const { url } = req.body;
+  const { url, filename, packageName } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   try {
-    const info = await downloadManager.probeUrl(url);
+    const info = await downloadManager.probeUrl(url, { filename, packageName });
     res.json(info);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -400,6 +431,14 @@ app.post('/api/downloads/batch', (req, res) => {
   res.json({ ok: true, count: ids.length });
 });
 
+// Force Download & Extract Multipart Group (bypasses missing part gaps or forces immediate extraction)
+app.post('/api/downloads/group/:groupKey/force-download', (req, res) => {
+  const { groupKey } = req.params;
+  downloadManager.forceDownloadGroup(groupKey);
+  broadcast({ type: 'batchUpdated' });
+  res.json({ ok: true, groupKey });
+});
+
 // Power Actions ("Turn off PC when queue finishes")
 app.get('/api/power', (req, res) => {
   res.json({ action: downloadManager.getPowerAction() });
@@ -600,6 +639,27 @@ app.post('/api/settings/reset', (req, res) => {
 app.post('/api/settings/test-script', async (req, res) => {
   try {
     const result = await testRunScript(req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Crawler & Universal Extractor Engine API
+const { getCrawlerInfo, updateCrawlerEngine } = require('./src/backend/crawlerEngine');
+
+app.get('/api/crawler/info', async (req, res) => {
+  try {
+    const info = await getCrawlerInfo();
+    res.json(info);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/crawler/update', async (req, res) => {
+  try {
+    const result = await updateCrawlerEngine();
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

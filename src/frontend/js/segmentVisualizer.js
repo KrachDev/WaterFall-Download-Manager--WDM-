@@ -105,14 +105,17 @@ class SegmentVisualizer {
 
     if (this.btnMpExtractNow) {
       this.btnMpExtractNow.addEventListener('click', () => {
-        if (!this.currentTaskId) return;
-        fetch(`/api/downloads/${this.currentTaskId}/extract`, { method: 'POST' })
-          .then(r => r.json())
-          .then(res => {
-            if (res.passwordRequired) {
-              window.dispatchEvent(new CustomEvent('extract:password-required', { detail: { taskId: this.currentTaskId, name: this.filenameEl?.textContent } }));
-            }
-          });
+        if (this.currentGroupKey) {
+          fetch(`/api/downloads/group/${encodeURIComponent(this.currentGroupKey)}/force-download`, { method: 'POST' });
+        } else if (this.currentTaskId) {
+          fetch(`/api/downloads/${this.currentTaskId}/extract`, { method: 'POST' })
+            .then(r => r.json())
+            .then(res => {
+              if (res.passwordRequired) {
+                window.dispatchEvent(new CustomEvent('extract:password-required', { detail: { taskId: this.currentTaskId, name: this.filenameEl?.textContent } }));
+              }
+            });
+        }
       });
     }
 

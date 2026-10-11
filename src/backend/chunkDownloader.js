@@ -1,6 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { EventEmitter } = require('events');
+
+const WINDOWS_TEMP_DIR = path.join(os.tmpdir(), 'Waterfall');
+const METADATA_DIR = path.join(WINDOWS_TEMP_DIR, 'metadata');
+const CHUNK_TEMP_DIR = path.join(WINDOWS_TEMP_DIR, 'chunks');
 
 class ChunkDownloader extends EventEmitter {
   constructor(task, options = {}) {
@@ -12,14 +17,64 @@ class ChunkDownloader extends EventEmitter {
     this.numSegments = this.singleStream ? 1 : (options.segments || task.segmentsCount || 8);
     this.targetPath = task.savePath;
     this.partFilePath = this.targetPath + '.part';
-    this.tempDir = options.tempDir || path.dirname(task.savePath);
+    // Isolated in Windows Temp directory so user's download folder is never cluttered
+    this.metaFilePath = path.join(METADATA_DIR, `${this.task.id}.meta.json`);
+    this.legacyMetaFilePath = this.partFilePath + '.meta.json';
+    this.tempDir = options.tempDir || CHUNK_TEMP_DIR;
     this.fd = null;
     this.isPaused = false;
     this.isCancelled = false;
     this.controllers = [];
     this.segmentStreams = [];
+    this.activeFlushes = new Map(); // segmentId -> async flushFn
     this.lastTickTime = Date.now();
     this.lastTickBytes = 0;
+  }
+
+  saveMetaFile() {
+    if (this.engineMode === 'legacyTemp') return;
+    try {
+      if (!fs.existsSync(METADATA_DIR)) {
+        fs.mkdirSync(METADATA_DIR, { recursive: true });
+      }
+      const meta = {
+        id: this.task.id,
+        url: this.task.url,
+        directUrl: this.task.directUrl,
+        totalBytes: this.task.totalBytes,
+        acceptRanges: this.task.acceptRanges,
+        engineMode: this.engineMode,
+        segmentsCount: this.task.segments ? this.task.segments.length : 1,
+        segments: this.task.segments ? this.task.segments.map(s => ({
+          id: s.id,
+          startByte: s.startByte,
+          endByte: s.endByte,
+          totalBytes: s.totalBytes,
+          downloadedBytes: s.downloadedBytes || 0,
+          status: s.status || 'pending'
+        })) : [],
+        lastModified: this.task.lastModified,
+        savedAt: Date.now()
+      };
+      fs.writeFileSync(this.metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+      if (fs.existsSync(this.legacyMetaFilePath)) {
+        try { fs.unlinkSync(this.legacyMetaFilePath); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  loadMetaFile() {
+    try {
+      if (this.metaFilePath && fs.existsSync(this.metaFilePath)) {
+        const raw = fs.readFileSync(this.metaFilePath, 'utf-8');
+        return JSON.parse(raw);
+      }
+      if (this.legacyMetaFilePath && fs.existsSync(this.legacyMetaFilePath)) {
+        const raw = fs.readFileSync(this.legacyMetaFilePath, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch (_) {}
+    return null;
   }
 
   async start() {
@@ -97,6 +152,17 @@ class ChunkDownloader extends EventEmitter {
         try { fs.ftruncateSync(this.fd, totalBytes); } catch (_) {}
       }
 
+      // Check for persisted sidecar metadata
+      const savedMeta = this.loadMetaFile();
+      if (savedMeta && Array.isArray(savedMeta.segments) && savedMeta.segments.length > 0) {
+        if (!this.task.segments || this.task.segments.length === 0) {
+          this.task.segments = savedMeta.segments;
+          if (savedMeta.totalBytes > 0 && (!this.task.totalBytes || this.task.totalBytes === 0)) {
+            this.task.totalBytes = savedMeta.totalBytes;
+          }
+        }
+      }
+
       const hasDummySegment = this.task.segments && this.task.segments.length === 1 && this.task.segments[0].totalBytes === 0 && totalBytes > 0;
       if (!this.task.segments || this.task.segments.length === 0 || hasDummySegment) {
         if (this.singleStream || !acceptRanges || totalBytes <= 256 * 1024) {
@@ -118,6 +184,7 @@ class ChunkDownloader extends EventEmitter {
         // Segments already exist (e.g. resumed from pause)
         this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + (s.downloadedBytes || 0), 0);
       }
+      this.saveMetaFile();
     } else {
       // Legacy Staged Merging Engine (Temp Files)
       const hasDummySegment = this.task.segments && this.task.segments.length === 1 && this.task.segments[0].totalBytes === 0 && totalBytes > 0;
@@ -253,7 +320,7 @@ class ChunkDownloader extends EventEmitter {
     const useInPlace = (this.engineMode !== 'legacyTemp');
     const partFile = useInPlace ? this.partFilePath : this.getPartFilePath(segment.id);
 
-    // Check if we already have partial downloaded data on disk
+    // Check if we already have partial downloaded data on disk (legacy mode)
     if (!useInPlace && fs.existsSync(partFile)) {
       const stats = fs.statSync(partFile);
       segment.downloadedBytes = stats.size;
@@ -263,92 +330,39 @@ class ChunkDownloader extends EventEmitter {
       }
     }
 
-    const currentOffset = segment.startByte + (segment.downloadedBytes || 0);
-    if (segment.totalBytes > 0 && currentOffset > segment.endByte) {
-      segment.status = 'completed';
-      return;
-    }
+    const maxRetries = 5;
+    let retryAttempt = 0;
 
-    const controller = new AbortController();
-    this.controllers.push(controller);
-
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WaterfallDL/2.0',
-      'Accept-Encoding': 'identity',
-      ...(this.task.downloadHeaders || {})
-    };
-
-    if (this.task.acceptRanges && segment.totalBytes > 0) {
-      headers['Range'] = `bytes=${currentOffset}-${segment.endByte}`;
-    } else if (this.task.acceptRanges && segment.downloadedBytes > 0) {
-      headers['Range'] = `bytes=${segment.downloadedBytes}-`;
-    }
-
-    segment.status = 'downloading';
-    let legacyStream = null;
-
-    try {
-      const res = await fetch(this.task.directUrl || this.task.url, {
-        method: 'GET',
-        headers,
-        signal: controller.signal
-      });
-
-      if (res.status === 416) {
-        if (segment.totalBytes > 0 && segment.downloadedBytes >= segment.totalBytes) {
-          segment.status = 'completed';
-          return;
-        }
-        console.warn(`[Waterfall] Received 416 for segment ${segment.id}; resetting segment from 0`);
-        segment.downloadedBytes = 0;
-      } else if (!res.ok) {
-        throw new Error(`HTTP Error ${res.status} ${res.statusText}`);
+    while (retryAttempt <= maxRetries && !this.isPaused && !this.isCancelled) {
+      const currentOffset = segment.startByte + (segment.downloadedBytes || 0);
+      if (segment.totalBytes > 0 && currentOffset > segment.endByte) {
+        segment.status = 'completed';
+        return;
       }
 
-      // If server returned 200 OK instead of 206 Partial Content, Range is unsupported
-      if (res.status === 200) {
-        if (segment.id > 0) {
-          this.task.acceptRanges = false;
-          segment.status = 'completed';
-          segment.totalBytes = 0;
-          segment.downloadedBytes = 0;
-          return;
-        } else if (segment.id === 0 && segment.downloadedBytes > 0) {
-          console.log(`[Waterfall] Server sent 200 OK without Range support. Restarting segment 0 from byte 0.`);
-          segment.downloadedBytes = 0;
-        }
+      const controller = new AbortController();
+      this.controllers.push(controller);
+
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WaterfallDL/2.0',
+        'Accept-Encoding': 'identity',
+        ...(this.task.downloadHeaders || {})
+      };
+
+      if (this.task.acceptRanges && segment.totalBytes > 0) {
+        headers['Range'] = `bytes=${currentOffset}-${segment.endByte}`;
+      } else if (this.task.acceptRanges && segment.downloadedBytes > 0) {
+        headers['Range'] = `bytes=${segment.downloadedBytes}-`;
       }
 
-      if (res.headers.has('last-modified')) {
-        this.task.lastModified = res.headers.get('last-modified');
-      }
+      segment.status = 'downloading';
+      let legacyStream = null;
 
-      // If single stream and totalBytes was unknown, learn it now
-      if (this.task.totalBytes === 0 && res.headers.has('content-length')) {
-        this.task.totalBytes = parseInt(res.headers.get('content-length'), 10);
-        segment.totalBytes = this.task.totalBytes;
-        segment.endByte = this.task.totalBytes - 1;
-      }
-
-      if (!useInPlace) {
-        const streamBuffer = this.options.bufferSize || (1024 * 1024);
-        legacyStream = fs.createWriteStream(partFile, {
-          flags: (res.status === 206 && segment.downloadedBytes > 0) ? 'a' : 'w',
-          highWaterMark: streamBuffer
-        });
-        this.segmentStreams.push(legacyStream);
-      }
-
-      const reader = res.body.getReader();
-      let lastSegTime = Date.now();
-      let lastSegBytes = segment.downloadedBytes;
-      const speedLimitPerSec = this.options.speedLimitBytesPerSec || 0;
-
-      // High-performance coalescing buffer (eliminates synchronous event loop blocking)
+      // Coalescing buffer state for this attempt
       let pendingChunks = [];
       let pendingLength = 0;
       const FLUSH_THRESHOLD = 256 * 1024; // 256 KB chunk batching
-      let segmentWriteCursor = segment.startByte + (segment.downloadedBytes || 0);
+      let segmentWriteCursor = currentOffset;
 
       const flushPendingBuffers = async () => {
         if (pendingLength === 0 || this.fd === null) return;
@@ -357,7 +371,8 @@ class ChunkDownloader extends EventEmitter {
           : Buffer.concat(pendingChunks, pendingLength);
 
         const writeAt = segmentWriteCursor;
-        segmentWriteCursor += pendingLength;
+        const bytesCount = pendingLength;
+        segmentWriteCursor += bytesCount;
         pendingChunks = [];
         pendingLength = 0;
 
@@ -367,87 +382,190 @@ class ChunkDownloader extends EventEmitter {
             resolve();
           });
         });
+
+        // Exact verified downloaded bytes on disk
+        segment.downloadedBytes = Math.max(0, segmentWriteCursor - segment.startByte);
       };
 
-      while (true) {
-        if (this.isPaused || this.isCancelled) break;
+      // Register active flusher for safe asynchronous pause
+      if (useInPlace) {
+        this.activeFlushes.set(segment.id, flushPendingBuffers);
+      }
 
-        const { done, value } = await reader.read();
-        if (done) break;
+      try {
+        const res = await fetch(this.task.directUrl || this.task.url, {
+          method: 'GET',
+          headers,
+          signal: controller.signal
+        });
 
-        if (value && value.length > 0) {
-          let chunkBuf = Buffer.isBuffer(value) ? value : Buffer.from(value);
-          if (segment.totalBytes > 0) {
-            const needed = segment.totalBytes - segment.downloadedBytes;
-            if (needed <= 0) break;
-            if (chunkBuf.length > needed) {
-              chunkBuf = chunkBuf.subarray(0, needed);
-            }
-          }
+        // Detect expired link
+        if (res.status === 401 || res.status === 403 || res.status === 404 || res.status === 410) {
+          const errText = `HTTP ${res.status} (Download link expired)`;
+          this.emit('linkExpired', { task: this.task, segmentId: segment.id, status: res.status });
+          throw new Error(errText);
+        }
 
-          if (useInPlace && this.fd !== null) {
-            pendingChunks.push(chunkBuf);
-            pendingLength += chunkBuf.length;
-
-            if (pendingLength >= FLUSH_THRESHOLD) {
-              await flushPendingBuffers();
-            }
-          } else if (legacyStream) {
-            legacyStream.write(chunkBuf);
-          }
-
-          segment.downloadedBytes += chunkBuf.length;
-          this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + (s.downloadedBytes || 0), 0);
-
-          // Bandwidth / Speed Limiter Throttling
-          if (speedLimitPerSec > 0) {
-            const numSegs = Math.max(1, this.task.segments ? this.task.segments.length : 1);
-            const segCap = Math.max(8192, Math.floor(speedLimitPerSec / numSegs));
-            const sleepMs = (chunkBuf.length / segCap) * 1000;
-            if (sleepMs > 5) {
-              await new Promise(r => setTimeout(r, Math.min(150, Math.floor(sleepMs))));
-            }
-          }
-
+        if (res.status === 416) {
+          // Range Not Satisfiable: Segment may already be finished or remote size changed
           if (segment.totalBytes > 0 && segment.downloadedBytes >= segment.totalBytes) {
-            break;
+            segment.status = 'completed';
+            return;
           }
+          console.warn(`[Waterfall] Received 416 for segment ${segment.id}; resetting segment from 0`);
+          segment.downloadedBytes = 0;
+          segmentWriteCursor = segment.startByte;
+        } else if (!res.ok) {
+          throw new Error(`HTTP Error ${res.status} ${res.statusText}`);
+        }
 
-          // Calculate speed per segment and sync exact global bytes
-          const now = Date.now();
-          const timeDiff = (now - lastSegTime) / 1000;
-          if (timeDiff >= 0.3) {
-            const bytesDiff = segment.downloadedBytes - lastSegBytes;
-            segment.speed = Math.floor(bytesDiff / timeDiff);
-            lastSegTime = now;
-            lastSegBytes = segment.downloadedBytes;
-            this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + s.downloadedBytes, 0);
+        // If server returned 200 OK instead of 206 Partial Content, Range is unsupported
+        if (res.status === 200) {
+          if (segment.id > 0) {
+            this.task.acceptRanges = false;
+            segment.status = 'completed';
+            segment.totalBytes = 0;
+            segment.downloadedBytes = 0;
+            return;
+          } else if (segment.id === 0 && segment.downloadedBytes > 0) {
+            console.log(`[Waterfall] Server sent 200 OK without Range support. Restarting segment 0 from byte 0.`);
+            segment.downloadedBytes = 0;
+            segmentWriteCursor = 0;
           }
         }
-      }
 
-      // Flush any remaining accumulated bytes before completing segment
-      if (useInPlace && pendingLength > 0) {
-        await flushPendingBuffers();
-      }
+        if (res.headers.has('last-modified')) {
+          this.task.lastModified = res.headers.get('last-modified');
+        }
 
-      if (legacyStream) legacyStream.end();
+        // If single stream and totalBytes was unknown, learn it now
+        if (this.task.totalBytes === 0 && res.headers.has('content-length')) {
+          this.task.totalBytes = parseInt(res.headers.get('content-length'), 10);
+          segment.totalBytes = this.task.totalBytes;
+          segment.endByte = this.task.totalBytes - 1;
+        }
 
-      if (!this.isPaused && !this.isCancelled) {
+        if (!useInPlace) {
+          const streamBuffer = this.options.bufferSize || (1024 * 1024);
+          legacyStream = fs.createWriteStream(partFile, {
+            flags: (res.status === 206 && segment.downloadedBytes > 0) ? 'a' : 'w',
+            highWaterMark: streamBuffer
+          });
+          this.segmentStreams.push(legacyStream);
+        }
+
+        const reader = res.body.getReader();
+        let lastSegTime = Date.now();
+        let lastSegBytes = segment.downloadedBytes;
+        const speedLimitPerSec = this.options.speedLimitBytesPerSec || 0;
+
+        while (true) {
+          if (this.isPaused || this.isCancelled) break;
+
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          if (value && value.length > 0) {
+            let chunkBuf = Buffer.isBuffer(value) ? value : Buffer.from(value);
+            if (segment.totalBytes > 0) {
+              const needed = segment.totalBytes - segment.downloadedBytes;
+              if (needed <= 0) break;
+              if (chunkBuf.length > needed) {
+                chunkBuf = chunkBuf.subarray(0, needed);
+              }
+            }
+
+            if (useInPlace && this.fd !== null) {
+              pendingChunks.push(chunkBuf);
+              pendingLength += chunkBuf.length;
+
+              if (pendingLength >= FLUSH_THRESHOLD) {
+                await flushPendingBuffers();
+              }
+            } else if (legacyStream) {
+              legacyStream.write(chunkBuf);
+              segment.downloadedBytes += chunkBuf.length;
+            }
+
+            // Sync overall downloaded bytes accurately
+            this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + (s.downloadedBytes || 0), 0);
+
+            // Bandwidth / Speed Limiter Throttling
+            if (speedLimitPerSec > 0) {
+              const numSegs = Math.max(1, this.task.segments ? this.task.segments.length : 1);
+              const segCap = Math.max(8192, Math.floor(speedLimitPerSec / numSegs));
+              const sleepMs = (chunkBuf.length / segCap) * 1000;
+              if (sleepMs > 5) {
+                await new Promise(r => setTimeout(r, Math.min(150, Math.floor(sleepMs))));
+              }
+            }
+
+            if (segment.totalBytes > 0 && segment.downloadedBytes >= segment.totalBytes) {
+              break;
+            }
+
+            // Calculate speed per segment and sync exact global bytes
+            const now = Date.now();
+            const timeDiff = (now - lastSegTime) / 1000;
+            if (timeDiff >= 0.3) {
+              const bytesDiff = segment.downloadedBytes - lastSegBytes;
+              segment.speed = Math.floor(bytesDiff / timeDiff);
+              lastSegTime = now;
+              lastSegBytes = segment.downloadedBytes;
+              this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + s.downloadedBytes, 0);
+            }
+          }
+        }
+
+        // Flush any remaining accumulated bytes before completing segment
+        if (useInPlace && pendingLength > 0) {
+          await flushPendingBuffers();
+        }
+
+        if (legacyStream) legacyStream.end();
+
+        if (this.isPaused || this.isCancelled) {
+          segment.status = this.isCancelled ? 'cancelled' : 'paused';
+          segment.speed = 0;
+          return;
+        }
+
         segment.status = 'completed';
         segment.speed = 0;
         this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + s.downloadedBytes, 0);
-      }
-    } catch (err) {
-      if (legacyStream) legacyStream.end();
-      if (controller.signal.aborted || this.isPaused) {
-        segment.status = 'paused';
+        this.saveMetaFile();
+        return; // Success! Exit retry loop cleanly.
+
+      } catch (err) {
+        if (useInPlace && pendingLength > 0 && this.fd !== null) {
+          try { await flushPendingBuffers(); } catch (_) {}
+        }
+        if (legacyStream) legacyStream.end();
+
+        if (controller.signal.aborted || this.isPaused) {
+          segment.status = 'paused';
+          segment.speed = 0;
+          return;
+        }
+
+        // Check if error is retryable network drop
+        const isNetworkDrop = /timeout|econnreset|etimedout|epipe|network|socket hang up|fetch failed/i.test(err.message || '');
+        if (isNetworkDrop && retryAttempt < maxRetries && !this.isPaused && !this.isCancelled) {
+          retryAttempt++;
+          const backoffDelay = Math.min(5000, 1000 * retryAttempt);
+          console.warn(`[Waterfall] Segment ${segment.id} socket dropped (${err.message}). Auto-reconnecting in ${backoffDelay}ms (Attempt ${retryAttempt}/${maxRetries})...`);
+          await new Promise(r => setTimeout(r, backoffDelay));
+          continue; // Re-attempt loop with updated offset
+        }
+
+        segment.status = 'error';
         segment.speed = 0;
-        return;
+        throw err;
+      } finally {
+        if (useInPlace) {
+          this.activeFlushes.delete(segment.id);
+        }
       }
-      segment.status = 'error';
-      segment.speed = 0;
-      throw err;
     }
   }
 
@@ -467,6 +585,14 @@ class ChunkDownloader extends EventEmitter {
       }
       fs.renameSync(this.partFilePath, this.targetPath);
     }
+
+    // Clean up sidecar meta file
+    try {
+      if (fs.existsSync(this.metaFilePath)) fs.unlinkSync(this.metaFilePath);
+    } catch (_) {}
+    try {
+      if (this.legacyMetaFilePath && fs.existsSync(this.legacyMetaFilePath)) fs.unlinkSync(this.legacyMetaFilePath);
+    } catch (_) {}
 
     // Preserve remote server Last-Modified timestamp
     if (this.task.lastModified) {
@@ -516,17 +642,39 @@ class ChunkDownloader extends EventEmitter {
     }
   }
 
-  pause() {
+  async pause() {
     this.isPaused = true;
     this.task.status = 'paused';
     this.task.speed = 0;
     this.task.eta = 0;
 
+    // 1. Abort network controllers first so streams stop receiving
+    for (const ctrl of this.controllers) {
+      try { ctrl.abort(); } catch (_) {}
+    }
+    this.controllers = [];
+
+    // 2. Safely flush all pending buffers to disk before closing descriptor
+    const flushPromises = [];
+    for (const flushFn of this.activeFlushes.values()) {
+      if (typeof flushFn === 'function') {
+        flushPromises.push(flushFn().catch(() => {}));
+      }
+    }
+    if (flushPromises.length > 0) {
+      await Promise.all(flushPromises);
+    }
+
+    // 3. Persist exact segment state to sidecar meta file
+    this.saveMetaFile();
+
+    // 4. Safely close file descriptor
     if (this.fd !== null) {
       try { fs.closeSync(this.fd); } catch (_) {}
       this.fd = null;
     }
 
+    // 5. Update segment statuses
     for (const seg of (this.task.segments || [])) {
       if (seg.status === 'downloading') {
         seg.status = 'paused';
@@ -534,16 +682,12 @@ class ChunkDownloader extends EventEmitter {
       }
     }
 
-    for (const ctrl of this.controllers) {
-      try { ctrl.abort(); } catch (_) {}
-    }
-    this.controllers = [];
     this.emit('update', this.task);
   }
 
   cancel() {
     this.isCancelled = true;
-    this.pause();
+    this.pause().catch(() => {});
 
     if (this.fd !== null) {
       try { fs.closeSync(this.fd); } catch (_) {}
@@ -552,6 +696,13 @@ class ChunkDownloader extends EventEmitter {
 
     try {
       if (fs.existsSync(this.partFilePath)) fs.unlinkSync(this.partFilePath);
+    } catch (_) {}
+
+    try {
+      if (fs.existsSync(this.metaFilePath)) fs.unlinkSync(this.metaFilePath);
+    } catch (_) {}
+    try {
+      if (this.legacyMetaFilePath && fs.existsSync(this.legacyMetaFilePath)) fs.unlinkSync(this.legacyMetaFilePath);
     } catch (_) {}
 
     this.cleanupParts();

@@ -882,32 +882,35 @@ body.resizing-columns * {
 .meter-track {
   width: 100%;
   height: 6px;
-  background: #1c2333;
+  background: #161b26;
   border-radius: var(--radius-full);
   overflow: hidden;
-  margin-bottom: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .meter-fill {
   height: 100%;
-  background: linear-gradient(90deg, #1f6feb, #58a6ff);
+  background: linear-gradient(90deg, #238636, #2ea043, #3fb950);
+  box-shadow: 0 0 8px rgba(46, 160, 67, 0.35);
   border-radius: var(--radius-full);
   transition: width 0.15s ease;
 }
 
 .meter-fill.active {
+  background-color: #2ea043;
   background-size: 16px 16px;
   background-image: linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.15) 25%,
+    rgba(255, 255, 255, 0.22) 25%,
     transparent 25%,
     transparent 50%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.15) 75%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.22) 75%,
     transparent 75%,
     transparent
   );
+  box-shadow: 0 0 10px rgba(63, 185, 80, 0.45);
   animation: bar-slide 1s linear infinite;
 }
 
@@ -916,14 +919,51 @@ body.resizing-columns * {
   100% { background-position: 16px 0; }
 }
 
-.meter-fill.complete { background: var(--accent-emerald); }
-.meter-fill.paused { background: var(--accent-amber); }
+.meter-fill.paused {
+  background: linear-gradient(90deg, #d29922, #f0883e) !important;
+  box-shadow: 0 0 6px rgba(210, 153, 34, 0.3) !important;
+  animation: none !important;
+}
 
 .meter-stat {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* Progress column status states (when no bar is rendered) */
+.progress-done-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #3fb950;
+  margin-bottom: 2px;
+}
+
+.progress-canceled-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #8b949e;
+  margin-bottom: 2px;
+}
+
+.progress-error-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #f85149;
+  margin-bottom: 2px;
 }
 
 /* Status pills */

@@ -1,7 +1,14 @@
 const path = require('path');
+const VIDEO_EXTS = /\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v|ts|m2ts|vob|ogv|3gp|mpg|mpeg|m2v|divx|asf|rm|rmvb|f4v)$/i;
+
+function isVideoFilename(filename) {
+  if (!filename) return false;
+  return VIDEO_EXTS.test(filename.trim());
+}
 
 /**
  * Recognizes and parses multipart archive filenames and groups them cleanly.
+ * NOTE: Videos and standalone media files are NEVER grouped as multipart archives!
  * Examples handled:
  * - movie.part1.rar, movie.part2.rar
  * - archive.part01.rar, archive.part02.rar
@@ -9,7 +16,6 @@ const path = require('path');
  * - package.zip.001, package.zip.002
  * - backup.z01, backup.z02, backup.zip
  * - data.r00, data.r01, data.rar
- * - file.part1, file.part2
  */
 function parseMultipartInfo(filename, packageName = '') {
   if (!filename || typeof filename !== 'string') {
@@ -17,14 +23,31 @@ function parseMultipartInfo(filename, packageName = '') {
   }
 
   const clean = filename.trim();
+
+  // Guard: Videos and standalone media files can NEVER be multipart archive parts!
+  if (isVideoFilename(clean)) {
+    return {
+      isMultipart: false,
+      groupKey: null,
+      baseName: clean,
+      partNumber: 1,
+      isRootPart: false,
+      format: null
+    };
+  }
+
   const lower = clean.toLowerCase();
 
   // 1. .part(\d+).rar OR .part(\d+)
   const partRarMatch = clean.match(/^(.*?)(?:[._\-\s]+part|part)(\d+)(\.rar|\.zip|\.7z|\.tar|\.iso)?$/i);
   if (partRarMatch) {
+    const ext = (partRarMatch[3] || '').toLowerCase();
+    // Guard against non-archive extensions
+    if (ext && !/^\.(rar|zip|7z|tar|iso|gz|bz2|xz)$/i.test(ext)) {
+      return { isMultipart: false, groupKey: null, baseName: clean, partNumber: 1, isRootPart: false, format: null };
+    }
     const base = partRarMatch[1].replace(/[._\-\s]+$/, '').trim();
     const partNum = parseInt(partRarMatch[2], 10);
-    const ext = (partRarMatch[3] || '').toLowerCase();
     const groupKey = generateGroupKey(base || packageName || clean);
     return {
       isMultipart: true,
@@ -144,13 +167,21 @@ function findRootArchivePart(paths = []) {
   const zipRoot = paths.find(p => /\.zip$/i.test(p));
   if (zipRoot) return zipRoot;
 
-  // Fallback: sort alphabetically, first item
-  const sorted = [...paths].sort();
+  // Fallback: sort by natural part number (handles holes like parts 3, 5, 7 -> picks lowest part 3)
+  const sorted = [...paths].sort((a, b) => {
+    const matchA = a.match(/part0*(\d+)/i) || a.match(/\.(\d{3,})$/);
+    const matchB = b.match(/part0*(\d+)/i) || b.match(/\.(\d{3,})$/);
+    const numA = matchA ? parseInt(matchA[1], 10) : 999999;
+    const numB = matchB ? parseInt(matchB[1], 10) : 999999;
+    if (numA !== numB) return numA - numB;
+    return a.localeCompare(b);
+  });
   return sorted[0];
 }
 
 module.exports = {
   parseMultipartInfo,
   generateGroupKey,
-  findRootArchivePart
+  findRootArchivePart,
+  isVideoFilename
 };

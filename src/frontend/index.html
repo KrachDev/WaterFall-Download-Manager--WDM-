@@ -530,6 +530,17 @@
 
       <div class="modal-body idm-confirm-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; max-height: 80vh; overflow-y: auto;">
         
+        <!-- Duplicate / File Update Notification Banner -->
+        <div id="idm-confirm-duplicate-alert" style="display: none; padding: 10px 14px; border-radius: 6px; font-size: 0.78rem; line-height: 1.45;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="idm-duplicate-alert-icon" style="font-size: 1.1rem;">⚠️</span>
+              <span id="idm-duplicate-alert-msg" style="font-weight: 500;"></span>
+            </div>
+            <div style="display: flex; gap: 6px;" id="idm-duplicate-alert-actions"></div>
+          </div>
+        </div>
+
         <!-- URL Address -->
         <div class="form-group" style="margin-bottom: 0;">
           <label class="input-label" style="display: flex; justify-content: space-between;">
@@ -1580,6 +1591,38 @@
                 <input type="checkbox" id="cfg-clipboard-monitor" class="toggle-checkbox">
               </div>
 
+              <!-- Universal Crawler & Extractor Engine Card -->
+              <div style="margin-top: 10px; padding: 14px; background: #090e18; border: 1px solid var(--border-dim); border-radius: var(--radius-sm);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                  <div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                      Automated Crawler & Website Extractor Engine
+                    </div>
+                    <div style="font-size: 0.70rem; color: var(--text-muted); margin-top: 2px;">
+                      Universal bridge supporting 1,800+ websites automatically without writing hand-crafted plugins.
+                    </div>
+                  </div>
+                  <span id="crawler-engine-badge" style="font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">yt-dlp 2026.08.19</span>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;">
+                  <button type="button" class="tool-btn" id="btn-update-crawler" style="background: rgba(46, 160, 67, 0.15); color: #3fb950; border-color: rgba(46, 160, 67, 0.4);">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    <span>Update Crawler Engine Now</span>
+                  </button>
+                  <span id="crawler-update-status" style="font-size: 0.72rem; color: var(--text-muted);">Ready to check GitHub releases</span>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 4px; font-size: 0.72rem; color: var(--text-secondary); line-height: 1.5;">
+                  <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">Open-Source Crawler Ecosystem & Sources:</div>
+                  • <b>yt-dlp</b> (1,800+ extractors, daily updates): <span style="color: var(--accent-cyan); font-family: var(--font-mono);">github.com/yt-dlp/yt-dlp</span><br>
+                  • <b>JDownloader 2 SVN</b> (3,500+ hosters & decrypters): <span style="color: var(--accent-cyan); font-family: var(--font-mono);">svn.jdownloader.org/jdownloader</span><br>
+                  • <b>PyLoad Plugins</b> (400+ hosters): <span style="color: var(--accent-cyan); font-family: var(--font-mono);">github.com/pyload/pyload</span><br>
+                  • <b>Debrid APIs</b> (Real-Debrid / AllDebrid): Universal token for 100+ premium file hosts
+                </div>
+              </div>
+
               <div class="form-group">
                 <label class="input-label" for="cfg-listen-port">Waterfall Core Daemon Listen Port</label>
                 <input type="number" id="cfg-listen-port" class="text-input" value="4567" min="1024" max="65535">
@@ -1602,6 +1645,80 @@
             <span>Save Settings</span>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: Duplicate Download Alert & In-Progress File Update System
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-duplicate-prompt">
+    <div class="modal-card" style="width: 550px; max-width: 95vw;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div id="duplicate-header-icon" style="width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; background: rgba(227, 179, 65, 0.15); color: #e3b341;">
+            ⚠️
+          </div>
+          <div>
+            <h3 id="duplicate-prompt-title" style="margin: 0; font-size: 0.98rem; color: #fff;">File Already Present</h3>
+            <div id="duplicate-prompt-subtitle" style="font-size: 0.70rem; color: var(--text-muted);">Waterfall Duplicate Detection System</div>
+          </div>
+        </div>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Dynamic Alert Banner -->
+        <div id="duplicate-prompt-banner" style="padding: 12px 14px; border-radius: 6px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.8rem; line-height: 1.45; background: rgba(227, 179, 65, 0.1); border: 1px solid rgba(227, 179, 65, 0.3); color: #f2cc60;">
+          <span id="duplicate-prompt-banner-icon" style="font-size: 1.25rem; flex-shrink: 0;">ℹ️</span>
+          <div id="duplicate-prompt-banner-text">
+            This file is already in your download queue or on your computer.
+          </div>
+        </div>
+
+        <!-- File Details Card -->
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px;">
+            <span style="font-size: 0.74rem; color: var(--text-muted); flex-shrink: 0;">File Name:</span>
+            <span id="duplicate-prompt-filename" style="font-size: 0.84rem; font-weight: 600; color: var(--text-main); word-break: break-all; max-width: 360px; text-align: right;">--</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Current Status:</span>
+            <span id="duplicate-prompt-status" class="type-badge" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 4px;">--</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Size / Downloaded:</span>
+            <span id="duplicate-prompt-size" style="font-size: 0.80rem; font-weight: 600; font-family: var(--font-mono); color: #58a6ff;">--</span>
+          </div>
+
+          <!-- In-Progress Progress Bar -->
+          <div id="duplicate-prompt-progress-box" style="display: none; flex-direction: column; gap: 4px; margin-top: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.70rem; color: var(--text-muted);">
+              <span>Buffer Downloaded</span>
+              <span id="duplicate-prompt-percent" style="font-weight: 700; color: #3fb950;">0%</span>
+            </div>
+            <div style="height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+              <div id="duplicate-prompt-bar" style="height: 100%; width: 0%; background: #2ea043; border-radius: 3px; transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px;">
+            <span style="font-size: 0.74rem; color: var(--text-muted); flex-shrink: 0;">Disk Path:</span>
+            <span id="duplicate-prompt-path" style="font-size: 0.70rem; font-family: var(--font-mono); color: var(--text-muted); word-break: break-all; max-width: 360px; text-align: right;">--</span>
+          </div>
+        </div>
+
+        <!-- New URL details (when offering file update) -->
+        <div id="duplicate-prompt-newurl-box" style="display: none; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px;">
+          <div style="font-size: 0.70rem; color: var(--text-muted); margin-bottom: 2px;">Fresh Download Link to Apply:</div>
+          <div id="duplicate-prompt-newurl" style="font-size: 0.72rem; font-family: var(--font-mono); color: #58a6ff; word-break: break-all; max-height: 48px; overflow-y: auto;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer" id="duplicate-prompt-footer" style="padding: 12px 20px; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-mid); display: flex; justify-content: space-between; align-items: center;">
+        <!-- Dynamically populated buttons -->
       </div>
     </div>
   </div>

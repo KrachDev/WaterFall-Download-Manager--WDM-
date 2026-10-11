@@ -57,11 +57,98 @@ if (!gotTheLock) {
 }
 
 let mainWindow = null;
+let confirmWindow = null;
 let tray = null;
 let serverInstance = null;
 let downloadManager = null;
 const PORT = 4567;
 const APP_URL = `http://localhost:${PORT}`;
+
+let pendingConfirmData = null;
+
+function openConfirmWindow(probeData) {
+  pendingConfirmData = probeData;
+  const icoPath = path.join(__dirname, 'assets', 'icon.ico');
+  const pngPath = path.join(__dirname, 'assets', 'icon.png');
+  const appIcon = nativeImage.createFromPath(fs.existsSync(icoPath) ? icoPath : pngPath);
+
+  if (confirmWindow && !confirmWindow.isDestroyed()) {
+    if (confirmWindow.isMinimized()) confirmWindow.restore();
+    if (!confirmWindow.isVisible()) confirmWindow.show();
+    confirmWindow.focus();
+    if (probeData) {
+      try {
+        confirmWindow.webContents.send('set-confirm-data', probeData);
+      } catch (_) {}
+    }
+    return confirmWindow;
+  }
+
+  confirmWindow = new BrowserWindow({
+    width: 680,
+    height: 740,
+    minWidth: 540,
+    minHeight: 560,
+    backgroundColor: '#090d16',
+    title: 'Waterfall — Download File Info',
+    icon: !appIcon.isEmpty() ? appIcon : (fs.existsSync(icoPath) ? icoPath : undefined),
+    show: false,
+    autoHideMenuBar: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      spellcheck: false,
+      backgroundThrottling: false
+    }
+  });
+
+  confirmWindow.setMenuBarVisibility(false);
+
+  const deliverData = () => {
+    if (pendingConfirmData && confirmWindow && !confirmWindow.isDestroyed()) {
+      try {
+        confirmWindow.webContents.send('set-confirm-data', pendingConfirmData);
+      } catch (_) {}
+    }
+  };
+
+  confirmWindow.webContents.on('did-finish-load', () => {
+    deliverData();
+  });
+
+  confirmWindow.once('ready-to-show', () => {
+    if (confirmWindow && !confirmWindow.isDestroyed()) {
+      confirmWindow.show();
+      confirmWindow.focus();
+      deliverData();
+    }
+  });
+
+  // Safety fallback: ensure window shows even if ready-to-show is delayed
+  setTimeout(() => {
+    if (confirmWindow && !confirmWindow.isDestroyed() && !confirmWindow.isVisible()) {
+      confirmWindow.show();
+      confirmWindow.focus();
+      deliverData();
+    }
+  }, 600);
+
+  confirmWindow.on('closed', () => {
+    confirmWindow = null;
+    pendingConfirmData = null;
+  });
+
+  confirmWindow.loadURL(`${APP_URL}/confirm.html`).catch((err) => {
+    console.warn('[Waterfall Electron] Failed to load confirm.html via HTTP, attempting file fallback:', err.message);
+    if (confirmWindow && !confirmWindow.isDestroyed()) {
+      confirmWindow.loadFile(path.join(__dirname, 'src', 'frontend', 'confirm.html')).catch(() => {});
+    }
+  });
+
+  return confirmWindow;
+}
 
 function getAppConfig() {
   try {
@@ -356,7 +443,9 @@ function connectBackendWebSocket() {
           handleTaskCompletion(msg.task);
         } else if (msg.type === 'taskFailed') {
           handleTaskFailure(msg);
-        } else if (msg.type === 'showDownloadConfirmation' || msg.type === 'taskCreated' || msg.type === 'linkgrabberUpdated') {
+        } else if (msg.type === 'showDownloadConfirmation') {
+          openConfirmWindow(msg.probeData);
+        } else if (msg.type === 'taskCreated' || msg.type === 'linkgrabberUpdated') {
           const cfg = getAppConfig();
           if (cfg.forceTopOnDownload !== false) {
             forceWindowToTop();
@@ -695,19 +784,32 @@ function createTray() {
 }
 
 // IPC Window Controls
-ipcMain.on('window-minimize', () => {
-  if (mainWindow) mainWindow.minimize();
+ipcMain.on('window-minimize', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (win) win.minimize();
 });
 
-ipcMain.on('window-maximize', () => {
-  if (mainWindow) {
-    if (mainWindow.isMaximized()) mainWindow.unmaximize();
-    else mainWindow.maximize();
+ipcMain.on('window-maximize', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (win) {
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
   }
 });
 
-ipcMain.on('window-close', () => {
-  if (mainWindow) mainWindow.close();
+ipcMain.on('window-close', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (win) win.close();
+});
+
+ipcMain.on('open-confirm-window', (event, probeData) => {
+  openConfirmWindow(probeData);
+});
+
+ipcMain.on('close-confirm-window', () => {
+  if (confirmWindow && !confirmWindow.isDestroyed()) {
+    confirmWindow.close();
+  }
 });
 
 ipcMain.on('open-external', (event, url) => {
@@ -754,7 +856,8 @@ ipcMain.handle('open-folder', async (event, filePath) => {
 
 ipcMain.handle('select-folder', async (event, defaultPath) => {
   try {
-    const res = await dialog.showOpenDialog(mainWindow, {
+    const ownerWin = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    const res = await dialog.showOpenDialog(ownerWin, {
       title: 'Select Download Folder',
       defaultPath: (defaultPath && fs.existsSync(defaultPath)) ? defaultPath : undefined,
       properties: ['openDirectory', 'createDirectory']

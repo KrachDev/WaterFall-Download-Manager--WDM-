@@ -228,8 +228,29 @@ class HosterManager {
 
   async resolve(url) {
     const hoster = this.detectHoster(url);
-    if (!hoster) return null;
-    return await hoster.resolve(url);
+    if (hoster && hoster.id !== 'direct') {
+      try {
+        const res = await hoster.resolve(url);
+        if (res) return res;
+      } catch (e) {
+        console.warn(`[Waterfall] Specialized hoster ${hoster.name} failed:`, e.message);
+      }
+    }
+
+    // Try Universal Extractor Bridge (yt-dlp 1,800+ websites)
+    try {
+      const { probeWithYtDlp } = require('../crawlerEngine');
+      const universalRes = await probeWithYtDlp(url);
+      if (universalRes && universalRes.directUrl) {
+        return universalRes;
+      }
+    } catch (_) {}
+
+    const directHoster = this.hosters.find(h => h.id === 'direct');
+    if (directHoster) {
+      return await directHoster.resolve(url);
+    }
+    return null;
   }
 }
 

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterfall — Download File Info</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-deep, #090d16);
+      color: var(--text-primary, #f0f6fc);
+      font-family: var(--font-sans, 'Inter', sans-serif);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    .confirm-window-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      background: #0d1220;
+    }
+
+    .confirm-header {
+      padding: 14px 18px;
+      background: #090e1a;
+      border-bottom: 1px solid var(--border-mid, #2c3852);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      -webkit-app-region: drag;
+    }
+
+    .confirm-header-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      -webkit-app-region: no-drag;
+    }
+
+    .confirm-header-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-xs, 4px);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(16, 185, 129, 0.25));
+      color: var(--accent-cyan, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .confirm-header-titles h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .confirm-header-titles .subtitle {
+      font-size: 0.72rem;
+      color: var(--text-muted, #6e7681);
+      margin-top: 2px;
+    }
+
+    .confirm-body {
+      flex: 1;
+      padding: 16px 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scrollbar-width: thin;
+    }
+
+    .confirm-footer {
+      padding: 12px 20px;
+      background: #080c16;
+      border-top: 1px solid var(--border-mid, #2c3852);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .duplicate-notice-card {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm, 6px);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-gradient-primary {
+      background: linear-gradient(180deg, #388bfd, #1f6feb) !important;
+      color: #ffffff !important;
+      font-weight: 700 !important;
+      box-shadow: 0 2px 8px rgba(31, 111, 235, 0.4) !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    }
+
+    .btn-gradient-primary:hover {
+      background: linear-gradient(180deg, #4da3ff, #267ff3) !important;
+      box-shadow: 0 4px 14px rgba(31, 111, 235, 0.6) !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="confirm-window-wrapper">
+    <!-- Window Header -->
+    <header class="confirm-header">
+      <div class="confirm-header-content">
+        <div class="confirm-header-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </div>
+        <div class="confirm-header-titles">
+          <h3>Download File Info</h3>
+          <div class="subtitle">Waterfall Acquisition Engine • Standalone Download Confirmation</div>
+        </div>
+      </div>
+      <button class="icon-btn" id="btn-close-window" title="Close" style="-webkit-app-region: no-drag; font-size: 1.2rem;">&times;</button>
+    </header>
+
+    <!-- Window Body -->
+    <main class="confirm-body">
+      
+      <!-- Duplicate Detection / In-Progress Update Banner -->
+      <div id="duplicate-alert-banner" class="duplicate-notice-card" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="dup-alert-icon" style="font-size: 1.2rem;">⚠️</span>
+          <span id="dup-alert-text" style="font-weight: 500;"></span>
+        </div>
+        <div id="dup-alert-actions" style="display: flex; gap: 6px;"></div>
+      </div>
+
+      <!-- Source URL -->
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="input-label" style="display: flex; justify-content: space-between;">
+          <span>Source Address / URL</span>
+          <span id="confirm-server" style="color: var(--accent-idm-blue, #388bfd); font-family: var(--font-mono); font-size: 0.72rem;"></span>
+        </label>
+        <input type="text" id="confirm-url" class="text-input" readonly style="font-family: var(--font-mono); font-size: 0.78rem; background: rgba(0,0,0,0.3); color: var(--text-muted);">
+      </div>
+
+      <!-- File Name & Category -->
+      <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: flex-end;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="input-label" for="confirm-filename">File Name</label>
+          <input type="text" id="confirm-filename" class="text-input" style="font-weight: 600; font-size: 0.88rem;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="input-label">Category</label>
+          <span id="confirm-category-badge" class="type-badge badge-other" style="padding: 6px 14px; font-size: 0.75rem; border-radius: var(--radius-xs); display: inline-block;">General</span>
+        </div>
+      </div>
+
+      <!-- Performance Metrics: Size & 10-Download Avg ETA -->
+      <div class="idm-metrics-card">
+        <div class="idm-metric-col">
+          <div class="idm-metric-label">FILE SIZE</div>
+          <div class="idm-metric-val" id="confirm-size">Measuring...</div>
+          <div class="idm-metric-sub" id="confirm-resumable">Checking range support...</div>
+        </div>
+        <div class="idm-metric-divider"></div>
+        <div class="idm-metric-col">
+          <div class="idm-metric-label">ESTIMATED DOWNLOAD TIME</div>
+          <div class="idm-metric-val idm-highlight" id="confirm-eta">Calculating...</div>
+          <div class="idm-metric-sub" id="confirm-avg-speed" title="Calculated from your completed download history">Based on last 10 downloads avg</div>
+        </div>
+      </div>
+
+      <!-- Save To Folder -->
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="input-label" for="confirm-folder">Save To (Folder)</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="confirm-folder" class="text-input" style="flex: 1; font-family: var(--font-mono); font-size: 0.80rem;">
+          <button class="tool-btn" id="btn-browse-folder" style="white-space: nowrap;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Browse...
+          </button>
+        </div>
+        <div class="idm-quick-folders" style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          <button type="button" class="folder-chip" id="chip-downloads">📥 Downloads</button>
+          <button type="button" class="folder-chip" id="chip-desktop">🖥️ Desktop</button>
+          <button type="button" class="folder-chip" id="chip-category">📂 Category Folder</button>
+        </div>
+      </div>
+
+      <!-- Acceleration & Writing Mode -->
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="input-label" for="confirm-engine-mode">Download Mode & Acceleration</label>
+        <select id="confirm-engine-mode" class="text-input">
+          <option value="inPlace-8" selected>⚡ In-Place Direct Writing (8 Sockets - Zero Rebuild Lag)</option>
+          <option value="singleStream">📦 Single Stream / Whole File (1 Socket - No Chunks, Best for Live Watching)</option>
+          <option value="inPlace-16">🚀 High Speed Direct Writing (16 Sockets - Maximum Acceleration)</option>
+          <option value="inPlace-4">⚖️ Balanced Direct Writing (4 Sockets - Low Bandwidth)</option>
+          <option value="legacyTemp">⏳ Legacy Staged Chunks (Saves to Temp & Merges)</option>
+        </select>
+      </div>
+
+      <!-- Media Stream Card (Conditional) -->
+      <div class="idm-media-stream-card" id="confirm-media-box" style="display: none;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.2rem;">🎬</span>
+            <div>
+              <div style="font-weight: 600; font-size: 0.84rem; color: #38bdf8;">Media Stream Detected — Watch While Downloading</div>
+              <div style="font-size: 0.70rem; color: var(--text-muted);">Waterfall streams the live buffer directly as it downloads.</div>
+            </div>
+          </div>
+          <button class="tool-btn accent-blue" id="btn-watch-now" style="white-space: nowrap;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Watch as Download Starts
+          </button>
+        </div>
+      </div>
+
+      <!-- Archive Decompression Options (Conditional) -->
+      <div class="idm-script-toggle-box" id="confirm-extract-box">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 500;">
+            <input type="checkbox" id="confirm-enable-extract" checked>
+            <span>Auto-extract archive upon completion</span>
+          </label>
+          <span style="font-size: 0.70rem; color: #38bdf8;">7z / RAR / ZIP / NanaZip</span>
+        </div>
+
+        <div id="confirm-extract-details" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-light, #2c3852); display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="position: relative; flex: 1;">
+              <input type="password" id="confirm-archive-password" class="text-input" placeholder="Archive Password / Unlock Key (optional)" style="font-size: 0.78rem; padding-right: 34px;">
+              <button type="button" class="icon-btn" id="btn-toggle-pwd" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 0.75rem;" title="Show/Hide Password">👁️</button>
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; white-space: nowrap;">
+              <input type="checkbox" id="confirm-delete-archive">
+              <span>Delete archive after extract</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Script Execution Options (Accordion) -->
+      <div class="idm-script-toggle-box">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 500;">
+            <input type="checkbox" id="confirm-enable-script">
+            <span>Run custom script when download completes</span>
+          </label>
+          <span style="font-size: 0.70rem; color: var(--text-muted);">Python, PowerShell, Batch</span>
+        </div>
+
+        <div id="confirm-script-details" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-light, #2c3852);">
+          <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 8px;">
+            <select id="confirm-script-type" class="text-input" style="font-size: 0.78rem;">
+              <option value="auto">Auto-Detect</option>
+              <option value="powershell">PowerShell (.ps1)</option>
+              <option value="batch">Batch (.bat)</option>
+              <option value="python">Python (.py)</option>
+              <option value="custom">Custom Command</option>
+            </select>
+            <input type="text" id="confirm-script-path" class="text-input" placeholder="Script path or command (e.g. C:\scripts\process.ps1)" style="font-size: 0.78rem;">
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="confirm-script-args" class="text-input" value='"%FILE%"' placeholder='Arguments (e.g. "%FILE%")' style="flex: 1; font-family: var(--font-mono); font-size: 0.76rem;">
+            <span style="font-size: 0.68rem; color: var(--text-muted); white-space: nowrap;">%FILE% = downloaded file path</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Window Footer Action Buttons -->
+    <footer class="confirm-footer">
+      <button class="tool-btn" id="btn-action-cancel" style="padding: 7px 18px;">Cancel</button>
+      <div style="display: flex; gap: 8px;">
+        <button class="tool-btn" id="btn-action-later" style="padding: 7px 16px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          Download Later
+        </button>
+        <button class="tool-btn primary btn-gradient-primary" id="btn-action-start" style="padding: 7px 22px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Start Download Now
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="js/confirm.js"></script>
+</body>
+</html>

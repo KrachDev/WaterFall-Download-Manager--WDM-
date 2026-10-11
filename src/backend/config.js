@@ -1,12 +1,13 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const CONFIG_FILE = path.join(__dirname, '..', '..', 'config.json');
 
 const DEFAULT_CONFIG = {
   // Storage & Directory Architecture
   downloadDir: path.join(__dirname, '..', '..', 'downloads'),
-  tempDir: path.join(__dirname, '..', '..', 'temp'),
+  tempDir: path.join(os.tmpdir(), 'Waterfall', 'temp'),
   useOsMediaFolders: true,
   createPackageSubfolders: false,
   duplicateAction: 'rename', // 'rename' | 'overwrite' | 'skip'
@@ -30,6 +31,7 @@ const DEFAULT_CONFIG = {
   // Post-Processing & Automation
   autoExtractArchives: true,
   deleteArchiveAfterExtract: false,
+  multipartAutoForceTimeoutSec: 20, // Auto-force download/extract multipart groups after 20s if stalled or waiting for parts
   postDownloadCommand: '',
   powerActionOnComplete: 'none', // 'none' | 'sleep' | 'shutdown'
 

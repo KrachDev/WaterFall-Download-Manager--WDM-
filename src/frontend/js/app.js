@@ -425,10 +425,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Multipart Downloads Grouping Helper
+  const VIDEO_EXTS_REGEX = /\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v|ts|m2ts|vob|ogv|3gp|mpg|mpeg|m2v|divx|asf|rm|rmvb|f4v)$/i;
+  function isTaskVideo(t) {
+    if (t.category === 'Video' || t.isMedia) return true;
+    const name = t.name || t.filename || '';
+    return VIDEO_EXTS_REGEX.test(name.trim());
+  }
+
   function getGroupedDownloads(tasks) {
     const groups = new Map();
     for (const t of tasks) {
-      if (t.multipart && t.multipart.groupKey) {
+      if (t.multipart && t.multipart.groupKey && !isTaskVideo(t)) {
         const gk = t.multipart.groupKey;
         if (!groups.has(gk)) groups.set(gk, []);
         groups.get(gk).push(t);
@@ -439,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handledGroups = new Set();
 
     for (const t of tasks) {
-      if (t.multipart && t.multipart.groupKey) {
+      if (t.multipart && t.multipart.groupKey && !isTaskVideo(t)) {
         const gk = t.multipart.groupKey;
         const gTasks = groups.get(gk);
         if (gTasks && (gTasks.length > 1 || (t.multipart.totalParts && t.multipart.totalParts > 1))) {
@@ -528,6 +535,47 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `<span class="child-indent-branch">↳</span><span class="group-parts-badge" style="margin-right: 4px;">Part ${t.multipart?.partNumber || '?'}</span>`
       : '';
 
+    let progressCellHtml = '';
+    if (isDone) {
+      progressCellHtml = `
+        <div class="progress-done-state">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Complete • 100%</span>
+        </div>
+        <div class="meter-stat">${formatBytes(t.totalBytes || t.downloadedBytes)}</div>
+      `;
+    } else if (t.status === 'canceled') {
+      progressCellHtml = `
+        <div class="progress-canceled-state">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+          <span>Canceled</span>
+        </div>
+        <div class="meter-stat">${percent}% • ${formatBytes(t.downloadedBytes)}</div>
+      `;
+    } else if (t.status === 'error') {
+      progressCellHtml = `
+        <div class="progress-error-state">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <span>Failed</span>
+        </div>
+        <div class="meter-stat" title="${(t.error || '').replace(/"/g, '&quot;')}">${t.error ? t.error.slice(0, 24) : 'Error'}</div>
+      `;
+    } else if (t.status === 'paused' || t.status === 'queued') {
+      progressCellHtml = `
+        <div class="meter-track">
+          <div class="meter-fill paused" style="width: ${percent}%;"></div>
+        </div>
+        <div class="meter-stat">${percent}% • Paused (${formatBytes(t.downloadedBytes)})</div>
+      `;
+    } else {
+      progressCellHtml = `
+        <div class="meter-track">
+          <div class="meter-fill active" style="width: ${percent}%;"></div>
+        </div>
+        <div class="meter-stat">${percent}% • ${formatBytes(t.downloadedBytes)}</div>
+      `;
+    }
+
     return `
       <tr data-id="${t.id}" ${parentGroupKey ? `data-parent-group="${parentGroupKey}"` : ''} class="download-row ${isChild ? 'child-download-row' : ''} ${isSelected ? 'row-selected' : ''}">
         <td><input type="checkbox" class="task-checkbox" data-id="${t.id}" ${isSelected ? 'checked' : ''}></td>
@@ -556,10 +604,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </span>
         </td>
         <td class="progress-col">
-          <div class="meter-track">
-            <div class="meter-fill ${isDl ? 'active' : ''} ${isDone ? 'complete' : ''} ${t.status === 'paused' ? 'paused' : ''}" style="width: ${percent}%;"></div>
-          </div>
-          <div class="meter-stat">${percent}% • ${formatBytes(t.downloadedBytes)}</div>
+          ${progressCellHtml}
         </td>
         <td>
           <span style="font-family: var(--font-mono); font-weight: 600; color: ${isDl ? '#3fb950' : 'var(--text-muted)'};">
@@ -666,7 +711,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (anyPasswordReq) {
       groupExtractBadge = `<span class="badge-password-req" data-id="${rootTask.id}" title="Password required to extract package! Click to unlock">🔑 Password Required</span>`;
     } else if (!allDone) {
-      groupExtractBadge = `<span class="badge-waiting-parts" title="Waiting for all parts to complete before extracting">⏳ Waiting for Parts</span>`;
+      if (anyDl) {
+        groupExtractBadge = `<span class="badge-waiting-parts" style="background: rgba(46, 160, 67, 0.15); color: #3fb950; border-color: rgba(46, 160, 67, 0.3);" title="Active parts are currently downloading">⚡ Downloading (${completedCount}/${item.tasks.length})</span>`;
+      } else {
+        groupExtractBadge = `<span class="badge-waiting-parts btn-group-force" data-group="${item.groupKey}" style="cursor: pointer;" title="Waiting for parts. Click to Force Download / Extract Now!">⏳ Waiting for Parts (Click to Force)</span>`;
+      }
     }
 
     const parentRowHtml = `
@@ -697,10 +746,29 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="state-tag ${groupStatus}">${groupStatus}</span>
         </td>
         <td class="progress-col">
-          <div class="meter-track">
-            <div class="meter-fill ${anyDl ? 'active' : ''} ${allDone ? 'complete' : ''} ${groupStatus === 'paused' ? 'paused' : ''}" style="width: ${percent}%;"></div>
-          </div>
-          <div class="meter-stat">${percent}% • ${formatBytes(downloadedBytes)}</div>
+          ${allDone ? `
+            <div class="progress-done-state">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>Complete • 100%</span>
+            </div>
+            <div class="meter-stat">${formatBytes(totalBytes)}</div>
+          ` : (groupStatus === 'canceled' ? `
+            <div class="progress-canceled-state">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              <span>Canceled</span>
+            </div>
+            <div class="meter-stat">${percent}% • ${formatBytes(downloadedBytes)}</div>
+          ` : (groupStatus === 'paused' ? `
+            <div class="meter-track">
+              <div class="meter-fill paused" style="width: ${percent}%;"></div>
+            </div>
+            <div class="meter-stat">${percent}% • Paused (${formatBytes(downloadedBytes)})</div>
+          ` : `
+            <div class="meter-track">
+              <div class="meter-fill ${anyDl ? 'active' : ''}" style="width: ${percent}%;"></div>
+            </div>
+            <div class="meter-stat">${percent}% • ${formatBytes(downloadedBytes)}</div>
+          `))}
         </td>
         <td>
           <span style="font-family: var(--font-mono); font-weight: 600; color: ${anyDl ? '#3fb950' : 'var(--text-muted)'};">
@@ -725,6 +793,9 @@ document.addEventListener('DOMContentLoaded', () => {
                    </button>`
                 : '')
             }
+            <button class="icon-btn btn-group-force" data-group="${item.groupKey}" style="color: #e3b341;" title="⚡ Force Download & Extract Now (Bypasses missing parts or forces immediate extraction)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </button>
             <button class="icon-btn btn-group-inspect" data-group="${item.groupKey}" title="Open Multipart Micro-Manager Inspector">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
             </button>
@@ -975,6 +1046,21 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'resume', ids: siblings.map(s => s.id) })
         });
+      };
+    });
+
+    tableBody.querySelectorAll('.btn-group-force').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const gk = btn.dataset.group;
+        btn.disabled = true;
+        try {
+          await fetch(`/api/downloads/group/${encodeURIComponent(gk)}/force-download`, { method: 'POST' });
+        } catch (err) {
+          alert('Force download failed: ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
       };
     });
 
@@ -2496,7 +2582,14 @@ document.addEventListener('DOMContentLoaded', () => {
         probeData.initialModeVal = addModeVal;
 
         modalAddUrl.classList.remove('open');
-        openIdmConfirmation(probeData);
+        if (probeData.existingMatch) {
+          showDuplicatePrompt(probeData, (opts = {}) => {
+            if (opts && opts.allowDuplicate) probeData.allowDuplicate = true;
+            openIdmConfirmation(probeData);
+          });
+        } else {
+          openIdmConfirmation(probeData);
+        }
       } catch (err) {
         modalAddUrl.classList.remove('open');
         openIdmConfirmation({
@@ -2518,13 +2611,256 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
+  // Duplicate Download Detection & In-Progress File Update Prompt
+  // ==========================================================================
+  const modalDuplicatePrompt = document.getElementById('modal-duplicate-prompt');
+
+  function showDuplicatePrompt(probeData, onProceedWithDuplicate) {
+    const match = probeData && probeData.existingMatch;
+    if (!match) {
+      if (typeof onProceedWithDuplicate === 'function') onProceedWithDuplicate();
+      return;
+    }
+
+    if (!modalDuplicatePrompt) {
+      if (typeof onProceedWithDuplicate === 'function') onProceedWithDuplicate();
+      return;
+    }
+
+    const titleEl = document.getElementById('duplicate-prompt-title');
+    const subtitleEl = document.getElementById('duplicate-prompt-subtitle');
+    const iconEl = document.getElementById('duplicate-header-icon');
+    const bannerEl = document.getElementById('duplicate-prompt-banner');
+    const bannerIconEl = document.getElementById('duplicate-prompt-banner-icon');
+    const bannerTextEl = document.getElementById('duplicate-prompt-banner-text');
+    const filenameEl = document.getElementById('duplicate-prompt-filename');
+    const statusEl = document.getElementById('duplicate-prompt-status');
+    const sizeEl = document.getElementById('duplicate-prompt-size');
+    const pathEl = document.getElementById('duplicate-prompt-path');
+    const progressBox = document.getElementById('duplicate-prompt-progress-box');
+    const percentEl = document.getElementById('duplicate-prompt-percent');
+    const progressBar = document.getElementById('duplicate-prompt-bar');
+    const newUrlBox = document.getElementById('duplicate-prompt-newurl-box');
+    const newUrlEl = document.getElementById('duplicate-prompt-newurl');
+    const footerEl = document.getElementById('duplicate-prompt-footer');
+
+    const isDone = Boolean(match.isDone);
+    if (filenameEl) filenameEl.textContent = match.name || probeData.filename || 'download';
+    if (pathEl) pathEl.textContent = match.savePath || probeData.savePath || '--';
+
+    if (isDone) {
+      // -------------------------------------------------------------
+      // SCENARIO 1: ALREADY COMPLETED (DONE) - DUPLICATE ALERT
+      // -------------------------------------------------------------
+      if (titleEl) titleEl.textContent = 'File Already Downloaded';
+      if (subtitleEl) subtitleEl.textContent = 'A completed file with matching name/URL is already present on disk';
+      if (iconEl) {
+        iconEl.textContent = '📁';
+        iconEl.style.background = 'rgba(63, 185, 80, 0.15)';
+        iconEl.style.color = '#3fb950';
+      }
+
+      if (bannerEl) {
+        bannerEl.style.background = 'rgba(63, 185, 80, 0.12)';
+        bannerEl.style.borderColor = 'rgba(63, 185, 80, 0.35)';
+        bannerEl.style.color = '#7ee787';
+      }
+      if (bannerIconEl) bannerIconEl.textContent = '✓';
+      if (bannerTextEl) {
+        bannerTextEl.innerHTML = `<strong>File is already completed!</strong> This file was already downloaded to your disk. You can open it directly, view it in Windows Explorer, or download a separate duplicate copy.`;
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Completed (100%)';
+        statusEl.className = 'type-badge badge-done';
+        statusEl.style.color = '#3fb950';
+      }
+
+      const totalSz = match.formattedSize || (match.totalBytes > 0 ? formatBytes(match.totalBytes) : formatBytes(match.downloadedBytes || 0));
+      if (sizeEl) sizeEl.textContent = totalSz;
+      if (progressBox) progressBox.style.display = 'none';
+      if (newUrlBox) newUrlBox.style.display = 'none';
+
+      if (footerEl) {
+        footerEl.innerHTML = `
+          <button type="button" class="tool-btn modal-close-btn" id="dup-btn-cancel">Cancel</button>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="tool-btn" id="dup-btn-open-folder" title="Highlight file in Windows Explorer">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              Show in Folder
+            </button>
+            <button type="button" class="tool-btn" id="dup-btn-open-file" title="Launch with default application">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              Open File
+            </button>
+            <button type="button" class="tool-btn primary" id="dup-btn-download-copy" title="Download a new copy (will be saved as filename (1))">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Download Duplicate Copy
+            </button>
+          </div>
+        `;
+
+        document.getElementById('dup-btn-cancel').onclick = () => {
+          modalDuplicatePrompt.classList.remove('open');
+        };
+
+        document.getElementById('dup-btn-open-file').onclick = async () => {
+          modalDuplicatePrompt.classList.remove('open');
+          if (match.savePath) await openFile(match.savePath);
+        };
+
+        document.getElementById('dup-btn-open-folder').onclick = async () => {
+          modalDuplicatePrompt.classList.remove('open');
+          if (match.savePath) await openFolder(match.savePath);
+        };
+
+        document.getElementById('dup-btn-download-copy').onclick = () => {
+          modalDuplicatePrompt.classList.remove('open');
+          if (typeof onProceedWithDuplicate === 'function') {
+            onProceedWithDuplicate({ allowDuplicate: true });
+          }
+        };
+      }
+
+    } else {
+      // -------------------------------------------------------------
+      // SCENARIO 2: STILL DOWNLOADING / PAUSED / ERROR - FILE UPDATE OFFER
+      // -------------------------------------------------------------
+      if (titleEl) titleEl.textContent = 'Download Already In Progress';
+      if (subtitleEl) subtitleEl.textContent = 'Existing task found • Offer to update link & resume without restarting';
+      if (iconEl) {
+        iconEl.textContent = '🔄';
+        iconEl.style.background = 'rgba(56, 189, 248, 0.15)';
+        iconEl.style.color = '#38bdf8';
+      }
+
+      const statusName = (match.status || 'paused').toUpperCase();
+      if (bannerEl) {
+        bannerEl.style.background = 'rgba(56, 189, 248, 0.12)';
+        bannerEl.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+        bannerEl.style.color = '#79c0ff';
+      }
+      if (bannerIconEl) bannerIconEl.textContent = '🔄';
+      if (bannerTextEl) {
+        bannerTextEl.innerHTML = `<strong>Download already in queue (${statusName})!</strong> You have already downloaded <strong>${formatBytes(match.downloadedBytes)}</strong> (${match.percent}%). Would you like to update the download link and resume from where it left off, or download as a separate copy?`;
+      }
+
+      if (statusEl) {
+        statusEl.textContent = `${statusName} (${match.percent}%)`;
+        statusEl.className = 'type-badge badge-' + (match.status || 'paused').toLowerCase();
+      }
+
+      const totalSz = match.totalBytes > 0 ? formatBytes(match.totalBytes) : 'Unknown';
+      if (sizeEl) sizeEl.textContent = `${formatBytes(match.downloadedBytes || 0)} / ${totalSz} (${match.percent}%)`;
+
+      if (progressBox) progressBox.style.display = 'flex';
+      if (percentEl) percentEl.textContent = `${match.percent}%`;
+      if (progressBar) progressBar.style.width = `${match.percent}%`;
+
+      if (newUrlBox && newUrlEl) {
+        if (probeData.url) {
+          newUrlBox.style.display = 'block';
+          newUrlEl.textContent = probeData.url;
+        } else {
+          newUrlBox.style.display = 'none';
+        }
+      }
+
+      if (footerEl) {
+        footerEl.innerHTML = `
+          <button type="button" class="tool-btn modal-close-btn" id="dup-btn-cancel">Cancel</button>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="tool-btn" id="dup-btn-separate" title="Keep existing task and download this as a separate task">
+              ➕ Download as Separate Copy
+            </button>
+            <button type="button" class="tool-btn primary" id="dup-btn-update-resume" style="background: #238636; border-color: #2ea043; color: #fff; font-weight: 700;" title="Update existing download's link and resume seamlessly from disk">
+              🔄 Update Link & Resume (${match.percent}%)
+            </button>
+          </div>
+        `;
+
+        document.getElementById('dup-btn-cancel').onclick = () => {
+          modalDuplicatePrompt.classList.remove('open');
+        };
+
+        document.getElementById('dup-btn-separate').onclick = () => {
+          modalDuplicatePrompt.classList.remove('open');
+          if (typeof onProceedWithDuplicate === 'function') {
+            onProceedWithDuplicate({ allowDuplicate: true });
+          }
+        };
+
+        document.getElementById('dup-btn-update-resume').onclick = async () => {
+          modalDuplicatePrompt.classList.remove('open');
+          try {
+            const res = await fetch(`/api/downloads/${match.id}/update-url`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: probeData.url })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            switchView('downloads');
+            renderDownloads();
+          } catch (err) {
+            alert('Failed to update download link: ' + err.message);
+          }
+        };
+      }
+    }
+
+    closeAllModals();
+    modalDuplicatePrompt.classList.add('open');
+  }
+
+  // ==========================================================================
   // IDM Download Confirmation Window & Performance Predictor
   // ==========================================================================
   const modalIdmConfirm = document.getElementById('modal-idm-confirm');
-  let currentConfirmData = null;
+  let activeConfirmPromptUrl = null;
+  let lastConfirmPromptTimestamp = 0;
 
   function openIdmConfirmation(probeData) {
+    if (!probeData || !probeData.url) return;
+
+    const now = Date.now();
+    if (activeConfirmPromptUrl === probeData.url && (now - lastConfirmPromptTimestamp < 1500)) {
+      return;
+    }
+    activeConfirmPromptUrl = probeData.url;
+    lastConfirmPromptTimestamp = now;
+
     currentConfirmData = probeData;
+
+    try {
+      localStorage.setItem('waterfall_confirm_data', JSON.stringify(probeData));
+    } catch (_) {}
+
+    fetch('/api/downloads/pending-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(probeData)
+    }).catch(() => {});
+
+    // 1. Electron Native Separate Window
+    if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
+      window.waterfallDesktop.openConfirmWindow(probeData);
+      return;
+    }
+
+    // 2. Web Browser Popup Window
+    try {
+      const popup = window.open(
+        '/confirm.html',
+        'waterfall_confirm_window',
+        'width=680,height=740,resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no'
+      );
+      if (popup && !popup.closed && typeof popup.closed !== 'undefined') {
+        popup.focus();
+        return;
+      }
+    } catch (_) {}
+
+    // 3. Fallback to in-page modal if popups are blocked or desktop shell is not present
     if (!modalIdmConfirm) return;
 
     const urlEl = document.getElementById('idm-confirm-url');
@@ -2543,6 +2879,57 @@ document.addEventListener('DOMContentLoaded', () => {
     const scriptPathEl = document.getElementById('idm-confirm-script-path');
     const scriptTypeEl = document.getElementById('idm-confirm-script-type');
     const scriptArgsEl = document.getElementById('idm-confirm-script-args');
+
+    // Duplicate notification banner within IDM Confirmation Window
+    const dupAlert = document.getElementById('idm-confirm-duplicate-alert');
+    const dupIcon = document.getElementById('idm-duplicate-alert-icon');
+    const dupMsg = document.getElementById('idm-duplicate-alert-msg');
+    const dupActions = document.getElementById('idm-duplicate-alert-actions');
+
+    if (dupAlert && probeData.existingMatch) {
+      const match = probeData.existingMatch;
+      dupAlert.style.display = 'block';
+      if (match.isDone) {
+        dupAlert.style.background = 'rgba(63, 185, 80, 0.12)';
+        dupAlert.style.border = '1px solid rgba(63, 185, 80, 0.35)';
+        dupAlert.style.color = '#7ee787';
+        if (dupIcon) dupIcon.textContent = '✓';
+        if (dupMsg) dupMsg.textContent = `File already completed on disk (${match.name})`;
+        if (dupActions) {
+          dupActions.innerHTML = `
+            <button type="button" class="tool-btn" id="idm-dup-btn-open" style="padding: 2px 8px; font-size: 0.72rem;">Open File</button>
+            <button type="button" class="tool-btn" id="idm-dup-btn-folder" style="padding: 2px 8px; font-size: 0.72rem;">Show Folder</button>
+          `;
+          document.getElementById('idm-dup-btn-open').onclick = () => openFile(match.savePath);
+          document.getElementById('idm-dup-btn-folder').onclick = () => openFolder(match.savePath);
+        }
+      } else {
+        dupAlert.style.background = 'rgba(56, 189, 248, 0.12)';
+        dupAlert.style.border = '1px solid rgba(56, 189, 248, 0.35)';
+        dupAlert.style.color = '#79c0ff';
+        if (dupIcon) dupIcon.textContent = '🔄';
+        if (dupMsg) dupMsg.textContent = `Active download found (${match.status.toUpperCase()}, ${match.percent}% completed)`;
+        if (dupActions) {
+          dupActions.innerHTML = `
+            <button type="button" class="tool-btn primary" id="idm-dup-btn-update" style="padding: 2px 10px; font-size: 0.72rem; background: #238636; border-color: #2ea043; color: #fff;">Update Link & Resume</button>
+          `;
+          document.getElementById('idm-dup-btn-update').onclick = async () => {
+            modalIdmConfirm.classList.remove('open');
+            try {
+              await fetch(`/api/downloads/${match.id}/update-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: probeData.url })
+              });
+              switchView('downloads');
+              renderDownloads();
+            } catch (_) {}
+          };
+        }
+      }
+    } else if (dupAlert) {
+      dupAlert.style.display = 'none';
+    }
 
     if (urlEl) urlEl.value = probeData.url || '';
     if (serverEl) serverEl.textContent = probeData.server ? `Server: ${probeData.server}` : '';
@@ -2631,8 +3018,20 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
       window.waterfallDesktop.focusWindow();
     }
+    // In Electron native shell, electron-main.js connects to the backend WebSocket directly
+    // and opens confirmWindow natively. We do not re-dispatch or open another window here.
+    if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
+      return;
+    }
     if (e.detail) {
-      openIdmConfirmation(e.detail);
+      if (e.detail.existingMatch) {
+        showDuplicatePrompt(e.detail, (opts = {}) => {
+          if (opts && opts.allowDuplicate) e.detail.allowDuplicate = true;
+          openIdmConfirmation(e.detail);
+        });
+      } else {
+        openIdmConfirmation(e.detail);
+      }
     }
   });
 
@@ -2756,12 +3155,22 @@ document.addEventListener('DOMContentLoaded', () => {
           autoExtract: enableExtract,
           archivePassword,
           deleteAfterExtract: deleteArchiveOnExtract,
+          allowDuplicate: Boolean(currentConfirmData && currentConfirmData.allowDuplicate),
           confirmed: true
         })
       });
 
       if (!res.ok) throw new Error(await res.text());
       const task = await res.json();
+
+      if (task && task.isDuplicate && !currentConfirmData?.allowDuplicate) {
+        if (modalIdmConfirm) modalIdmConfirm.classList.remove('open');
+        showDuplicatePrompt({ existingMatch: { ...task, isDone: true }, ...currentConfirmData }, () => {
+          if (currentConfirmData) currentConfirmData.allowDuplicate = true;
+          submitConfirmedDownload(autoStart, watchNow);
+        });
+        return;
+      }
 
       if (modalIdmConfirm) modalIdmConfirm.classList.remove('open');
       switchView('downloads');
@@ -3426,6 +3835,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) {
       populateSettingsForm(window.appState.config);
     }
+    refreshCrawlerEngineInfo();
     modalSettings.classList.add('open');
   });
 
@@ -3671,6 +4081,57 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cfgShowTopFilterBar) {
     cfgShowTopFilterBar.addEventListener('change', () => {
       updateFilterTabsBarVisibility(cfgShowTopFilterBar.checked);
+    });
+  }
+
+  // Universal Website Crawler & Extractor Engine Integration
+  async function refreshCrawlerEngineInfo() {
+    const badge = document.getElementById('crawler-engine-badge');
+    try {
+      const res = await fetch('/api/crawler/info');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (badge && data.version) {
+        badge.textContent = `yt-dlp ${data.version}`;
+      }
+    } catch (_) {}
+  }
+
+  const btnUpdateCrawler = document.getElementById('btn-update-crawler');
+  if (btnUpdateCrawler) {
+    btnUpdateCrawler.addEventListener('click', async () => {
+      const status = document.getElementById('crawler-update-status');
+      const badge = document.getElementById('crawler-engine-badge');
+      btnUpdateCrawler.disabled = true;
+      if (status) {
+        status.textContent = 'Checking GitHub releases & updating extractors...';
+        status.style.color = 'var(--accent-cyan)';
+      }
+      try {
+        const res = await fetch('/api/crawler/update', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          if (status) {
+            status.textContent = data.message || 'Crawler engine is up to date!';
+            status.style.color = '#3fb950';
+          }
+          if (badge && data.version) {
+            badge.textContent = `yt-dlp ${data.version}`;
+          }
+        } else {
+          if (status) {
+            status.textContent = data.error || 'Update failed.';
+            status.style.color = '#f85149';
+          }
+        }
+      } catch (err) {
+        if (status) {
+          status.textContent = 'Update error: ' + err.message;
+          status.style.color = '#f85149';
+        }
+      } finally {
+        btnUpdateCrawler.disabled = false;
+      }
     });
   }
 

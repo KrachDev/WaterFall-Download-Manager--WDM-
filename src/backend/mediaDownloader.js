@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { sanitizeFilename } = require('./namingEngine');
 
 function getYtDlpPath() {
@@ -203,7 +204,12 @@ class MediaDownloader {
       } catch (_) {}
     }
 
-    const args = ['--newline', '--no-playlist', '--mtime'];
+    const mediaTempDir = path.join(os.tmpdir(), 'Waterfall', 'media_temp');
+    if (!fs.existsSync(mediaTempDir)) {
+      try { fs.mkdirSync(mediaTempDir, { recursive: true }); } catch (_) {}
+    }
+
+    const args = ['--newline', '--no-playlist', '--mtime', '--paths', `temp:${mediaTempDir}`];
 
     if (mediaType === 'audio') {
       args.push(

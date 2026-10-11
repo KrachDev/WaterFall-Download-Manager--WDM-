@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
 const { exec } = require('child_process');
@@ -13,7 +14,7 @@ const { executePostDownloadScript } = require('./scriptRunner');
 const { resolveBestFilename, sanitizeFilename } = require('./namingEngine');
 const extractionQueue = require('./extractionQueue');
 const queueManager = require('./queueManager');
-const { parseMultipartInfo, findRootArchivePart } = require('./multipartMatcher');
+const { parseMultipartInfo, findRootArchivePart, isVideoFilename } = require('./multipartMatcher');
 
 const STATE_FILE = path.join(__dirname, '..', '..', 'downloads.json');
 
@@ -60,7 +61,20 @@ function getUrlResourceKey(rawUrl) {
   return '';
 }
 
-function findExistingMatchingTask(tasks, options, filename, savePath) {
+function makeUniqueFilename(folder, filename) {
+  if (!folder || !filename) return filename || 'download';
+  const ext = path.extname(filename);
+  const base = path.basename(filename, ext);
+  let candidateName = filename;
+  let counter = 1;
+  while (fs.existsSync(path.join(folder, candidateName))) {
+    candidateName = `${base} (${counter})${ext}`;
+    counter++;
+  }
+  return candidateName;
+}
+
+function findExistingMatchingTask(tasks, options = {}, filename = '', savePath = '') {
   const normName = normalizeFileTitle(filename);
   const optUrl = (options.url || '').trim();
   const optDirect = (options.directUrl || '').trim();
@@ -69,13 +83,31 @@ function findExistingMatchingTask(tasks, options, filename, savePath) {
   const candidates = [];
 
   for (const t of tasks.values()) {
-    if (t.status === 'completed') {
-      if (t.savePath && fs.existsSync(t.savePath)) {
-        const tNorm = normalizeFileTitle(t.name);
-        if (normName && tNorm && normName === tNorm) {
-          return { targetTask: t, isCompletedOnDisk: true };
-        }
+    const isCompleted = t.status === 'completed';
+    const diskExists = t.savePath ? fs.existsSync(t.savePath) : false;
+
+    // 1. Check completed tasks: must exist on disk
+    if (isCompleted && diskExists) {
+      const tNorm = normalizeFileTitle(t.name);
+      const isUrlMatch = Boolean(
+        (optUrl && (t.url === optUrl || t.directUrl === optUrl)) ||
+        (optDirect && (t.url === optDirect || t.directUrl === optDirect))
+      );
+      const isKeyMatch = Boolean(
+        newResourceKey && getUrlResourceKey(t.directUrl || t.url) === newResourceKey
+      );
+      const isPathMatch = Boolean(
+        savePath && t.savePath && path.resolve(savePath).toLowerCase() === path.resolve(t.savePath).toLowerCase()
+      );
+      const isNameMatch = Boolean(normName && tNorm && normName === tNorm);
+
+      if (isUrlMatch || isKeyMatch || isPathMatch || isNameMatch) {
+        return { targetTask: t, isCompletedOnDisk: true };
       }
+      continue;
+    }
+
+    if (isCompleted && !diskExists) {
       continue;
     }
 
@@ -126,8 +158,8 @@ function findExistingMatchingTask(tasks, options, filename, savePath) {
     if (rawDecodedMatch) score += 65;
 
     if (t.savePath && savePath) {
-      const clean1 = t.savePath.replace(/Hydra/gi, 'Waterfall').toLowerCase();
-      const clean2 = savePath.replace(/Hydra/gi, 'Waterfall').toLowerCase();
+      const clean1 = path.resolve(t.savePath).toLowerCase();
+      const clean2 = path.resolve(savePath).toLowerCase();
       if (clean1 === clean2) score += 75;
     }
 
@@ -147,10 +179,36 @@ function findExistingMatchingTask(tasks, options, filename, savePath) {
 }
 
 function recoverPartialBytes(task, config) {
-  const tempDir = config.tempDir || path.dirname(task.savePath);
+  const tempDir = config.tempDir || path.join(os.tmpdir(), 'Waterfall', 'temp');
   let recoveredBytes = 0;
 
-  // 1. If multi-segment parts exist:
+  // 1. Check isolated Windows Temp metadata file, then fallback to legacy:
+  const tempMetaPath = path.join(os.tmpdir(), 'Waterfall', 'metadata', `${task.id}.meta.json`);
+  const savePathPart = `${task.savePath}.part`;
+  const legacyMetaPath = `${savePathPart}.meta.json`;
+  const metaPath = fs.existsSync(tempMetaPath) ? tempMetaPath : (fs.existsSync(legacyMetaPath) ? legacyMetaPath : null);
+
+  if (metaPath) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      if (Array.isArray(meta.segments) && meta.segments.length > 0) {
+        task.segments = meta.segments;
+        recoveredBytes = meta.segments.reduce((acc, s) => acc + (s.downloadedBytes || 0), 0);
+        task.downloadedBytes = recoveredBytes;
+        if (meta.totalBytes > 0) task.totalBytes = meta.totalBytes;
+        return recoveredBytes;
+      }
+    } catch (_) {}
+  }
+
+  // 2. Existing in-memory segments for inPlace mode (preserve them! Never reset to 0):
+  if (Array.isArray(task.segments) && task.segments.length > 0 && (task.downloadEngineMode === 'inPlace' || !task.downloadEngineMode)) {
+    recoveredBytes = task.segments.reduce((acc, s) => acc + (s.downloadedBytes || 0), 0);
+    task.downloadedBytes = Math.max(task.downloadedBytes || 0, recoveredBytes);
+    return task.downloadedBytes;
+  }
+
+  // 3. Multi-segment parts for legacyTemp mode:
   if (Array.isArray(task.segments) && task.segments.length > 0) {
     if (task.totalBytes === 0) {
       task.segments = [];
@@ -169,18 +227,13 @@ function recoverPartialBytes(task, config) {
           } catch (_) {
             if (seg.status !== 'completed') seg.status = 'pending';
           }
-        } else {
-          if (seg.status !== 'completed') {
-            seg.downloadedBytes = 0;
-            seg.status = 'pending';
-          }
         }
         recoveredBytes += (seg.downloadedBytes || 0);
       }
     }
   }
 
-  // 2. Single part file:
+  // 4. Single part file in temp:
   const part0 = path.join(tempDir, `${task.id}_seg_0.part`);
   if (fs.existsSync(part0)) {
     try {
@@ -189,35 +242,16 @@ function recoverPartialBytes(task, config) {
     } catch (_) {}
   }
 
-  // 3. Check savePath + '.part' or target folder partial file
-  const savePathPart = `${task.savePath}.part`;
+  // 5. Target folder part file:
   if (fs.existsSync(savePathPart)) {
     try {
       const sz = fs.statSync(savePathPart).size;
-      if (sz > recoveredBytes) {
-        recoveredBytes = sz;
-        if (!fs.existsSync(part0) || fs.statSync(part0).size < sz) {
-          fs.copyFileSync(savePathPart, part0);
-        }
-      }
-    } catch (_) {}
-  }
-
-  const targetDirPart = path.join(path.dirname(task.savePath), `${task.name}.part`);
-  if (fs.existsSync(targetDirPart)) {
-    try {
-      const sz = fs.statSync(targetDirPart).size;
-      if (sz > recoveredBytes) {
-        recoveredBytes = sz;
-        if (!fs.existsSync(part0) || fs.statSync(part0).size < sz) {
-          fs.copyFileSync(targetDirPart, part0);
-        }
-      }
+      recoveredBytes = Math.max(recoveredBytes, sz);
     } catch (_) {}
   }
 
   task.downloadedBytes = Math.max(task.downloadedBytes || 0, recoveredBytes);
-  return recoveredBytes;
+  return task.downloadedBytes;
 }
 
 class DownloadManager extends EventEmitter {
@@ -229,6 +263,7 @@ class DownloadManager extends EventEmitter {
     this.globalSpeed = 0;
     this.lastBytesCheck = new Map();
     this.lastSpeedCheckTime = Date.now();
+    this.groupWaitingTimers = new Map(); // groupKey -> setTimeout timer
 
     this._saveTimeout = null;
     this.loadState();
@@ -497,13 +532,24 @@ class DownloadManager extends EventEmitter {
         : getCategoryFromFilename(filename);
     }
 
-    // Check if an existing task for the exact same file already exists in queue/history
-    const matchResult = findExistingMatchingTask(this.tasks, options, filename, savePath);
+    // User explicitly chose to update existing task link and resume
+    if (options.updateExistingId) {
+      const existing = this.tasks.get(options.updateExistingId);
+      if (existing) {
+        return this.updateTaskUrl(options.updateExistingId, options.url);
+      }
+    }
 
-    if (matchResult) {
+    // Check if an existing task for the exact same file already exists in queue/history
+    const matchResult = !options.allowDuplicate ? findExistingMatchingTask(this.tasks, options, filename, savePath) : null;
+
+    if (options.allowDuplicate) {
+      filename = makeUniqueFilename(saveFolder, filename);
+      savePath = path.join(saveFolder, filename);
+    } else if (matchResult) {
       if (matchResult.isCompletedOnDisk) {
         console.log(`[Waterfall] Task "${matchResult.targetTask.name}" (${matchResult.targetTask.id}) is already completed on disk.`);
-        return matchResult.targetTask;
+        return { ...matchResult.targetTask, isDuplicate: true };
       }
 
       const targetTask = matchResult.targetTask;
@@ -548,8 +594,18 @@ class DownloadManager extends EventEmitter {
     const isSingleStream = Boolean(options.singleStream || downloadEngineMode === 'singleStream' || (options.segmentsCount === 1));
     const segmentsCount = isSingleStream ? 1 : (options.segmentsCount || options.segments || config.segmentsPerFile || 8);
 
-    // Multipart detection and grouping
-    const multipart = parseMultipartInfo(filename, options.packageName);
+    // Multipart detection and grouping (guard: Videos are NEVER multipart archives!)
+    let multipart = parseMultipartInfo(filename, options.packageName);
+    if (category === 'Video' || isMedia || isVideoFilename(filename)) {
+      multipart = {
+        isMultipart: false,
+        groupKey: null,
+        baseName: filename,
+        partNumber: 1,
+        isRootPart: false,
+        format: null
+      };
+    }
 
     const task = {
       id,
@@ -685,8 +741,26 @@ class DownloadManager extends EventEmitter {
       await this.handleCompletion(t);
     });
 
-    downloader.on('error', (err) => {
+    downloader.on('linkExpired', async () => {
       this.activeDownloaders.delete(id);
+      const refreshed = await this.autoRefreshAndResume(task);
+      if (!refreshed) {
+        task.status = 'paused';
+        task.error = 'Download link expired. Click "Update URL" to refresh and resume.';
+        this.saveState();
+        this.emit('taskUpdated', task);
+        this.processQueue();
+      }
+    });
+
+    downloader.on('error', async (err) => {
+      this.activeDownloaders.delete(id);
+      const isExpired = /401|403|404|410|expired/i.test(err.message || '');
+      if (isExpired && task.url && task.url.startsWith('http')) {
+        const refreshed = await this.autoRefreshAndResume(task);
+        if (refreshed) return;
+      }
+
       const scheduled = queueManager.scheduleAutoRetry(task, err.message, () => this.processQueue());
       if (!scheduled) {
         task.status = 'error';
@@ -726,36 +800,49 @@ class DownloadManager extends EventEmitter {
         const allCompleted = siblingTasks.every(s => s.status === 'completed');
 
         if (!allCompleted) {
-          const remaining = siblingTasks.filter(s => s.status !== 'completed').length;
+          const remaining = siblingTasks.filter(s => s.status !== 'completed');
           t.extractStatus = 'waiting_all_parts';
-          console.log(`[Waterfall Multipart] Group "${groupKey}" part complete. Waiting for ${remaining} more part(s)...`);
+          console.log(`[Waterfall Multipart] Group "${groupKey}" part complete. Waiting for ${remaining.length} more part(s)...`);
           this.emit('taskUpdated', t);
-        } else {
-          // All parts are completed! Trigger single unified extraction for all parts into one folder
-          console.log(`[Waterfall Multipart] All parts of group "${groupKey}" are completed! Queuing unified extraction...`);
-          const allPartPaths = siblingTasks.map(s => s.savePath).filter(Boolean);
-          const rootPart = findRootArchivePart(allPartPaths) || t.savePath;
 
-          const saveDir = path.dirname(rootPart);
-          const outDir = path.join(saveDir, t.multipart.baseName || t.packageName || 'Extracted');
-
-          const groupPassword = t.archivePassword || (siblingTasks.find(s => s.archivePassword)?.archivePassword) || '';
-
-          for (const s of siblingTasks) {
-            s.extractStatus = 'extract_queued';
-            this.emit('taskUpdated', s);
+          // Clear any existing group countdown timer
+          if (this.groupWaitingTimers.has(groupKey)) {
+            clearTimeout(this.groupWaitingTimers.get(groupKey));
           }
 
-          extractionQueue.enqueue({
-            id: groupKey,
-            taskId: t.id,
-            groupKey,
-            archivePath: rootPart,
-            outDir,
-            password: groupPassword,
-            deleteArchiveAfter: t.deleteAfterExtract !== undefined ? t.deleteAfterExtract : config.deleteArchiveAfterExtract,
-            allPartPaths
-          });
+          // Auto-Force Timeout: If waiting for parts, after a configured timeout (default 20s),
+          // auto-force download remaining parts so they don't sit idle, or force extract available parts!
+          const timeoutSec = config.multipartAutoForceTimeoutSec || 20;
+          const timer = setTimeout(() => {
+            this.groupWaitingTimers.delete(groupKey);
+            const currentSiblings = Array.from(this.tasks.values()).filter(sibling =>
+              sibling.multipart && sibling.multipart.groupKey === groupKey
+            );
+            const pending = currentSiblings.filter(s => s.status !== 'completed');
+            if (pending.length > 0) {
+              console.log(`[Waterfall Multipart] Group "${groupKey}" waiting timeout reached (${timeoutSec}s). Auto-forcing download of remaining parts...`);
+              for (const p of pending) {
+                if (p.status === 'paused' || p.status === 'queued') {
+                  p.status = 'queued';
+                  p.priority = 'high';
+                  this.startDownload(p.id);
+                }
+              }
+              this.emit('batchUpdated');
+            } else {
+              console.log(`[Waterfall Multipart] Group "${groupKey}" waiting timeout reached. Auto-extracting available parts now.`);
+              this.triggerGroupExtraction(groupKey, currentSiblings, true);
+            }
+          }, timeoutSec * 1000);
+
+          this.groupWaitingTimers.set(groupKey, timer);
+        } else {
+          // All parts are completed!
+          if (this.groupWaitingTimers.has(groupKey)) {
+            clearTimeout(this.groupWaitingTimers.get(groupKey));
+            this.groupWaitingTimers.delete(groupKey);
+          }
+          this.triggerGroupExtraction(groupKey, siblingTasks, false);
         }
       } else {
         // Single archive extraction
@@ -791,7 +878,93 @@ class DownloadManager extends EventEmitter {
     this.processQueue();
   }
 
-  pauseDownload(id) {
+  triggerGroupExtraction(groupKey, siblingTasks, force = false) {
+    const config = getConfig();
+    const completedTasks = siblingTasks.filter(s => s.status === 'completed');
+    if (completedTasks.length === 0) return;
+
+    const allPartPaths = completedTasks.map(s => s.savePath).filter(Boolean);
+    const rootPart = findRootArchivePart(allPartPaths) || completedTasks[0].savePath;
+
+    const saveDir = path.dirname(rootPart);
+    const baseName = siblingTasks[0]?.multipart?.baseName || siblingTasks[0]?.packageName || 'Extracted';
+    const outDir = path.join(saveDir, baseName);
+    const groupPassword = (siblingTasks.find(s => s.archivePassword)?.archivePassword) || '';
+
+    for (const s of completedTasks) {
+      s.extractStatus = 'extract_queued';
+      this.emit('taskUpdated', s);
+    }
+
+    extractionQueue.enqueue({
+      id: groupKey,
+      taskId: completedTasks[0].id,
+      groupKey,
+      archivePath: rootPart,
+      outDir,
+      password: groupPassword,
+      deleteArchiveAfter: siblingTasks[0]?.deleteAfterExtract !== undefined ? siblingTasks[0].deleteAfterExtract : config.deleteArchiveAfterExtract,
+      allPartPaths,
+      forcePartial: force
+    });
+  }
+
+  forceDownloadGroup(groupKey) {
+    if (!groupKey) return;
+    const siblingTasks = Array.from(this.tasks.values()).filter(t =>
+      t.multipart && t.multipart.groupKey === groupKey
+    );
+    if (siblingTasks.length === 0) return;
+
+    console.log(`[Waterfall Multipart] Force downloading all parts for group "${groupKey}" (${siblingTasks.length} parts)`);
+
+    // 1. Force start any remaining/unstarted parts in group
+    for (const task of siblingTasks) {
+      if (task.status !== 'completed' && task.status !== 'downloading' && task.status !== 'assembling') {
+        task.status = 'queued';
+        task.priority = 'high';
+        queueManager.clearRetryTimer(task.id);
+        this.startDownload(task.id);
+      }
+    }
+
+    // 2. If all available parts are already completed (even with holes like parts 3, 5, 7), force extract immediately!
+    const allCurrentlyDone = siblingTasks.every(s => s.status === 'completed');
+    if (allCurrentlyDone && siblingTasks.length > 0) {
+      console.log(`[Waterfall Multipart] All available parts of group "${groupKey}" are complete. Forcing extraction now.`);
+      this.triggerGroupExtraction(groupKey, siblingTasks, true);
+    }
+
+    this.emit('batchUpdated');
+    this.saveState();
+  }
+
+  async autoRefreshAndResume(task) {
+    if (!task || !task.url) return false;
+    const hosterManager = require('./hosters');
+    try {
+      console.log(`[Waterfall] Link expired for task ${task.id} (${task.name}). Auto-refreshing direct URL via crawler...`);
+      const resolved = await hosterManager.resolve(task.url);
+      if (resolved && resolved.directUrl && resolved.directUrl !== task.directUrl) {
+        console.log(`[Waterfall] Fresh direct URL retrieved for ${task.name}! Resuming immediately...`);
+        task.directUrl = resolved.directUrl;
+        if (resolved.downloadHeaders) {
+          task.downloadHeaders = { ...(task.downloadHeaders || {}), ...resolved.downloadHeaders };
+        }
+        task.error = null;
+        task.retryCount = 0;
+        this.saveState(true);
+        this.emit('taskUpdated', task);
+        this.startDownload(task.id);
+        return true;
+      }
+    } catch (e) {
+      console.warn(`[Waterfall] Auto link refresh failed:`, e.message);
+    }
+    return false;
+  }
+
+  async pauseDownload(id) {
     const task = this.tasks.get(id);
     if (!task) return;
 
@@ -799,7 +972,9 @@ class DownloadManager extends EventEmitter {
 
     const downloader = this.activeDownloaders.get(id);
     if (downloader) {
-      downloader.pause();
+      if (typeof downloader.pause === 'function') {
+        try { await downloader.pause(); } catch (_) {}
+      }
       this.activeDownloaders.delete(id);
     }
 
@@ -953,13 +1128,27 @@ class DownloadManager extends EventEmitter {
 
       try {
         const config = getConfig();
-        const tempDir = config.tempDir || (task.savePath ? path.dirname(task.savePath) : null);
+        const tempDir = config.tempDir || path.join(os.tmpdir(), 'Waterfall', 'temp');
         if (tempDir) {
-          const taskTempDir = path.join(tempDir, task.id);
-          unlinkSafely(taskTempDir);
+          unlinkSafely(path.join(tempDir, task.id));
         }
+        unlinkSafely(path.join(os.tmpdir(), 'Waterfall', 'chunks', task.id));
       } catch (_) {}
     }
+
+    // Always clean up isolated metadata files from Windows temp
+    try {
+      const tempMetaPath = path.join(os.tmpdir(), 'Waterfall', 'metadata', `${task.id}.meta.json`);
+      if (fs.existsSync(tempMetaPath)) {
+        try { fs.unlinkSync(tempMetaPath); } catch (_) {}
+      }
+      if (task.savePath) {
+        const legacyMetaPath = `${task.savePath}.part.meta.json`;
+        if (fs.existsSync(legacyMetaPath)) {
+          try { fs.unlinkSync(legacyMetaPath); } catch (_) {}
+        }
+      }
+    } catch (_) {}
 
     this.tasks.delete(targetKey);
     if (task.id) this.tasks.delete(task.id);
@@ -1247,6 +1436,46 @@ class DownloadManager extends EventEmitter {
         const dest = resolveDestinationPath(filename, { isMedia: true, mediaType: 'video' });
         const estimatedTimeSec = (totalBytes > 0 && avgSpeed > 0) ? Math.ceil(totalBytes / avgSpeed) : 0;
 
+        let existingMatch = null;
+        const match = findExistingMatchingTask(this.tasks, { url: cleanUrl, ...options }, filename, dest.savePath);
+        if (match) {
+          const t = match.targetTask;
+          const isDone = Boolean(match.isCompletedOnDisk || t.status === 'completed');
+          const percent = (t.totalBytes > 0) ? Math.min(100, Math.round(((t.downloadedBytes || 0) / t.totalBytes) * 100)) : 0;
+          existingMatch = {
+            id: t.id,
+            name: t.name || filename,
+            status: t.status,
+            isDone,
+            isCompletedOnDisk: Boolean(match.isCompletedOnDisk),
+            downloadedBytes: t.downloadedBytes || 0,
+            totalBytes: t.totalBytes || 0,
+            formattedSize: t.totalBytes > 0 ? this.formatBytes(t.totalBytes) : 'Dynamic Stream',
+            percent,
+            savePath: t.savePath || dest.savePath,
+            url: t.url || cleanUrl
+          };
+        } else if (dest.savePath && fs.existsSync(dest.savePath)) {
+          try {
+            const st = fs.statSync(dest.savePath);
+            if (st.size > 0) {
+              existingMatch = {
+                id: null,
+                name: filename,
+                status: 'completed',
+                isDone: true,
+                isCompletedOnDisk: true,
+                downloadedBytes: st.size,
+                totalBytes: st.size,
+                formattedSize: this.formatBytes(st.size),
+                percent: 100,
+                savePath: dest.savePath,
+                url: cleanUrl
+              };
+            }
+          } catch (_) {}
+        }
+
         return {
           url: cleanUrl,
           filename,
@@ -1266,7 +1495,8 @@ class DownloadManager extends EventEmitter {
           historyCount: speedStats.count,
           formattedAvgSpeed: speedStats.formattedAvg,
           estimatedTimeSec,
-          server: 'YouTube / Media Stream'
+          server: 'YouTube / Media Stream',
+          existingMatch
         };
       } catch (errMedia) {
         console.warn('[Waterfall Probe] probeMedia fallback:', errMedia.message);
@@ -1352,7 +1582,51 @@ class DownloadManager extends EventEmitter {
     });
     const estimatedTimeSec = (totalBytes > 0 && avgSpeed > 0) ? Math.ceil(totalBytes / avgSpeed) : 0;
 
-    const multipart = parseMultipartInfo(filename, options.packageName);
+    let multipart = parseMultipartInfo(filename, options.packageName);
+    if (isMedia || dest.category === 'Video' || isVideoFilename(filename)) {
+      multipart = { isMultipart: false, groupKey: null, baseName: filename, partNumber: 1, isRootPart: false, format: null };
+    }
+
+    // Check for existing matching task or completed file on disk
+    let existingMatch = null;
+    const match = findExistingMatchingTask(this.tasks, { url: cleanUrl, ...options }, filename, dest.savePath);
+    if (match) {
+      const t = match.targetTask;
+      const isDone = Boolean(match.isCompletedOnDisk || t.status === 'completed');
+      const percent = (t.totalBytes > 0) ? Math.min(100, Math.round(((t.downloadedBytes || 0) / t.totalBytes) * 100)) : 0;
+      existingMatch = {
+        id: t.id,
+        name: t.name || filename,
+        status: t.status,
+        isDone,
+        isCompletedOnDisk: Boolean(match.isCompletedOnDisk),
+        downloadedBytes: t.downloadedBytes || 0,
+        totalBytes: t.totalBytes || 0,
+        formattedSize: t.totalBytes > 0 ? this.formatBytes(t.totalBytes) : 'Unknown',
+        percent,
+        savePath: t.savePath || dest.savePath,
+        url: t.url || cleanUrl
+      };
+    } else if (dest.savePath && fs.existsSync(dest.savePath)) {
+      try {
+        const st = fs.statSync(dest.savePath);
+        if (st.size > 0) {
+          existingMatch = {
+            id: null,
+            name: filename,
+            status: 'completed',
+            isDone: true,
+            isCompletedOnDisk: true,
+            downloadedBytes: st.size,
+            totalBytes: st.size,
+            formattedSize: this.formatBytes(st.size),
+            percent: 100,
+            savePath: dest.savePath,
+            url: cleanUrl
+          };
+        }
+      } catch (_) {}
+    }
 
     return {
       url: cleanUrl,
@@ -1371,7 +1645,8 @@ class DownloadManager extends EventEmitter {
       formattedAvgSpeed: speedStats.formattedAvg,
       estimatedTimeSec,
       isArchive: isArchiveFile(filename),
-      multipart
+      multipart,
+      existingMatch
     };
   }
 
