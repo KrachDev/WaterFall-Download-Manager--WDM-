@@ -54,7 +54,8 @@ class ChunkDownloader extends EventEmitter {
           method: 'GET',
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WaterfallDL/2.0',
-            'Range': 'bytes=0-0'
+            'Range': 'bytes=0-0',
+            ...(this.task.downloadHeaders || {})
           }
         });
         if (probeRes.ok || probeRes.status === 206) {
@@ -274,7 +275,8 @@ class ChunkDownloader extends EventEmitter {
 
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WaterfallDL/2.0',
-      'Accept-Encoding': 'identity'
+      'Accept-Encoding': 'identity',
+      ...(this.task.downloadHeaders || {})
     };
 
     if (this.task.acceptRanges && segment.totalBytes > 0) {

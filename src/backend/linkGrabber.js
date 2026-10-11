@@ -29,6 +29,8 @@ function extractFilenameFromHeadersOrUrl(url, headers) {
   });
 }
 
+const { safeProbe } = require('./httpHelper');
+
 class LinkGrabber {
   constructor() {
     this.stagedItems = new Map(); // id -> item
@@ -45,39 +47,42 @@ class LinkGrabber {
     try {
       // 1. Resolve hoster first
       const resolved = await hosterManager.resolve(url);
+
+      // Handle multi-file folder packages (e.g. Gofile folders)
+      if (resolved && Array.isArray(resolved.items) && resolved.items.length > 0) {
+        return {
+          isMulti: true,
+          items: resolved.items.map(item => ({
+            originalUrl: url,
+            directUrl: item.directUrl,
+            filename: item.filename,
+            size: item.size || 0,
+            hoster: item.hoster || resolved.hoster || 'Gofile',
+            packageName: item.packageName || resolved.packageName || '',
+            isOnline: 'online',
+            statusCode: 200,
+            acceptRanges: true,
+            downloadHeaders: item.downloadHeaders || null,
+            category: getCategoryFromFilename(item.filename)
+          }))
+        };
+      }
+
       const targetUrl = (resolved && resolved.directUrl) ? resolved.directUrl : url;
       let filename = (resolved && resolved.filename && resolved.filename !== 'download') ? resolved.filename : '';
       let size = (resolved && resolved.size) ? resolved.size : 0;
       let hoster = (resolved && resolved.hoster) ? resolved.hoster : 'Direct Web';
+      const downloadHeaders = (resolved && resolved.downloadHeaders) ? resolved.downloadHeaders : null;
 
-      // 2. Perform probe
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
-
-      let res = await fetch(targetUrl, {
-        method: 'HEAD',
-        headers: { 'User-Agent': 'WaterfallDL/2.0', 'Accept-Encoding': 'identity' },
-        signal: controller.signal
-      }).catch(() => null);
-
-      clearTimeout(timeout);
-
-      // If HEAD is not allowed (405 or 403), try GET Range: bytes=0-0
-      if (!res || !res.ok) {
-        const getController = new AbortController();
-        const getTimeout = setTimeout(() => getController.abort(), 6000);
-        res = await fetch(targetUrl, {
-          method: 'GET',
-          headers: { 'User-Agent': 'WaterfallDL/2.0', 'Range': 'bytes=0-0' },
-          signal: getController.signal
-        }).catch(() => null);
-        clearTimeout(getTimeout);
-      }
-
-      let isOnline = false;
+      let isOnline = (resolved && resolved.status === 'online');
       let acceptRanges = false;
 
-      if (res && (res.status >= 200 && res.status < 400)) {
+      // 2. Perform safe probe with insecureHTTPParser (never crashes on bare LF)
+      const res = await safeProbe(targetUrl, {
+        headers: downloadHeaders || {}
+      }).catch(() => null);
+
+      if (res && res.status >= 200 && res.status < 400) {
         isOnline = true;
         const cl = res.headers.get('content-length');
         const cr = res.headers.get('content-range');
@@ -87,7 +92,7 @@ class LinkGrabber {
           const match = cr.match(/\/(\d+)/);
           if (match) size = parseInt(match[1], 10);
           acceptRanges = true;
-        } else if (cl) {
+        } else if (cl && (!size || size === 0)) {
           size = parseInt(cl, 10);
         }
 
@@ -109,8 +114,9 @@ class LinkGrabber {
         size,
         hoster,
         isOnline: isOnline ? 'online' : (res ? 'warning' : 'offline'),
-        statusCode: res ? res.status : 0,
+        statusCode: res ? res.status : (isOnline ? 200 : 0),
         acceptRanges,
+        downloadHeaders,
         isMedia: resolved ? !!resolved.isMedia : false,
         mediaOptions: resolved ? resolved.mediaOptions : null,
         category: (resolved && resolved.isMedia) ? 'Audio' : getCategoryFromFilename(filename)
@@ -143,16 +149,32 @@ class LinkGrabber {
         const url = queue.shift();
         if (!url) continue;
         const probeData = await this.probeUrl(url);
-        const id = crypto.randomUUID();
-        const item = {
-          id,
-          packageName: defaultPackage,
-          selected: true,
-          addedAt: Date.now(),
-          ...probeData
-        };
-        this.stagedItems.set(id, item);
-        results.push(item);
+
+        if (probeData && probeData.isMulti && Array.isArray(probeData.items)) {
+          for (const subItem of probeData.items) {
+            const id = crypto.randomUUID();
+            const item = {
+              id,
+              packageName: subItem.packageName || defaultPackage,
+              selected: true,
+              addedAt: Date.now(),
+              ...subItem
+            };
+            this.stagedItems.set(id, item);
+            results.push(item);
+          }
+        } else if (probeData) {
+          const id = crypto.randomUUID();
+          const item = {
+            id,
+            packageName: defaultPackage,
+            selected: true,
+            addedAt: Date.now(),
+            ...probeData
+          };
+          this.stagedItems.set(id, item);
+          results.push(item);
+        }
       }
     });
 

@@ -502,6 +502,7 @@ class DownloadManager extends EventEmitter {
       if (options.singleStream !== undefined) targetTask.singleStream = Boolean(options.singleStream);
       if (options.segmentsCount) targetTask.segmentsCount = options.segmentsCount;
       if (options.customScript) targetTask.customScript = options.customScript;
+      if (options.downloadHeaders) targetTask.downloadHeaders = options.downloadHeaders;
 
       // Stop active downloader if running
       const downloader = this.activeDownloaders.get(targetTask.id);
@@ -543,6 +544,7 @@ class DownloadManager extends EventEmitter {
       eta: 0,
       savePath,
       acceptRanges: options.acceptRanges !== false,
+      downloadHeaders: options.downloadHeaders || null,
       isMedia,
       mediaOptions,
       addedAt: Date.now(),

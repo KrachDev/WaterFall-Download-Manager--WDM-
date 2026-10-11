@@ -446,6 +446,7 @@ app.post('/api/linkgrabber/transfer', (req, res) => {
       hoster: item.hoster,
       packageName: item.packageName,
       acceptRanges: item.acceptRanges,
+      downloadHeaders: item.downloadHeaders,
       isMedia: item.isMedia,
       mediaOptions: item.mediaOptions,
       autoStart

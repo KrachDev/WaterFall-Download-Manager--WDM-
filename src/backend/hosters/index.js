@@ -1,5 +1,8 @@
 const path = require('path');
 const { probeMedia } = require('../mediaDownloader');
+const gofileHoster = require('./gofile');
+const transferItHoster = require('./transferIt');
+const fuckingFastHoster = require('./fuckingfast');
 
 class HosterManager {
   constructor() {
@@ -8,6 +11,11 @@ class HosterManager {
   }
 
   registerDefaults() {
+    // Specialized hosters
+    this.register(gofileHoster);
+    this.register(transferItHoster);
+    this.register(fuckingFastHoster);
+
     // 0. YouTube & Streaming Audio/Video
     this.register({
       name: 'YouTube',
