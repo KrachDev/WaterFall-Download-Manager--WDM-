@@ -62,8 +62,12 @@ wss.on('connection', (ws) => {
 });
 
 // Periodic tick broadcast (250ms) for high-framerate transfer speeds and segment bars
+// PERFORMANCE OPTIMIZATION: Only map actively running tasks in tick to reduce serialization load
 setInterval(() => {
-  const tasks = downloadManager.getAllTasks().map(t => ({
+  const activeList = downloadManager.getAllTasks().filter(t =>
+    t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying'
+  );
+  const tasks = activeList.map(t => ({
     id: t.id,
     name: t.name,
     filename: t.filename,
@@ -89,6 +93,8 @@ downloadManager.on('taskUpdated', task => broadcast({ type: 'taskUpdated', task 
 downloadManager.on('taskCompleted', task => broadcast({ type: 'taskCompleted', task }));
 downloadManager.on('taskFailed', data => broadcast({ type: 'taskFailed', task: data.task, error: data.error }));
 downloadManager.on('taskDeleted', id => broadcast({ type: 'taskDeleted', id }));
+downloadManager.on('extractPasswordRequired', data => broadcast({ type: 'extractPasswordRequired', data }));
+downloadManager.on('queueReordered', queueOrder => broadcast({ type: 'queueReordered', queueOrder }));
 
 // --- REST Endpoints ---
 
@@ -98,7 +104,11 @@ app.get('/api/downloads', (req, res) => {
 });
 
 app.post('/api/downloads', async (req, res) => {
-  const { url, filename, size, saveDir, autoStart, packageName, isMedia, mediaOptions, downloadEngineMode, segments, singleStream, customScript, confirmed } = req.body;
+  const {
+    url, filename, size, saveDir, autoStart, packageName, isMedia, mediaOptions,
+    downloadEngineMode, segments, singleStream, customScript, confirmed,
+    archivePassword, autoExtract, deleteAfterExtract, priority
+  } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const config = getConfig();
@@ -131,6 +141,10 @@ app.post('/api/downloads', async (req, res) => {
     segments,
     singleStream,
     customScript,
+    archivePassword,
+    autoExtract,
+    deleteAfterExtract,
+    priority: priority || 'normal',
     autoStart: autoStart !== false
   });
   res.json(task);
@@ -285,17 +299,74 @@ app.post('/api/downloads/:id/update-url', (req, res) => {
 app.delete('/api/downloads/:id', (req, res) => {
   const deleteFile = req.query.deleteFile === 'true';
   const success = downloadManager.deleteTask(req.params.id, deleteFile);
+  broadcast({ type: 'taskDeleted', id: req.params.id });
   res.json({ ok: success });
 });
 
-// Manual Archive Unpack
+// Manual Archive Unpack & Password Submission
 app.post('/api/downloads/:id/extract', async (req, res) => {
   try {
-    const result = await downloadManager.extractTask(req.params.id);
+    const password = (req.body && req.body.password) ? req.body.password : '';
+    const result = await downloadManager.extractTask(req.params.id, password);
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+app.post('/api/downloads/:id/set-password', (req, res) => {
+  const { password, remember } = req.body;
+  const result = downloadManager.submitExtractionPassword(req.params.id, password, remember);
+  res.json(result);
+});
+
+app.get('/api/extractions', (req, res) => {
+  const extractionQueue = require('./src/backend/extractionQueue');
+  res.json(extractionQueue.getAllJobs());
+});
+
+// Queue Priority and Reordering (supports both taskId and id params)
+app.post('/api/queue/move-up', (req, res) => {
+  const taskId = req.body.taskId || req.body.id;
+  const ok = downloadManager.moveTaskUp(taskId);
+  broadcast({ type: 'queueReordered', queueOrder: downloadManager.queueOrder });
+  res.json({ success: ok, queueOrder: downloadManager.queueOrder });
+});
+
+app.post('/api/queue/move-down', (req, res) => {
+  const taskId = req.body.taskId || req.body.id;
+  const ok = downloadManager.moveTaskDown(taskId);
+  broadcast({ type: 'queueReordered', queueOrder: downloadManager.queueOrder });
+  res.json({ success: ok, queueOrder: downloadManager.queueOrder });
+});
+
+app.post('/api/queue/move-top', (req, res) => {
+  const taskId = req.body.taskId || req.body.id;
+  const ok = downloadManager.moveTaskToTop(taskId);
+  broadcast({ type: 'queueReordered', queueOrder: downloadManager.queueOrder });
+  res.json({ success: ok, queueOrder: downloadManager.queueOrder });
+});
+
+app.post('/api/queue/move-bottom', (req, res) => {
+  const taskId = req.body.taskId || req.body.id;
+  const ok = downloadManager.moveTaskToBottom(taskId);
+  broadcast({ type: 'queueReordered', queueOrder: downloadManager.queueOrder });
+  res.json({ success: ok, queueOrder: downloadManager.queueOrder });
+});
+
+app.post('/api/queue/priority', (req, res) => {
+  const taskId = req.body.taskId || req.body.id;
+  const { priority } = req.body;
+  const task = downloadManager.setTaskPriority(taskId, priority);
+  res.json({ success: Boolean(task), task });
+});
+
+app.post('/api/queue/reorder', (req, res) => {
+  const taskId = req.body.taskId || req.body.id;
+  const { targetIndex } = req.body;
+  downloadManager.reorderTask(taskId, targetIndex);
+  broadcast({ type: 'queueReordered', queueOrder: downloadManager.queueOrder });
+  res.json({ success: true, queueOrder: downloadManager.queueOrder });
 });
 
 // SHA-256 Checksum Verification

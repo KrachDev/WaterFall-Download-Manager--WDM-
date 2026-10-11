@@ -1,10 +1,12 @@
 /**
  * IDM Iconic Multi-Segment Download Inspector & File Allocation Block Matrix
+ * Enhanced with Multipart Package Micro-Manager
  */
 class SegmentVisualizer {
   constructor() {
     this.modal = document.getElementById('modal-segment-inspector');
     this.currentTaskId = null;
+    this.currentGroupKey = null;
 
     // Elements
     this.filenameEl = document.getElementById('insp-filename');
@@ -20,6 +22,15 @@ class SegmentVisualizer {
     this.matrixGridEl = document.getElementById('insp-matrix-grid');
     this.btnTogglePause = document.getElementById('insp-btn-toggle-pause');
     this.btnOpenFolder = document.getElementById('insp-btn-open-folder');
+
+    // Micro-Manager Elements
+    this.microBox = document.getElementById('insp-micromanager-box');
+    this.microCount = document.getElementById('insp-mp-count');
+    this.microParts = document.getElementById('insp-mp-parts-container');
+    this.microStatus = document.getElementById('insp-mp-extract-status');
+    this.btnMpPauseAll = document.getElementById('insp-mp-btn-pause-all');
+    this.btnMpResumeAll = document.getElementById('insp-mp-btn-resume-all');
+    this.btnMpExtractNow = document.getElementById('insp-mp-btn-extract-now');
 
     this.bindEvents();
     this.initMatrix();
@@ -67,7 +78,45 @@ class SegmentVisualizer {
       });
     }
 
-    // Modal Close Buttons (Header 'x' and Footer 'Close' button)
+    // Micro-Manager Group Action Listeners
+    if (this.btnMpPauseAll) {
+      this.btnMpPauseAll.addEventListener('click', () => {
+        if (!this.currentGroupKey) return;
+        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === this.currentGroupKey);
+        fetch('/api/downloads/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'pause', ids: siblings.map(s => s.id) })
+        });
+      });
+    }
+
+    if (this.btnMpResumeAll) {
+      this.btnMpResumeAll.addEventListener('click', () => {
+        if (!this.currentGroupKey) return;
+        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === this.currentGroupKey);
+        fetch('/api/downloads/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'resume', ids: siblings.map(s => s.id) })
+        });
+      });
+    }
+
+    if (this.btnMpExtractNow) {
+      this.btnMpExtractNow.addEventListener('click', () => {
+        if (!this.currentTaskId) return;
+        fetch(`/api/downloads/${this.currentTaskId}/extract`, { method: 'POST' })
+          .then(r => r.json())
+          .then(res => {
+            if (res.passwordRequired) {
+              window.dispatchEvent(new CustomEvent('extract:password-required', { detail: { taskId: this.currentTaskId, name: this.filenameEl?.textContent } }));
+            }
+          });
+      });
+    }
+
+    // Modal Close Buttons
     if (this.modal) {
       this.modal.querySelectorAll('.modal-close-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -76,7 +125,6 @@ class SegmentVisualizer {
         });
       });
 
-      // Backdrop overlay click to close
       this.modal.addEventListener('click', (e) => {
         if (e.target === this.modal) {
           this.close();
@@ -84,7 +132,6 @@ class SegmentVisualizer {
       });
     }
 
-    // Escape key listener to close
     document.addEventListener('keydown', (e) => {
       if ((e.key === 'Escape' || e.key === 'Esc') && this.isOpen()) {
         this.close();
@@ -94,12 +141,29 @@ class SegmentVisualizer {
 
   open(taskId) {
     this.currentTaskId = taskId;
+    const task = window.appState.tasks.find(t => t.id === taskId);
+    if (task && task.multipart && task.multipart.isMultipart) {
+      this.currentGroupKey = task.multipart.groupKey;
+    } else {
+      this.currentGroupKey = null;
+    }
+    this.update();
+    if (this.modal) this.modal.classList.add('open');
+  }
+
+  openGroup(groupKey) {
+    this.currentGroupKey = groupKey;
+    const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === groupKey);
+    if (siblings.length > 0) {
+      this.currentTaskId = siblings[0].id;
+    }
     this.update();
     if (this.modal) this.modal.classList.add('open');
   }
 
   close() {
     this.currentTaskId = null;
+    this.currentGroupKey = null;
     if (this.modal) this.modal.classList.remove('open');
   }
 
@@ -137,10 +201,7 @@ class SegmentVisualizer {
 
   formatETA(seconds) {
     if (!seconds || seconds <= 0 || !isFinite(seconds)) return '--';
-
-    const now = new Date();
     const target = new Date(Date.now() + seconds * 1000);
-
     let hours = target.getHours();
     const minutes = target.getMinutes();
     const ampm = hours >= 12 ? 'pm' : 'am';
@@ -150,20 +211,16 @@ class SegmentVisualizer {
       ? `${hours} ${ampm}`
       : `${hours}:${minutes < 10 ? '0' + minutes : minutes} ${ampm}`;
 
-    const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+    const nowMidnight = new Date().setHours(0, 0, 0, 0);
+    const targetMidnight = new Date(target).setHours(0, 0, 0, 0);
     const dayDiff = Math.round((targetMidnight - nowMidnight) / (1000 * 60 * 60 * 24));
-
     const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const weekday = weekdays[target.getDay()];
 
     if (dayDiff === 0) return `Today at ${timeStr}`;
     if (dayDiff === 1) return `Tomorrow at ${timeStr}`;
-    if (dayDiff === 2) return `In 2 days (${weekday}) at ${timeStr}`;
-    if (dayDiff >= 3 && dayDiff <= 7) return `In ${dayDiff} days (${weekday}) at ${timeStr}`;
-
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `In ${dayDiff} days (${months[target.getMonth()]} ${target.getDate()}) at ${timeStr}`;
+    if (dayDiff <= 7) return `In ${dayDiff} days (${weekday}) at ${timeStr}`;
+    return `${target.toLocaleDateString()} at ${timeStr}`;
   }
 
   update() {
@@ -196,6 +253,63 @@ class SegmentVisualizer {
       this.btnTogglePause.textContent = (task.status === 'downloading') ? 'Pause Download' : 'Resume Download';
     }
 
+    // Micro-Manager Rendering
+    const groupKey = this.currentGroupKey || (task.multipart && task.multipart.isMultipart ? task.multipart.groupKey : null);
+    if (groupKey && this.microBox) {
+      const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === groupKey);
+      if (siblings.length > 1) {
+        this.microBox.style.display = 'block';
+        if (this.microCount) this.microCount.textContent = `${siblings.length} Parts`;
+
+        const allDone = siblings.every(s => s.status === 'completed');
+        if (this.microStatus) {
+          if (allDone) {
+            const hasExtracted = siblings.some(s => s.extractStatus === 'extracted');
+            const isExtracting = siblings.some(s => s.extractStatus === 'extracting');
+            const isPwdReq = siblings.some(s => s.extractStatus === 'extract_password_required');
+            if (isPwdReq) this.microStatus.innerHTML = '<span style="color:#e3b341; font-weight:700;">🔑 Password Required to Extract</span>';
+            else if (hasExtracted) this.microStatus.innerHTML = '<span style="color:#3fb950; font-weight:600;">✓ Extracted into single folder</span>';
+            else if (isExtracting) this.microStatus.innerHTML = '<span style="color:#38bdf8;">⏳ Extracting unified archive...</span>';
+            else this.microStatus.textContent = 'All parts downloaded! Ready to extract';
+          } else {
+            const remaining = siblings.filter(s => s.status !== 'completed').length;
+            this.microStatus.textContent = `Downloading (${siblings.length - remaining}/${siblings.length} complete • Waiting for ${remaining} more parts)`;
+          }
+        }
+
+        // Render individual micro-manager items
+        if (this.microParts) {
+          let microHtml = '';
+          siblings.sort((a, b) => (a.multipart?.partNumber || 1) - (b.multipart?.partNumber || 1));
+          for (const s of siblings) {
+            const sPct = s.totalBytes > 0 ? Math.min(100, Math.floor((s.downloadedBytes / s.totalBytes) * 100)) : (s.status === 'completed' ? 100 : 0);
+            const isCurrent = s.id === this.currentTaskId;
+            microHtml += `
+              <div class="micromanager-item ${isCurrent ? 'selected' : ''}" style="${isCurrent ? 'border-color: #38bdf8; background: rgba(56,189,248,0.08);' : ''}">
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                  <span style="font-family: var(--font-mono); font-size: 0.70rem; color: #38bdf8; font-weight: 700; width: 44px;">Part ${s.multipart?.partNumber || '?'}</span>
+                  <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;" title="${s.name}" onclick="window.segmentVisualizer.open('${s.id}')">${s.name}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-family: var(--font-mono); font-size: 0.70rem; color: var(--text-muted);">${this.formatBytes(s.downloadedBytes)} / ${this.formatBytes(s.totalBytes)}</span>
+                  <span class="state-tag ${s.status}" style="font-size: 0.65rem; padding: 1px 5px;">${s.status}</span>
+                  ${s.status === 'downloading'
+                    ? `<button class="icon-btn" onclick="fetch('/api/downloads/${s.id}/pause', {method:'POST'})" title="Pause">⏸</button>`
+                    : (s.status !== 'completed' ? `<button class="icon-btn" onclick="fetch('/api/downloads/${s.id}/resume', {method:'POST'})" title="Resume">▶</button>` : '')
+                  }
+                </div>
+              </div>
+            `;
+          }
+          this.microParts.innerHTML = microHtml;
+        }
+      } else {
+        this.microBox.style.display = 'none';
+      }
+    } else if (this.microBox) {
+      this.microBox.style.display = 'none';
+    }
+
     // Update IDM Allocation Block Matrix
     const filledCells = Math.floor((percent / 100) * 50);
     for (let i = 0; i < 50; i++) {
@@ -214,7 +328,6 @@ class SegmentVisualizer {
     const segments = task.segments || [];
     this.connCountEl.textContent = segments.length > 0 ? segments.length : '1';
 
-    // Render connection strips
     let html = '';
     if (segments.length > 0) {
       segments.forEach((seg, index) => {
@@ -246,7 +359,6 @@ class SegmentVisualizer {
         `;
       });
     } else {
-      // Single connection or yt-dlp stream
       const isDl = task.status === 'downloading';
       html = `
         <div class="segment-strip">

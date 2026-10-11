@@ -713,9 +713,10 @@ body {
   flex: 1;
   width: 100%;
   max-width: 100%;
-  overflow-y: auto;
-  overflow-x: auto;
-  box-sizing: border-box;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  box-sizing: border-box !important;
+  position: relative;
 }
 
 .downloads-table {
@@ -736,6 +737,7 @@ body {
 }
 
 .downloads-table th {
+  position: relative;
   padding: 8px 10px;
   color: var(--text-muted);
   font-size: 0.7rem;
@@ -743,9 +745,59 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  overflow: visible;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.downloads-table th.resizable-th {
+  padding-right: 14px;
+}
+
+.downloads-table th .th-content {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  z-index: 20;
+  touch-action: none;
+}
+
+.col-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  right: 3px;
+  width: 2px;
+  background-color: var(--border-mid);
+  border-radius: 1px;
+  transition: background-color 0.15s ease, top 0.15s ease, bottom 0.15s ease, box-shadow 0.15s ease;
+}
+
+.col-resize-handle:hover::after,
+.col-resize-handle.resizing::after {
+  top: 0;
+  bottom: 0;
+  background-color: var(--accent-idm-blue);
+  box-shadow: 0 0 8px var(--accent-idm-blue-glow);
+  width: 2px;
+}
+
+body.resizing-columns,
+body.resizing-columns * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .downloads-table td {
@@ -2353,8 +2405,6 @@ body,
 .app-header,
 .app-body,
 .content-area,
-.table-viewport,
-.downloads-table,
 .content-toolbar,
 .filter-tabs-bar,
 .batch-bar,
@@ -2472,6 +2522,216 @@ body,
   background: rgba(56, 189, 248, 0.3) !important;
   box-shadow: 0 0 8px rgba(56, 189, 248, 0.4) !important;
 }
+
+/* ==========================================================================
+   MULTIPART ARCHIVE GROUPS & MICRO-MANAGER STYLES
+   ========================================================================== */
+.group-parent-row {
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 3px solid #38bdf8;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.group-parent-row:hover {
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.group-expand-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+  padding: 0;
+}
+
+.group-expand-toggle:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.group-expand-toggle.expanded {
+  transform: rotate(90deg);
+  color: #38bdf8;
+}
+
+.group-parts-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.child-download-row {
+  background: rgba(0, 0, 0, 0.22);
+  border-left: 3px dashed rgba(56, 189, 248, 0.35);
+  font-size: 0.82rem;
+  transition: background 0.12s ease;
+}
+
+.child-download-row:hover {
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.child-indent-branch {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-right: 6px;
+  user-select: none;
+}
+
+/* Extraction status badges */
+.badge-extracted {
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: rgba(46, 160, 67, 0.18);
+  color: #3fb950;
+  border: 1px solid rgba(46, 160, 67, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.badge-extracted:hover {
+  background: rgba(46, 160, 67, 0.35);
+  transform: translateY(-1px);
+}
+
+.badge-extracting {
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  animation: pulse-extract 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-extract {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6)); }
+}
+
+.badge-waiting-parts {
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: rgba(163, 113, 247, 0.15);
+  color: #d2a8ff;
+  border: 1px solid rgba(163, 113, 247, 0.35);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.badge-password-req {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(210, 153, 34, 0.2);
+  color: #e3b341;
+  border: 1px solid rgba(210, 153, 34, 0.5);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  animation: pulse-pwd 1.8s infinite;
+}
+
+.badge-password-req:hover {
+  background: rgba(210, 153, 34, 0.4);
+  transform: scale(1.02);
+}
+
+@keyframes pulse-pwd {
+  0%, 100% { box-shadow: 0 0 0 rgba(227, 179, 65, 0); }
+  50% { box-shadow: 0 0 10px rgba(227, 179, 65, 0.4); }
+}
+
+/* Priority tags */
+.priority-tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.priority-high {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+  border: 1px solid rgba(248, 81, 73, 0.35);
+}
+
+.priority-low {
+  background: rgba(139, 148, 158, 0.12);
+  color: #8b949e;
+  border: 1px solid rgba(139, 148, 158, 0.25);
+}
+
+/* Micro-Manager Section in Segment Inspector */
+.micromanager-card {
+  margin-top: 12px;
+  padding: 12px;
+  background: #090e18;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+}
+
+.micromanager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.micromanager-parts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.micromanager-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  font-size: 0.76rem;
+}
+
+.micromanager-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 
 
 

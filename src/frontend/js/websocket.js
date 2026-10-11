@@ -130,7 +130,7 @@ class WSClient {
         break;
 
       case 'taskDeleted':
-        window.appState.tasks = window.appState.tasks.filter(t => t.id !== msg.id);
+        window.appState.tasks = window.appState.tasks.filter(t => t.id !== msg.id && String(t.id) !== String(msg.id));
         window.dispatchEvent(new CustomEvent('state:change'));
         break;
 
@@ -150,6 +150,27 @@ class WSClient {
       case 'linkgrabberUpdated':
         window.appState.staged = msg.staged || [];
         window.dispatchEvent(new CustomEvent('state:grabber'));
+        break;
+
+      case 'extractPasswordRequired':
+        window.dispatchEvent(new CustomEvent('extract:password-required', { detail: msg.data }));
+        break;
+
+      case 'queueReordered':
+        if (msg.queueOrder && Array.isArray(msg.queueOrder)) {
+          const orderMap = new Map();
+          msg.queueOrder.forEach((id, idx) => orderMap.set(id, idx));
+          window.appState.tasks.sort((a, b) => {
+            const idxA = orderMap.has(a.id) ? orderMap.get(a.id) : 999999;
+            const idxB = orderMap.has(b.id) ? orderMap.get(b.id) : 999999;
+            return idxA - idxB;
+          });
+          window.dispatchEvent(new CustomEvent('state:change'));
+        }
+        break;
+
+      case 'extractionJobUpdated':
+        window.dispatchEvent(new CustomEvent('extract:job-updated', { detail: msg.job }));
         break;
 
       case 'configUpdated':

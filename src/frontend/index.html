@@ -159,6 +159,22 @@
             <span class="nav-badge" id="badge-completed">0</span>
           </div>
 
+          <div class="nav-link" data-filter="error">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              Canceled / Failed
+            </div>
+            <span class="nav-badge" id="badge-error">0</span>
+          </div>
+
+          <div class="nav-link" data-filter="extracting">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+              Extracting
+            </div>
+            <span class="nav-badge" id="badge-extracting-tab" style="color: #38bdf8;">0</span>
+          </div>
+
           <div class="nav-link" data-filter="linkgrabber">
             <div class="nav-link-left">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
@@ -255,8 +271,8 @@
         </div>
       </div>
 
-      <!-- Interactive Filter Tabs Bar (Status & File Categories) -->
-      <div class="filter-tabs-bar" id="filter-tabs-bar">
+      <!-- Interactive Filter Tabs Bar (Status & File Categories - Off by default, togglable in Settings) -->
+      <div class="filter-tabs-bar" id="filter-tabs-bar" style="display: none;">
         <button class="filter-tab active" data-tab-type="status" data-tab-val="all">
           <span>All</span>
           <span class="tab-badge" id="tab-count-all">0</span>
@@ -276,6 +292,10 @@
         <button class="filter-tab" data-tab-type="status" data-tab-val="error">
           <span>✕ Canceled</span>
           <span class="tab-badge" id="tab-count-canceled">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="status" data-tab-val="extracting">
+          <span>📦 Extracting</span>
+          <span class="tab-badge" id="tab-count-extracting">0</span>
         </button>
 
         <div class="filter-tab-sep"></div>
@@ -320,29 +340,53 @@
       </div>
 
       <div class="table-viewport" id="downloads-view-panel">
-        <table class="downloads-table">
-          <colgroup>
-            <col style="width: 34px;">
-            <col style="width: auto;">
-            <col style="width: 80px;">
-            <col style="width: 95px;">
-            <col style="width: 175px;">
-            <col style="width: 85px;">
-            <col style="width: 125px;">
-            <col style="width: 80px;">
-            <col style="width: 145px;">
+        <table class="downloads-table" id="downloads-table">
+          <colgroup id="downloads-colgroup">
+            <col style="width: 36px;" data-col="select">
+            <col style="width: 280px;" data-col="name">
+            <col style="width: 95px;" data-col="size">
+            <col style="width: 105px;" data-col="status">
+            <col style="width: 175px;" data-col="progress">
+            <col style="width: 95px;" data-col="speed">
+            <col style="width: 125px;" data-col="finish">
+            <col style="width: 85px;" data-col="hoster">
+            <col style="width: 155px;" data-col="actions">
           </colgroup>
           <thead>
             <tr>
-              <th style="width: 34px;"><input type="checkbox" id="check-select-all-downloads"></th>
-              <th>File Name</th>
-              <th style="width: 80px;">Size</th>
-              <th style="width: 95px;">Status</th>
-              <th style="width: 175px;">Progress</th>
-              <th style="width: 85px;">Speed</th>
-              <th style="width: 125px;" title="Estimated Completion Date & Time">Est. Finish</th>
-              <th style="width: 80px;">Hoster</th>
-              <th style="width: 145px; text-align: right;">Actions</th>
+              <th style="width: 36px;"><input type="checkbox" id="check-select-all-downloads"></th>
+              <th data-col="name" class="resizable-th">
+                <span class="th-content">File Name</span>
+                <div class="col-resize-handle" data-col="name" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="size" class="resizable-th">
+                <span class="th-content">Size</span>
+                <div class="col-resize-handle" data-col="size" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="status" class="resizable-th">
+                <span class="th-content">Status</span>
+                <div class="col-resize-handle" data-col="status" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="progress" class="resizable-th">
+                <span class="th-content">Progress</span>
+                <div class="col-resize-handle" data-col="progress" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="speed" class="resizable-th">
+                <span class="th-content">Speed</span>
+                <div class="col-resize-handle" data-col="speed" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="finish" class="resizable-th" title="Estimated Completion Date & Time">
+                <span class="th-content">Est. Finish</span>
+                <div class="col-resize-handle" data-col="finish" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="hoster" class="resizable-th">
+                <span class="th-content">Hoster</span>
+                <div class="col-resize-handle" data-col="hoster" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="actions" class="resizable-th" style="text-align: right;">
+                <span class="th-content">Actions</span>
+                <div class="col-resize-handle" data-col="actions" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
             </tr>
           </thead>
           <tbody id="downloads-table-body">
@@ -568,6 +612,33 @@
           </div>
         </div>
 
+        <!-- Archive Extraction & Password Options -->
+        <div class="idm-script-toggle-box" id="idm-confirm-extract-box">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 500;">
+              <input type="checkbox" id="idm-confirm-enable-extract" checked>
+              <span>Auto-extract archive upon completion</span>
+            </label>
+            <span style="font-size: 0.70rem; color: #38bdf8;">7z / RAR / ZIP / NanaZip</span>
+          </div>
+
+          <div id="idm-confirm-extract-details" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-light); display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <div style="position: relative; flex: 1;">
+                <input type="password" id="idm-confirm-archive-password" class="text-input" placeholder="Archive Password / Unlock Key (optional)" style="font-size: 0.78rem; padding-right: 34px;">
+                <button type="button" class="icon-btn" id="btn-toggle-pwd-confirm" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 0.75rem;" title="Show/Hide Password">👁️</button>
+              </div>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; white-space: nowrap;">
+                <input type="checkbox" id="idm-confirm-delete-archive">
+                <span>Delete archive after extract</span>
+              </label>
+            </div>
+            <div style="font-size: 0.68rem; color: var(--text-muted);">
+              For multipart archives (.part1.rar, .7z.001), Waterfall waits for all parts and extracts all into one unified folder.
+            </div>
+          </div>
+        </div>
+
         <!-- Post-Download Script Accordion / Checkbox -->
         <div class="idm-script-toggle-box">
           <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -610,6 +681,48 @@
             Start Download
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: Archive Password Required Prompt
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-extract-password">
+    <div class="modal-card" style="width: 480px; max-width: 95vw;">
+      <div class="modal-header">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 8px; color: #e3b341;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          Password Required to Extract
+        </div>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.4;">
+          The downloaded archive is encrypted. Please enter the password or unlock key to decompress the contents:
+        </p>
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px;">Archive / Package:</div>
+          <div id="extract-pwd-filename" style="font-size: 0.84rem; font-weight: 600; color: var(--text-primary); word-break: break-all;">--</div>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="input-label" for="input-extract-password">Archive Password / Unlock Key</label>
+          <div style="position: relative;">
+            <input type="password" id="input-extract-password" class="text-input" placeholder="Type or paste archive password..." style="padding-right: 36px;" autofocus>
+            <button type="button" class="icon-btn" id="btn-toggle-pwd-prompt" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%);" title="Show/Hide Password">👁️</button>
+          </div>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.76rem; color: var(--text-secondary); cursor: pointer;">
+          <input type="checkbox" id="check-remember-extract-password" checked>
+          <span>Remember this password for future archives</span>
+        </label>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;">
+        <button class="tool-btn modal-close-btn">Cancel</button>
+        <button class="tool-btn primary" id="btn-submit-extract-password" style="background: #e3b341; color: #000; font-weight: 700; border-color: #d29922;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          Unlock & Extract Now
+        </button>
       </div>
     </div>
   </div>
@@ -787,6 +900,34 @@
           </div>
           <div class="main-progress-bar-wrap">
             <div class="main-progress-bar-fill" id="insp-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Multipart Archive Micro-Manager Card -->
+        <div class="micromanager-card" id="insp-micromanager-box" style="display: none;">
+          <div class="micromanager-header">
+            <div>
+              <div style="font-weight: 700; font-size: 0.85rem; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                <span>📦 Multipart Package Micro-Manager</span>
+                <span class="group-parts-badge" id="insp-mp-count">0 Parts</span>
+              </div>
+              <div style="font-size: 0.70rem; color: var(--text-muted); margin-top: 2px;">
+                Individual volume manager • Extracts unified into one destination folder when all parts complete
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="tool-btn" id="insp-mp-btn-pause-all" style="padding: 3px 8px; font-size: 0.72rem;">⏸ Pause All</button>
+              <button type="button" class="tool-btn primary" id="insp-mp-btn-resume-all" style="padding: 3px 8px; font-size: 0.72rem;">▶ Resume All</button>
+            </div>
+          </div>
+
+          <div class="micromanager-parts-list" id="insp-mp-parts-container">
+            <!-- Dynamically populated parts -->
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+            <div style="font-size: 0.72rem; color: var(--text-muted);" id="insp-mp-extract-status">Status: Waiting for parts</div>
+            <button type="button" class="tool-btn" id="insp-mp-btn-extract-now" style="font-size: 0.72rem; padding: 3px 10px;">📦 Extract Package Now</button>
           </div>
         </div>
 
@@ -1385,6 +1526,14 @@
 
               <div class="settings-toggle-card">
                 <div class="toggle-info">
+                  <div class="toggle-title">Show Top Filter Tabs Bar</div>
+                  <div class="toggle-desc">Displays the top filter tabs (All, Done, Downloading, Paused, Canceled, Categories) above the queue. Disabled by default to rely on the side panel.</div>
+                </div>
+                <input type="checkbox" id="cfg-show-top-filter-bar" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
                   <div class="toggle-title">Auto-Download Files Immediately (Bypass Confirmation)</div>
                   <div class="toggle-desc">Automatically starts downloads in the background without prompting the confirmation dialog (Disabled / OFF by default).</div>
                 </div>
@@ -1579,6 +1728,29 @@
     <div class="context-menu-item" id="ctx-pause-resume">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
       Pause / Resume
+    </div>
+    <div class="context-menu-sep"></div>
+    <div class="context-menu-item" id="ctx-move-top">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline><line x1="6" y1="5" x2="18" y2="5"></line></svg>
+      Move to Top of Queue
+    </div>
+    <div class="context-menu-item" id="ctx-move-up">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+      Move Up in Queue
+    </div>
+    <div class="context-menu-item" id="ctx-move-down">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      Move Down in Queue
+    </div>
+    <div class="context-menu-item" id="ctx-move-bottom">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline><line x1="6" y1="19" x2="18" y2="19"></line></svg>
+      Move to Bottom of Queue
+    </div>
+    <div class="context-menu-item" id="ctx-set-priority-high">
+      🔴 High Queue Priority
+    </div>
+    <div class="context-menu-item" id="ctx-set-priority-normal">
+      🔵 Normal Priority
     </div>
     <div class="context-menu-sep"></div>
     <div class="context-menu-item danger" id="ctx-delete-disk">

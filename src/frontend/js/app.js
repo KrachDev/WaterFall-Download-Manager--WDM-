@@ -105,6 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const appIconClientCache = new Map();
   const filterTabsBar = document.getElementById('filter-tabs-bar');
 
+  // O(1) DOM Caches & Multipart Grouping State for High-Performance Ticks
+  const rowDomCache = new Map();
+  const groupDomCache = new Map();
+  window.expandedGroupKeys = window.expandedGroupKeys || new Set();
+  let extractPasswordTargetTaskId = null;
+
   // Desktop Context Menu
   const contextMenu = document.getElementById('context-menu');
   let contextTask = null;
@@ -316,6 +322,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Top Filter Tabs Bar Visibility Controller
+  function updateFilterTabsBarVisibility(show) {
+    if (filterTabsBar) {
+      filterTabsBar.style.display = show ? 'flex' : 'none';
+    }
+  }
+
   // Interactive Filter Tabs Bar (All, Done, Paused, Canceled, Videos, Photos, etc.)
   if (filterTabsBar) {
     filterTabsBar.querySelectorAll('.filter-tab').forEach(tab => {
@@ -391,6 +404,351 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Extraction badge helper
+  function renderExtractionBadge(t) {
+    if (t.extractStatus === 'extracted') {
+      return `<span class="badge-extracted" data-path="${(t.extractedPath || '').replace(/"/g, '&quot;')}" title="Extracted to folder (Click to open)">📦 Extracted</span>`;
+    }
+    if (t.extractStatus === 'extracting') {
+      return `<span class="badge-extracting" title="Unpacking archive in background...">📦 Extracting (${t.extractProgress || 0}%)...</span>`;
+    }
+    if (t.extractStatus === 'waiting_parts') {
+      return `<span class="badge-waiting-parts" title="Waiting for all parts of package to finish before extracting">⏳ Waiting for Parts</span>`;
+    }
+    if (t.extractStatus === 'password_required') {
+      return `<span class="badge-password-req" data-id="${t.id}" title="Archive is password protected! Click to enter password">🔑 Password Required</span>`;
+    }
+    if (t.extractStatus === 'error') {
+      return `<span class="state-tag error" style="font-size: 0.65rem; padding: 1px 5px;" title="${t.extractError || 'Decompression failed'}">⚠️ Extract Failed</span>`;
+    }
+    return '';
+  }
+
+  // Multipart Downloads Grouping Helper
+  function getGroupedDownloads(tasks) {
+    const groups = new Map();
+    for (const t of tasks) {
+      if (t.multipart && t.multipart.groupKey) {
+        const gk = t.multipart.groupKey;
+        if (!groups.has(gk)) groups.set(gk, []);
+        groups.get(gk).push(t);
+      }
+    }
+
+    const items = [];
+    const handledGroups = new Set();
+
+    for (const t of tasks) {
+      if (t.multipart && t.multipart.groupKey) {
+        const gk = t.multipart.groupKey;
+        const gTasks = groups.get(gk);
+        if (gTasks && (gTasks.length > 1 || (t.multipart.totalParts && t.multipart.totalParts > 1))) {
+          if (!handledGroups.has(gk)) {
+            handledGroups.add(gk);
+            gTasks.sort((a, b) => (a.multipart?.partNumber || 0) - (b.multipart?.partNumber || 0));
+            const maxAddedAt = Math.max(...gTasks.map(gt => gt.addedAt || gt.createdAt || 0));
+            items.push({
+              type: 'group',
+              groupKey: gk,
+              groupName: t.multipart.groupName || gk,
+              tasks: gTasks,
+              addedAt: maxAddedAt
+            });
+          }
+        } else {
+          items.push({ type: 'single', task: t, addedAt: t.addedAt || t.createdAt || 0 });
+        }
+      } else {
+        items.push({ type: 'single', task: t, addedAt: t.addedAt || t.createdAt || 0 });
+      }
+    }
+
+    // Always sort newest first (most recent timestamp at the top)
+    items.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+
+    return items;
+  }
+
+  // Render Single Task Row HTML
+  function renderTaskRowHtml(t, isChild = false, parentGroupKey = null) {
+    const percent = (t.totalBytes > 0)
+      ? Math.min(100, Math.floor((t.downloadedBytes / t.totalBytes) * 100))
+      : (t.status === 'completed' ? 100 : 0);
+
+    const badge = getTypeBadge(t);
+    const isDl = t.status === 'downloading';
+    const isDone = t.status === 'completed';
+    const isSelected = selectedTaskIds.has(t.id);
+    const extractionBadge = renderExtractionBadge(t);
+
+    const ext = t.name && t.name.includes('.') ? ('.' + t.name.split('.').pop().toLowerCase()) : '';
+    const iconCacheKey = ext || (t.savePath ? t.savePath.toLowerCase() : t.id);
+    const cachedAppInfo = appIconClientCache.get(iconCacheKey);
+
+    let appIconHtml = '';
+    if (cachedAppInfo && cachedAppInfo.icon) {
+      appIconHtml = `
+        <div class="file-app-icon-wrap" id="row-icon-wrap-${t.id}" title="Opens with: ${cachedAppInfo.appName || 'Default Application'}">
+          <img class="row-app-icon-img" src="${cachedAppInfo.icon}" alt="${cachedAppInfo.appName || 'App'}">
+          <span class="row-mini-type-badge ${badge.cls}">${badge.text}</span>
+        </div>
+      `;
+    } else {
+      appIconHtml = `
+        <div class="file-app-icon-wrap" id="row-icon-wrap-${t.id}" title="${badge.text}">
+          <span class="type-badge ${badge.cls}">${badge.text}</span>
+        </div>
+      `;
+
+      fetchAppIcon(t.savePath, t.name).then(info => {
+        if (info && info.icon) {
+          appIconClientCache.set(iconCacheKey, info);
+          const wrap = document.getElementById(`row-icon-wrap-${t.id}`);
+          if (wrap) {
+            wrap.title = `Opens with: ${info.appName || 'Default Application'}`;
+            wrap.innerHTML = `
+              <img class="row-app-icon-img" src="${info.icon}" alt="${info.appName || 'App'}">
+              <span class="row-mini-type-badge ${badge.cls}">${badge.text}</span>
+            `;
+          }
+          const label = document.getElementById(`row-app-label-${t.id}`);
+          if (label && info.appName) {
+            label.textContent = `Opens with ${info.appName}`;
+            label.style.display = 'inline-block';
+          }
+        }
+      });
+    }
+
+    const priorityTag = t.priority === 'high'
+      ? `<span class="priority-tag priority-high" title="High Queue Priority">High</span>`
+      : (t.priority === 'low' ? `<span class="priority-tag priority-low" title="Low Queue Priority">Low</span>` : '');
+
+    const childBranchPrefix = isChild
+      ? `<span class="child-indent-branch">↳</span><span class="group-parts-badge" style="margin-right: 4px;">Part ${t.multipart?.partNumber || '?'}</span>`
+      : '';
+
+    return `
+      <tr data-id="${t.id}" ${parentGroupKey ? `data-parent-group="${parentGroupKey}"` : ''} class="download-row ${isChild ? 'child-download-row' : ''} ${isSelected ? 'row-selected' : ''}">
+        <td><input type="checkbox" class="task-checkbox" data-id="${t.id}" ${isSelected ? 'checked' : ''}></td>
+        <td>
+          <div class="file-block">
+            ${appIconHtml}
+            <div class="file-details">
+              <div style="display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden;">
+                ${childBranchPrefix}
+                <span class="file-title" style="flex: 1; min-width: 0;" title="${t.name}" onclick="window.segmentVisualizer.open('${t.id}')">${t.name}</span>
+                ${priorityTag}
+                ${extractionBadge}
+                ${t.singleStream ? '<span class="badge-single-stream" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Whole File Mode (Single Stream - 1 Socket, No Chunks)">📦 Whole File</span>' : (t.downloadEngineMode === 'inPlace' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="In-Place Direct Writing (Zero Lag, Instant Completion)">⚡ Direct</span>' : '')}
+                <span class="row-app-handler-label" id="row-app-label-${t.id}" style="${cachedAppInfo && cachedAppInfo.appName ? 'display:inline-block;' : 'display:none;'}" title="Default Handler">
+                  ${cachedAppInfo && cachedAppInfo.appName ? `Opens with ${cachedAppInfo.appName}` : ''}
+                </span>
+              </div>
+              <div class="file-subtext">${t.packageName ? `[${t.packageName}] • ` : ''}${t.savePath || ''}</div>
+            </div>
+          </div>
+        </td>
+        <td><span style="font-family: var(--font-mono); font-weight: 600;">${formatBytes(t.totalBytes)}</span></td>
+        <td>
+          <span class="state-tag ${t.status}">
+            ${t.status}
+          </span>
+        </td>
+        <td class="progress-col">
+          <div class="meter-track">
+            <div class="meter-fill ${isDl ? 'active' : ''} ${isDone ? 'complete' : ''} ${t.status === 'paused' ? 'paused' : ''}" style="width: ${percent}%;"></div>
+          </div>
+          <div class="meter-stat">${percent}% • ${formatBytes(t.downloadedBytes)}</div>
+        </td>
+        <td>
+          <span style="font-family: var(--font-mono); font-weight: 600; color: ${isDl ? '#3fb950' : 'var(--text-muted)'};">
+            ${isDl ? formatSpeed(t.speed) : '--'}
+          </span>
+        </td>
+        <td title="${isDl ? formatETADuration(t.eta) : ''}">
+          <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.72rem; white-space: nowrap;">
+            ${isDl ? formatETA(t.eta) : (isDone ? 'Completed' : '--')}
+          </span>
+        </td>
+        <td><span class="hoster-chip">${t.hoster || 'Direct'}</span></td>
+        <td style="text-align: right;">
+          <div class="row-actions">
+            ${isDone
+              ? `<button class="icon-btn btn-open-file" data-path="${t.savePath}" title="Open File in default application">
+                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                 </button>`
+              : ''
+            }
+            ${t.status === 'downloading'
+              ? `<button class="icon-btn btn-pause" data-id="${t.id}" title="Pause">
+                   <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                 </button>`
+              : (t.status !== 'completed'
+                ? `<button class="icon-btn btn-resume" data-id="${t.id}" title="Resume">
+                     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                   </button>`
+                : '')
+            }
+            ${t.status === 'error' || t.status === 'paused'
+              ? `<button class="icon-btn btn-update-url" data-id="${t.id}" title="Refresh / Update Download URL & Resume">
+                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                 </button>`
+              : ''
+            }
+            ${((t.isMedia || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|ogg|opus)$/i.test(t.name || '')) && (t.status === 'downloading' || t.status === 'completed' || t.status === 'paused'))
+              ? `<button class="icon-btn btn-watch-stream" data-id="${t.id}" title="Watch Media Stream Live (Buffer playback while downloading)" style="color: #38bdf8;">
+                   <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                 </button>`
+              : ''
+            }
+            <button class="icon-btn btn-inspect" onclick="window.segmentVisualizer.open('${t.id}')" title="Inspect IDM Segments & Allocation Map">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </button>
+            <button class="icon-btn btn-folder" data-path="${(t.savePath || '').replace(/"/g, '&quot;')}" title="Open Folder">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            </button>
+            <button class="icon-btn btn-del btn-del-disk" data-id="${t.id}" title="Delete Download (Remove from list or permanently delete from disk)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  // Render Multipart Group Parent Row HTML
+  function renderGroupRowHtml(item) {
+    const isExpanded = window.expandedGroupKeys.has(item.groupKey);
+    let totalBytes = 0;
+    let downloadedBytes = 0;
+    let totalSpeed = 0;
+    let maxEta = 0;
+    let completedCount = 0;
+    let anyDl = false;
+    let anyExtracting = false;
+    let allExtracted = true;
+    let anyPasswordReq = false;
+    let isAllSelected = true;
+
+    for (const t of item.tasks) {
+      totalBytes += (t.totalBytes || 0);
+      downloadedBytes += (t.downloadedBytes || 0);
+      if (t.status === 'downloading') {
+        anyDl = true;
+        totalSpeed += (t.speed || 0);
+        if (t.eta > maxEta) maxEta = t.eta;
+      }
+      if (t.status === 'completed') completedCount++;
+      if (t.extractStatus === 'extracting') anyExtracting = true;
+      if (t.extractStatus !== 'extracted') allExtracted = false;
+      if (t.extractStatus === 'password_required') anyPasswordReq = true;
+      if (!selectedTaskIds.has(t.id)) isAllSelected = false;
+    }
+
+    const allDone = completedCount === item.tasks.length;
+    const percent = totalBytes > 0
+      ? Math.min(100, Math.floor((downloadedBytes / totalBytes) * 100))
+      : (allDone ? 100 : 0);
+
+    let groupStatus = 'queued';
+    if (anyDl) groupStatus = 'downloading';
+    else if (anyExtracting) groupStatus = 'extracting';
+    else if (allDone) groupStatus = 'completed';
+    else if (item.tasks.some(t => t.status === 'paused')) groupStatus = 'paused';
+
+    let groupExtractBadge = '';
+    const rootTask = item.tasks.find(t => t.multipart?.partNumber === 1) || item.tasks[0];
+    if (allExtracted) {
+      groupExtractBadge = `<span class="badge-extracted" data-path="${(rootTask.extractedPath || '').replace(/"/g, '&quot;')}" title="Extracted to folder (Click to open)">📦 Extracted</span>`;
+    } else if (anyExtracting) {
+      groupExtractBadge = `<span class="badge-extracting" title="Extracting package in background...">📦 Extracting...</span>`;
+    } else if (anyPasswordReq) {
+      groupExtractBadge = `<span class="badge-password-req" data-id="${rootTask.id}" title="Password required to extract package! Click to unlock">🔑 Password Required</span>`;
+    } else if (!allDone) {
+      groupExtractBadge = `<span class="badge-waiting-parts" title="Waiting for all parts to complete before extracting">⏳ Waiting for Parts</span>`;
+    }
+
+    const parentRowHtml = `
+      <tr data-group-key="${item.groupKey}" class="group-parent-row ${isAllSelected ? 'row-selected' : ''}">
+        <td><input type="checkbox" class="group-checkbox" data-group="${item.groupKey}" ${isAllSelected ? 'checked' : ''}></td>
+        <td>
+          <div class="file-block">
+            <div class="file-app-icon-wrap" style="width: 32px; height: 32px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 700; font-size: 0.72rem;">
+              PKG
+            </div>
+            <div class="file-details">
+              <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                <button type="button" class="group-expand-toggle ${isExpanded ? 'expanded' : ''}" data-group="${item.groupKey}" title="${isExpanded ? 'Collapse Parts' : 'Expand Parts'}">
+                  ▶
+                </button>
+                <span class="file-title" style="flex: 1; min-width: 0; font-weight: 700; color: #e6edf3;" title="Inspect package micro-manager" onclick="window.segmentVisualizer && window.segmentVisualizer.openGroup ? window.segmentVisualizer.openGroup('${item.groupKey}') : null">
+                  📦 ${item.groupName}
+                </span>
+                <span class="group-parts-badge">${completedCount}/${item.tasks.length} parts</span>
+                ${groupExtractBadge}
+              </div>
+              <div class="file-subtext">Multipart Package • ${item.tasks.length} files • ${rootTask.savePath ? rootTask.savePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/') : ''}</div>
+            </div>
+          </div>
+        </td>
+        <td><span style="font-family: var(--font-mono); font-weight: 600;">${formatBytes(totalBytes)}</span></td>
+        <td>
+          <span class="state-tag ${groupStatus}">${groupStatus}</span>
+        </td>
+        <td class="progress-col">
+          <div class="meter-track">
+            <div class="meter-fill ${anyDl ? 'active' : ''} ${allDone ? 'complete' : ''} ${groupStatus === 'paused' ? 'paused' : ''}" style="width: ${percent}%;"></div>
+          </div>
+          <div class="meter-stat">${percent}% • ${formatBytes(downloadedBytes)}</div>
+        </td>
+        <td>
+          <span style="font-family: var(--font-mono); font-weight: 600; color: ${anyDl ? '#3fb950' : 'var(--text-muted)'};">
+            ${anyDl ? formatSpeed(totalSpeed) : '--'}
+          </span>
+        </td>
+        <td title="${anyDl ? formatETADuration(maxEta) : ''}">
+          <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.72rem; white-space: nowrap;">
+            ${anyDl ? formatETA(maxEta) : (allDone ? 'Completed' : '--')}
+          </span>
+        </td>
+        <td><span class="hoster-chip">${rootTask.hoster || 'Package'}</span></td>
+        <td style="text-align: right;">
+          <div class="row-actions">
+            ${anyDl
+              ? `<button class="icon-btn btn-group-pause" data-group="${item.groupKey}" title="Pause all parts in package">
+                   <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                 </button>`
+              : (!allDone
+                ? `<button class="icon-btn btn-group-resume" data-group="${item.groupKey}" title="Resume all parts in package">
+                     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                   </button>`
+                : '')
+            }
+            <button class="icon-btn btn-group-inspect" data-group="${item.groupKey}" title="Open Multipart Micro-Manager Inspector">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </button>
+            <button class="icon-btn btn-group-folder" data-path="${(rootTask.savePath || '').replace(/"/g, '&quot;')}" title="Open Containing Folder">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            </button>
+            <button class="icon-btn btn-group-del" data-group="${item.groupKey}" title="Delete All Parts in Package">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+
+    let childrenHtml = '';
+    if (isExpanded) {
+      for (const t of item.tasks) {
+        childrenHtml += renderTaskRowHtml(t, true, item.groupKey);
+      }
+    }
+
+    return parentRowHtml + childrenHtml;
+  }
+
   // Render Downloads Table
   function renderDownloads() {
     const tasks = window.appState.tasks;
@@ -405,6 +763,28 @@ document.addEventListener('DOMContentLoaded', () => {
       if (filter === 'paused' && t.status !== 'paused' && t.status !== 'queued') return false;
       if (filter === 'completed' && t.status !== 'completed') return false;
       if (filter === 'error' && t.status !== 'error' && t.status !== 'canceled') return false;
+      if (filter === 'extracting') {
+        const isExt = t.extractStatus === 'extracting' ||
+                      t.extractStatus === 'extract_queued' ||
+                      t.extractStatus === 'password_required' ||
+                      t.extractStatus === 'extract_password_required' ||
+                      t.extractStatus === 'waiting_parts' ||
+                      t.extractStatus === 'waiting_all_parts' ||
+                      t.status === 'extracting';
+        let siblingExtracting = false;
+        if (!isExt && t.multipart && t.multipart.groupKey) {
+          siblingExtracting = tasks.some(sib => sib.multipart && sib.multipart.groupKey === t.multipart.groupKey && (
+            sib.extractStatus === 'extracting' ||
+            sib.extractStatus === 'extract_queued' ||
+            sib.extractStatus === 'password_required' ||
+            sib.extractStatus === 'extract_password_required' ||
+            sib.extractStatus === 'waiting_parts' ||
+            sib.extractStatus === 'waiting_all_parts' ||
+            sib.status === 'extracting'
+          ));
+        }
+        if (!isExt && !siblingExtracting) return false;
+      }
 
       if (search) {
         const matchName = t.name && t.name.toLowerCase().includes(search);
@@ -416,162 +796,81 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     });
 
-    // Sort by date of added descending: latest added downloads appear on top
-    filtered.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    // Sort by date: newest first, always newest at the top
+    filtered.sort((a, b) => {
+      const timeA = a.addedAt || a.createdAt || 0;
+      const timeB = b.addedAt || b.createdAt || 0;
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
 
     if (filtered.length === 0) {
       tableBody.innerHTML = '';
       emptyState.style.display = 'flex';
+      const emptyTitle = emptyState.querySelector('div:nth-of-type(1)');
+      const emptyDesc = emptyState.querySelector('div:nth-of-type(2)');
+      if (emptyTitle && emptyDesc) {
+        if (filter === 'extracting') {
+          emptyTitle.textContent = 'No Archives Currently Being Extracted';
+          emptyDesc.textContent = 'Archives currently unpacking, queued, or awaiting password input will appear here in real-time.';
+        } else {
+          emptyTitle.textContent = 'Queue is Empty';
+          emptyDesc.textContent = 'Click "+ Add URL", "YouTube / MP3", or switch to LinkGrabber to crawl links.';
+        }
+      }
+      rowDomCache.clear();
+      groupDomCache.clear();
       return;
     }
 
     emptyState.style.display = 'none';
 
+    const renderItems = getGroupedDownloads(filtered);
     let html = '';
-    for (const t of filtered) {
-      const percent = (t.totalBytes > 0)
-        ? Math.min(100, Math.floor((t.downloadedBytes / t.totalBytes) * 100))
-        : (t.status === 'completed' ? 100 : 0);
 
-      const badge = getTypeBadge(t);
-      const isDl = t.status === 'downloading';
-      const isDone = t.status === 'completed';
-      const isSelected = selectedTaskIds.has(t.id);
-
-      let extractionBadge = '';
-      if (t.extractStatus === 'extracted') {
-        extractionBadge = `<span class="badge-extracted" data-path="${(t.extractedPath || '').replace(/"/g, '&quot;')}" title="Extracted to folder (Click to open)">📦 Extracted</span>`;
-      } else if (t.extractStatus === 'extracting') {
-        extractionBadge = `<span class="badge-extracting" title="Unpacking archive in background...">📦 Extracting...</span>`;
-      }
-
-      const ext = t.name && t.name.includes('.') ? ('.' + t.name.split('.').pop().toLowerCase()) : '';
-      const iconCacheKey = ext || (t.savePath ? t.savePath.toLowerCase() : t.id);
-      const cachedAppInfo = appIconClientCache.get(iconCacheKey);
-
-      let appIconHtml = '';
-      if (cachedAppInfo && cachedAppInfo.icon) {
-        appIconHtml = `
-          <div class="file-app-icon-wrap" id="row-icon-wrap-${t.id}" title="Opens with: ${cachedAppInfo.appName || 'Default Application'}">
-            <img class="row-app-icon-img" src="${cachedAppInfo.icon}" alt="${cachedAppInfo.appName || 'App'}">
-            <span class="row-mini-type-badge ${badge.cls}">${badge.text}</span>
-          </div>
-        `;
+    for (const item of renderItems) {
+      if (item.type === 'group') {
+        html += renderGroupRowHtml(item);
       } else {
-        appIconHtml = `
-          <div class="file-app-icon-wrap" id="row-icon-wrap-${t.id}" title="${badge.text}">
-            <span class="type-badge ${badge.cls}">${badge.text}</span>
-          </div>
-        `;
-
-        fetchAppIcon(t.savePath, t.name).then(info => {
-          if (info && info.icon) {
-            appIconClientCache.set(iconCacheKey, info);
-            const wrap = document.getElementById(`row-icon-wrap-${t.id}`);
-            if (wrap) {
-              wrap.title = `Opens with: ${info.appName || 'Default Application'}`;
-              wrap.innerHTML = `
-                <img class="row-app-icon-img" src="${info.icon}" alt="${info.appName || 'App'}">
-                <span class="row-mini-type-badge ${badge.cls}">${badge.text}</span>
-              `;
-            }
-            const label = document.getElementById(`row-app-label-${t.id}`);
-            if (label && info.appName) {
-              label.textContent = `Opens with ${info.appName}`;
-              label.style.display = 'inline-block';
-            }
-          }
-        });
+        html += renderTaskRowHtml(item.task, false, null);
       }
-
-      html += `
-        <tr data-id="${t.id}" class="download-row ${isSelected ? 'row-selected' : ''}">
-          <td><input type="checkbox" class="task-checkbox" data-id="${t.id}" ${isSelected ? 'checked' : ''}></td>
-          <td>
-            <div class="file-block">
-              ${appIconHtml}
-              <div class="file-details">
-                <div style="display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden;">
-                  <span class="file-title" style="flex: 1; min-width: 0;" title="${t.name}" onclick="window.segmentVisualizer.open('${t.id}')">${t.name}</span>
-                  ${extractionBadge}
-                  ${t.singleStream ? '<span class="badge-single-stream" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Whole File Mode (Single Stream - 1 Socket, No Chunks)">📦 Whole File</span>' : (t.downloadEngineMode === 'inPlace' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="In-Place Direct Writing (Zero Lag, Instant Completion)">⚡ Direct</span>' : '')}
-                  <span class="row-app-handler-label" id="row-app-label-${t.id}" style="${cachedAppInfo && cachedAppInfo.appName ? 'display:inline-block;' : 'display:none;'}" title="Default Handler">
-                    ${cachedAppInfo && cachedAppInfo.appName ? `Opens with ${cachedAppInfo.appName}` : ''}
-                  </span>
-                </div>
-                <div class="file-subtext">${t.packageName ? `[${t.packageName}] • ` : ''}${t.savePath || ''}</div>
-              </div>
-            </div>
-          </td>
-          <td><span style="font-family: var(--font-mono); font-weight: 600;">${formatBytes(t.totalBytes)}</span></td>
-          <td>
-            <span class="state-tag ${t.status}">
-              ${t.status}
-            </span>
-          </td>
-          <td class="progress-col">
-            <div class="meter-track">
-              <div class="meter-fill ${isDl ? 'active' : ''} ${isDone ? 'complete' : ''} ${t.status === 'paused' ? 'paused' : ''}" style="width: ${percent}%;"></div>
-            </div>
-            <div class="meter-stat">${percent}% • ${formatBytes(t.downloadedBytes)}</div>
-          </td>
-          <td>
-            <span style="font-family: var(--font-mono); font-weight: 600; color: ${isDl ? '#3fb950' : 'var(--text-muted)'};">
-              ${isDl ? formatSpeed(t.speed) : '--'}
-            </span>
-          </td>
-          <td title="${isDl ? formatETADuration(t.eta) : ''}">
-            <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.72rem; white-space: nowrap;">
-              ${isDl ? formatETA(t.eta) : (isDone ? 'Completed' : '--')}
-            </span>
-          </td>
-          <td><span class="hoster-chip">${t.hoster || 'Direct'}</span></td>
-          <td style="text-align: right;">
-            <div class="row-actions">
-              ${isDone
-                ? `<button class="icon-btn btn-open-file" data-path="${t.savePath}" title="Open File in default application">
-                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                   </button>`
-                : ''
-              }
-              ${t.status === 'downloading'
-                ? `<button class="icon-btn btn-pause" data-id="${t.id}" title="Pause">
-                     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-                   </button>`
-                : (t.status !== 'completed'
-                  ? `<button class="icon-btn btn-resume" data-id="${t.id}" title="Resume">
-                       <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                     </button>`
-                  : '')
-              }
-              ${t.status === 'error' || t.status === 'paused'
-                ? `<button class="icon-btn btn-update-url" data-id="${t.id}" title="Refresh / Update Download URL & Resume">
-                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                   </button>`
-                : ''
-              }
-              ${((t.isMedia || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|ogg|opus)$/i.test(t.name || '')) && (t.status === 'downloading' || t.status === 'completed' || t.status === 'paused'))
-                ? `<button class="icon-btn btn-watch-stream" data-id="${t.id}" title="Watch Media Stream Live (Buffer playback while downloading)" style="color: #38bdf8;">
-                     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                   </button>`
-                : ''
-              }
-              <button class="icon-btn btn-inspect" onclick="window.segmentVisualizer.open('${t.id}')" title="Inspect IDM Segments & Allocation Map">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-              </button>
-              <button class="icon-btn btn-folder" data-path="${(t.savePath || '').replace(/"/g, '&quot;')}" title="Open Folder">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              </button>
-              <button class="icon-btn btn-del btn-del-disk" data-id="${t.id}" title="Delete Download (Remove from list or permanently delete from disk)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
     }
 
     tableBody.innerHTML = html;
+
+    // Cache DOM Elements for O(1) Updates during High-Frequency 250ms Ticks
+    rowDomCache.clear();
+    groupDomCache.clear();
+
+    tableBody.querySelectorAll('tr.download-row').forEach(row => {
+      const id = row.dataset.id;
+      if (!id) return;
+      rowDomCache.set(id, {
+        row,
+        fill: row.querySelector('.meter-fill'),
+        stat: row.querySelector('.meter-stat'),
+        speedSpan: row.children[5]?.querySelector('span'),
+        etaSpan: row.children[6]?.querySelector('span'),
+        etaTd: row.children[6],
+        statusTag: row.children[3]?.querySelector('.state-tag')
+      });
+    });
+
+    tableBody.querySelectorAll('tr.group-parent-row').forEach(gRow => {
+      const gk = gRow.dataset.groupKey;
+      if (!gk) return;
+      groupDomCache.set(gk, {
+        row: gRow,
+        fill: gRow.querySelector('.meter-fill'),
+        stat: gRow.querySelector('.meter-stat'),
+        speedSpan: gRow.children[5]?.querySelector('span'),
+        etaSpan: gRow.children[6]?.querySelector('span'),
+        etaTd: gRow.children[6],
+        statusTag: gRow.children[3]?.querySelector('.state-tag'),
+        countBadge: gRow.querySelector('.group-parts-badge')
+      });
+    });
+
     updateBatchBar();
     bindTableActions(filtered);
   }
@@ -587,7 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function bindTableActions(currentFilteredTasks = []) {
-    // Checkbox selection
+    // Individual task checkbox selection
     tableBody.querySelectorAll('.task-checkbox').forEach(cb => {
       cb.onchange = (e) => {
         const id = cb.dataset.id;
@@ -602,14 +901,106 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     });
 
+    // Multipart group parent checkbox (selects all tasks in group)
+    tableBody.querySelectorAll('.group-checkbox').forEach(cb => {
+      cb.onchange = (e) => {
+        const gk = cb.dataset.group;
+        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        for (const s of siblings) {
+          if (cb.checked) {
+            selectedTaskIds.add(s.id);
+          } else {
+            selectedTaskIds.delete(s.id);
+          }
+        }
+        updateBatchBar();
+        renderDownloads();
+      };
+    });
+
+    // Group expand / collapse toggle (Down-arrow button)
+    tableBody.querySelectorAll('.group-expand-toggle').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const gk = btn.dataset.group;
+        if (window.expandedGroupKeys.has(gk)) {
+          window.expandedGroupKeys.delete(gk);
+        } else {
+          window.expandedGroupKeys.add(gk);
+        }
+        renderDownloads();
+      };
+    });
+
     // Extracted folder badges
     tableBody.querySelectorAll('.badge-extracted').forEach(badge => {
       badge.onclick = (e) => {
         e.stopPropagation();
         const folder = badge.dataset.path;
-        if (folder) {
-          openFolder(folder);
+        if (folder) openFolder(folder);
+      };
+    });
+
+    // Password required badges (click opens archive unlock key modal)
+    tableBody.querySelectorAll('.badge-password-req').forEach(badge => {
+      badge.onclick = (e) => {
+        e.stopPropagation();
+        const id = badge.dataset.id;
+        const task = window.appState.tasks.find(t => t.id === id);
+        openExtractPasswordPrompt(id, task ? task.name : 'Encrypted Archive');
+      };
+    });
+
+    // Group Actions (Pause All, Resume All, Inspect, Folder, Delete)
+    tableBody.querySelectorAll('.btn-group-pause').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const gk = btn.dataset.group;
+        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        fetch('/api/downloads/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'pause', ids: siblings.map(s => s.id) })
+        });
+      };
+    });
+
+    tableBody.querySelectorAll('.btn-group-resume').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const gk = btn.dataset.group;
+        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        fetch('/api/downloads/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'resume', ids: siblings.map(s => s.id) })
+        });
+      };
+    });
+
+    tableBody.querySelectorAll('.btn-group-inspect').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (window.segmentVisualizer && window.segmentVisualizer.openGroup) {
+          window.segmentVisualizer.openGroup(btn.dataset.group);
         }
+      };
+    });
+
+    tableBody.querySelectorAll('.btn-group-folder').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const p = btn.dataset.path;
+        if (p) openFolder(p);
+      };
+    });
+
+    tableBody.querySelectorAll('.btn-group-del').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const gk = btn.dataset.group;
+        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        if (siblings.length > 0) openDeleteConfirmModal(siblings);
       };
     });
 
@@ -653,10 +1044,16 @@ document.addEventListener('DOMContentLoaded', () => {
     tableBody.querySelectorAll('.btn-del').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
-        const task = window.appState.tasks.find(t => t.id === btn.dataset.id);
+        const id = btn.dataset.id;
+        const task = window.appState.tasks.find(t => t.id === id || String(t.id) === String(id));
         if (!task) return;
         if (e.shiftKey) {
           if (confirm(`Permanently delete "${task.name || task.filename}" from disk and remove from list?`)) {
+            window.appState.tasks = window.appState.tasks.filter(t => t.id !== task.id && String(t.id) !== String(task.id));
+            selectedTaskIds.delete(task.id);
+            selectedTaskIds.delete(String(task.id));
+            renderDownloads();
+            updateBadges();
             fetch(`/api/downloads/${task.id}?deleteFile=true`, { method: 'DELETE' });
           }
         } else {
@@ -753,21 +1150,43 @@ document.addEventListener('DOMContentLoaded', () => {
     contextMenu.style.display = 'block';
 
     // Show/hide or disable specific options based on task state
+    const isCompleted = task.status === 'completed';
+    const isArchive = task.name && (/\.(zip|rar|7z|tar\.gz|tar\.bz2|tar|tgz|001|r00|r01|part1\.rar|part\d+\.rar)$/i.test(task.name) || Boolean(task.multipart));
+
     const itemExtract = document.getElementById('ctx-extract-archive');
     if (itemExtract) {
-      const isArchive = task.name && (task.name.endsWith('.zip') || task.name.endsWith('.rar') || task.name.endsWith('.7z') || task.name.endsWith('.tar.gz'));
-      itemExtract.style.display = (isArchive && task.status === 'completed') ? 'flex' : 'none';
+      itemExtract.style.display = (isArchive && isCompleted) ? 'flex' : 'none';
     }
 
     const itemUpdateLink = document.getElementById('ctx-update-link');
     if (itemUpdateLink) {
-      itemUpdateLink.style.display = (task.status === 'completed') ? 'none' : 'flex';
+      itemUpdateLink.style.display = isCompleted ? 'none' : 'flex';
     }
 
     const itemPauseResume = document.getElementById('ctx-pause-resume');
     if (itemPauseResume) {
       itemPauseResume.textContent = (task.status === 'downloading') ? '⏸️ Pause Download' : '▶️ Resume Download';
-      itemPauseResume.style.display = (task.status === 'completed') ? 'none' : 'flex';
+      itemPauseResume.style.display = isCompleted ? 'none' : 'flex';
+    }
+
+    // Queue reordering options (only for incomplete downloads)
+    const mTop = document.getElementById('ctx-move-top');
+    const mUp = document.getElementById('ctx-move-up');
+    const mDown = document.getElementById('ctx-move-down');
+    const mBottom = document.getElementById('ctx-move-bottom');
+    if (mTop) mTop.style.display = isCompleted ? 'none' : 'flex';
+    if (mUp) mUp.style.display = isCompleted ? 'none' : 'flex';
+    if (mDown) mDown.style.display = isCompleted ? 'none' : 'flex';
+    if (mBottom) mBottom.style.display = isCompleted ? 'none' : 'flex';
+
+    // Priority labels
+    const prioHigh = document.getElementById('ctx-set-priority-high');
+    const prioNormal = document.getElementById('ctx-set-priority-normal');
+    if (prioHigh) {
+      prioHigh.textContent = task.priority === 'high' ? '✓ 🔴 High Queue Priority' : '🔴 High Queue Priority';
+    }
+    if (prioNormal) {
+      prioNormal.textContent = (task.priority !== 'high' && task.priority !== 'low') ? '✓ 🔵 Normal Priority' : '🔵 Normal Priority';
     }
   }
 
@@ -836,13 +1255,16 @@ document.addEventListener('DOMContentLoaded', () => {
     ctxExtractArchive.onclick = async () => {
       if (contextTask) {
         const id = contextTask.id;
+        const taskName = contextTask.name;
         hideContextMenu();
         const res = await fetch(`/api/downloads/${id}/extract`, { method: 'POST' });
         const data = await res.json();
-        if (data.success) {
-          alert(`Archive successfully unpacked to:\n${data.outDir}`);
+        if (data.passwordRequired) {
+          openExtractPasswordPrompt(id, taskName);
+        } else if (data.success) {
+          alert(`Archive queued/extracted to:\n${data.outDir}`);
         } else {
-          alert(`Extraction failed: ${data.error || 'Unknown error'}`);
+          alert(`Extraction status: ${data.error || 'Queued in worker'}`);
         }
       }
     };
@@ -897,6 +1319,97 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // Queue Reorder Actions
+  const ctxMoveTop = document.getElementById('ctx-move-top');
+  if (ctxMoveTop) {
+    ctxMoveTop.onclick = async () => {
+      if (contextTask) {
+        const id = contextTask.id;
+        hideContextMenu();
+        await fetch('/api/queue/move-top', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+      }
+    };
+  }
+
+  const ctxMoveUp = document.getElementById('ctx-move-up');
+  if (ctxMoveUp) {
+    ctxMoveUp.onclick = async () => {
+      if (contextTask) {
+        const id = contextTask.id;
+        hideContextMenu();
+        await fetch('/api/queue/move-up', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+      }
+    };
+  }
+
+  const ctxMoveDown = document.getElementById('ctx-move-down');
+  if (ctxMoveDown) {
+    ctxMoveDown.onclick = async () => {
+      if (contextTask) {
+        const id = contextTask.id;
+        hideContextMenu();
+        await fetch('/api/queue/move-down', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+      }
+    };
+  }
+
+  const ctxMoveBottom = document.getElementById('ctx-move-bottom');
+  if (ctxMoveBottom) {
+    ctxMoveBottom.onclick = async () => {
+      if (contextTask) {
+        const id = contextTask.id;
+        hideContextMenu();
+        await fetch('/api/queue/move-bottom', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+      }
+    };
+  }
+
+  const ctxSetPrioHigh = document.getElementById('ctx-set-priority-high');
+  if (ctxSetPrioHigh) {
+    ctxSetPrioHigh.onclick = async () => {
+      if (contextTask) {
+        const id = contextTask.id;
+        hideContextMenu();
+        await fetch('/api/queue/priority', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, priority: 'high' })
+        });
+      }
+    };
+  }
+
+  const ctxSetPrioNormal = document.getElementById('ctx-set-priority-normal');
+  if (ctxSetPrioNormal) {
+    ctxSetPrioNormal.onclick = async () => {
+      if (contextTask) {
+        const id = contextTask.id;
+        hideContextMenu();
+        await fetch('/api/queue/priority', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, priority: 'normal' })
+        });
+      }
+    };
+  }
+
   const ctxDeleteDisk = document.getElementById('ctx-delete-disk');
   if (ctxDeleteDisk) {
     ctxDeleteDisk.onclick = () => {
@@ -914,6 +1427,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (contextTask) {
         const id = contextTask.id;
         hideContextMenu();
+        window.appState.tasks = window.appState.tasks.filter(t => t.id !== id && String(t.id) !== String(id));
+        selectedTaskIds.delete(id);
+        selectedTaskIds.delete(String(id));
+        renderDownloads();
+        updateBadges();
         fetch(`/api/downloads/${id}?deleteFile=false`, { method: 'DELETE' });
       }
     };
@@ -961,42 +1479,80 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data && data.action) updatePowerLabel(data.action);
   }).catch(() => {});
 
-  // Update Tick
-  window.addEventListener('state:tick', () => {
+  // Update Tick (Zero-DOM-Query High-Performance Animation Frame Loop)
+  window.addEventListener('state:tick', (e) => {
     if (globalSpeedDisplay) globalSpeedDisplay.textContent = formatSpeed(window.appState.globalSpeed);
     updateBadges();
 
     if (window.appState.activeView === 'downloads') {
-      for (const t of window.appState.tasks) {
-        const row = tableBody.querySelector(`tr[data-id="${t.id}"]`);
-        if (!row) continue;
+      window.requestAnimationFrame(() => {
+        const activeUpdates = (e.detail && e.detail.tasks) ? e.detail.tasks : window.appState.tasks;
+        const touchedGroups = new Set();
 
-        const percent = (t.totalBytes > 0)
-          ? Math.min(100, Math.floor((t.downloadedBytes / t.totalBytes) * 100))
-          : (t.status === 'completed' ? 100 : 0);
+        for (const update of activeUpdates) {
+          const cached = rowDomCache.get(update.id);
+          if (cached) {
+            const percent = (update.totalBytes > 0)
+              ? Math.min(100, Math.floor((update.downloadedBytes / update.totalBytes) * 100))
+              : (update.status === 'completed' ? 100 : 0);
 
-        const fill = row.querySelector('.meter-fill');
-        const stat = row.querySelector('.meter-stat');
-        const speedTd = row.children[5].querySelector('span');
-        const etaTd = row.children[6].querySelector('span');
+            if (cached.fill) cached.fill.style.width = percent + '%';
+            if (cached.stat) cached.stat.textContent = `${percent}% • ${formatBytes(update.downloadedBytes)}`;
+            if (cached.speedSpan) {
+              cached.speedSpan.textContent = (update.status === 'downloading') ? formatSpeed(update.speed) : '--';
+              cached.speedSpan.style.color = (update.status === 'downloading') ? '#3fb950' : 'var(--text-muted)';
+            }
+            if (cached.etaSpan) {
+              cached.etaSpan.textContent = (update.status === 'downloading')
+                ? formatETA(update.eta)
+                : (update.status === 'completed' ? 'Completed' : '--');
+              if (cached.etaTd) {
+                cached.etaTd.title = (update.status === 'downloading')
+                  ? formatETADuration(update.eta)
+                  : '';
+              }
+            }
 
-        if (fill) fill.style.width = percent + '%';
-        if (stat) stat.textContent = `${percent}% • ${formatBytes(t.downloadedBytes)}`;
-        if (speedTd) {
-          speedTd.textContent = (t.status === 'downloading') ? formatSpeed(t.speed) : '--';
-          speedTd.style.color = (t.status === 'downloading') ? '#3fb950' : 'var(--text-muted)';
-        }
-        if (etaTd) {
-          etaTd.textContent = (t.status === 'downloading')
-            ? formatETA(t.eta)
-            : (t.status === 'completed' ? 'Completed' : '--');
-          if (row.children[6]) {
-            row.children[6].title = (t.status === 'downloading')
-              ? formatETADuration(t.eta)
-              : '';
+            const fullTask = window.appState.tasks.find(t => t.id === update.id);
+            if (fullTask && fullTask.multipart && fullTask.multipart.groupKey) {
+              touchedGroups.add(fullTask.multipart.groupKey);
+            }
           }
         }
-      }
+
+        // Batch update touched multipart parent groups in O(1)
+        for (const gk of touchedGroups) {
+          const gCached = groupDomCache.get(gk);
+          if (!gCached) continue;
+          const groupTasks = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+          let gTotal = 0, gDownloaded = 0, gSpeed = 0, gMaxEta = 0;
+          let anyDl = false;
+          let completedCount = 0;
+          for (const t of groupTasks) {
+            gTotal += (t.totalBytes || 0);
+            gDownloaded += (t.downloadedBytes || 0);
+            if (t.status === 'downloading') {
+              anyDl = true;
+              gSpeed += (t.speed || 0);
+              if (t.eta > gMaxEta) gMaxEta = t.eta;
+            }
+            if (t.status === 'completed') completedCount++;
+          }
+          const gPercent = gTotal > 0 ? Math.min(100, Math.floor((gDownloaded / gTotal) * 100)) : 0;
+          if (gCached.fill) gCached.fill.style.width = gPercent + '%';
+          if (gCached.stat) gCached.stat.textContent = `${gPercent}% • ${formatBytes(gDownloaded)}`;
+          if (gCached.speedSpan) {
+            gCached.speedSpan.textContent = anyDl ? formatSpeed(gSpeed) : '--';
+            gCached.speedSpan.style.color = anyDl ? '#3fb950' : 'var(--text-muted)';
+          }
+          if (gCached.etaSpan) {
+            gCached.etaSpan.textContent = anyDl ? formatETA(gMaxEta) : (completedCount === groupTasks.length ? 'Completed' : '--');
+          }
+          if (gCached.countBadge) {
+            gCached.countBadge.textContent = `${completedCount}/${groupTasks.length} parts`;
+          }
+        }
+      });
     }
 
     // Sync with Electron Taskbar (only for active running downloads)
@@ -1427,12 +1983,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (badgePictures) badgePictures.textContent = picCount;
     badgeDocuments.textContent = docCount;
 
+    let extractCount = 0;
+    const handledExtractGroups = new Set();
+    for (const t of tasks) {
+      const isExt = t.extractStatus === 'extracting' ||
+                    t.extractStatus === 'extract_queued' ||
+                    t.extractStatus === 'password_required' ||
+                    t.extractStatus === 'extract_password_required' ||
+                    t.extractStatus === 'waiting_parts' ||
+                    t.extractStatus === 'waiting_all_parts' ||
+                    t.status === 'extracting';
+      if (isExt) {
+        if (t.multipart && t.multipart.groupKey) {
+          if (!handledExtractGroups.has(t.multipart.groupKey)) {
+            handledExtractGroups.add(t.multipart.groupKey);
+            extractCount++;
+          }
+        } else {
+          extractCount++;
+        }
+      }
+    }
+
+    const badgeExtractingTab = document.getElementById('badge-extracting-tab');
+    if (badgeExtractingTab) badgeExtractingTab.textContent = extractCount;
+
+    const badgeError = document.getElementById('badge-error');
+    if (badgeError) badgeError.textContent = cancelCount;
+
     // Filter Tabs Count Badges
     const tabCountAll = document.getElementById('tab-count-all');
     const tabCountDone = document.getElementById('tab-count-done');
     const tabCountDownloading = document.getElementById('tab-count-downloading');
     const tabCountPaused = document.getElementById('tab-count-paused');
     const tabCountCanceled = document.getElementById('tab-count-canceled');
+    const tabCountExtracting = document.getElementById('tab-count-extracting');
     const tabCountVideo = document.getElementById('tab-count-video');
     const tabCountPictures = document.getElementById('tab-count-pictures');
     const tabCountAudio = document.getElementById('tab-count-audio');
@@ -1445,6 +2030,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabCountDownloading) tabCountDownloading.textContent = dlCount;
     if (tabCountPaused) tabCountPaused.textContent = pauseCount;
     if (tabCountCanceled) tabCountCanceled.textContent = cancelCount;
+    if (tabCountExtracting) tabCountExtracting.textContent = extractCount;
     if (tabCountVideo) tabCountVideo.textContent = vidCount;
     if (tabCountPictures) tabCountPictures.textContent = picCount;
     if (tabCountAudio) tabCountAudio.textContent = audCount;
@@ -1746,7 +2332,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     grabberStagedList.querySelectorAll('.btn-delete-staged').forEach(btn => {
       btn.onclick = () => {
-        fetch(`/api/linkgrabber/${btn.dataset.id}`, { method: 'DELETE' });
+        const id = btn.dataset.id;
+        window.appState.staged = (window.appState.staged || []).filter(i => i.id !== id && String(i.id) !== String(id));
+        renderGrabber();
+        updateBadges();
+        fetch(`/api/linkgrabber/${id}`, { method: 'DELETE' });
       };
     });
   }
@@ -1754,7 +2344,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // IDM Quick Actions
   btnResumeAll.addEventListener('click', () => fetch('/api/downloads/resume-all', { method: 'POST' }));
   btnPauseAll.addEventListener('click', () => fetch('/api/downloads/pause-all', { method: 'POST' }));
-  btnClearCompleted.addEventListener('click', () => fetch('/api/downloads/clear-completed', { method: 'POST' }));
+  btnClearCompleted.addEventListener('click', () => {
+    window.appState.tasks = window.appState.tasks.filter(t => t.status !== 'completed');
+    renderDownloads();
+    updateBadges();
+    fetch('/api/downloads/clear-completed', { method: 'POST' });
+  });
 
   // Modals Management & Event Wiring
   function closeModal(modalEl) {
@@ -1816,16 +2411,23 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (selectedTaskIds && selectedTaskIds.size > 0) {
         e.preventDefault();
-        const tasks = window.appState.tasks.filter(t => selectedTaskIds.has(t.id));
+        const tasks = window.appState.tasks.filter(t => selectedTaskIds.has(t.id) || selectedTaskIds.has(String(t.id)));
         if (e.shiftKey) {
           if (confirm(`Permanently delete ${tasks.length} selected download(s) from disk and remove from list?`)) {
+            const delIds = new Set(tasks.map(t => String(t.id)));
+            window.appState.tasks = window.appState.tasks.filter(t => !delIds.has(String(t.id)));
+            tasks.forEach(t => {
+              selectedTaskIds.delete(t.id);
+              selectedTaskIds.delete(String(t.id));
+            });
+            renderDownloads();
+            updateBadges();
+            updateBatchBar();
             fetch('/api/downloads/batch', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ action: 'delete', ids: tasks.map(t => t.id), deleteFiles: true })
             });
-            selectedTaskIds.clear();
-            updateBatchBar();
           }
         } else {
           openDeleteConfirmModal(tasks);
@@ -1989,6 +2591,22 @@ document.addEventListener('DOMContentLoaded', () => {
       engineModeEl.value = probeData.initialModeVal || (isMedia ? 'singleStream' : 'inPlace-8');
     }
 
+    // Archive Decompression & Password Options
+    const isArchive = /\.(zip|rar|7z|tar\.gz|tar\.bz2|tar|tgz|001|r00|r01|part1\.rar|part\d+\.rar)$/i.test(probeData.filename || '');
+    const extractBox = document.getElementById('idm-confirm-extract-box');
+    if (extractBox) {
+      extractBox.style.display = isArchive ? 'block' : 'none';
+    }
+    const extractCheck = document.getElementById('idm-confirm-enable-extract');
+    if (extractCheck) extractCheck.checked = true;
+    const extractPwd = document.getElementById('idm-confirm-archive-password');
+    if (extractPwd) {
+      extractPwd.value = '';
+      extractPwd.type = 'password';
+    }
+    const deleteArchiveCheck = document.getElementById('idm-confirm-delete-archive');
+    if (deleteArchiveCheck) deleteArchiveCheck.checked = false;
+
     const cfg = window.appState.config || {};
     // Script execution for individual download prompts must be OFF by default
     if (scriptCheck) scriptCheck.checked = false;
@@ -2116,6 +2734,10 @@ document.addEventListener('DOMContentLoaded', () => {
       customScript = { enabled: false };
     }
 
+    const enableExtract = Boolean(document.getElementById('idm-confirm-enable-extract')?.checked);
+    const archivePassword = document.getElementById('idm-confirm-archive-password')?.value.trim() || '';
+    const deleteArchiveOnExtract = Boolean(document.getElementById('idm-confirm-delete-archive')?.checked);
+
     try {
       const res = await fetch('/api/downloads', {
         method: 'POST',
@@ -2131,6 +2753,9 @@ document.addEventListener('DOMContentLoaded', () => {
           segments,
           customScript,
           isMedia: currentConfirmData.isMedia,
+          autoExtract: enableExtract,
+          archivePassword,
+          deleteAfterExtract: deleteArchiveOnExtract,
           confirmed: true
         })
       });
@@ -2162,6 +2787,81 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modalIdmConfirm) modalIdmConfirm.classList.remove('open');
   });
 
+  const btnTogglePwdConfirm = document.getElementById('btn-toggle-pwd-confirm');
+  if (btnTogglePwdConfirm) {
+    btnTogglePwdConfirm.onclick = () => {
+      const pwdIn = document.getElementById('idm-confirm-archive-password');
+      if (pwdIn) pwdIn.type = pwdIn.type === 'password' ? 'text' : 'password';
+    };
+  }
+
+  // ==========================================================================
+  // Archive Password Required Modal Engine
+  // ==========================================================================
+  const modalExtractPassword = document.getElementById('modal-extract-password');
+  const inputExtractPassword = document.getElementById('input-extract-password');
+  const checkRememberExtractPassword = document.getElementById('check-remember-extract-password');
+  const extractPwdFilename = document.getElementById('extract-pwd-filename');
+  const btnSubmitExtractPassword = document.getElementById('btn-submit-extract-password');
+  const btnTogglePwdPrompt = document.getElementById('btn-toggle-pwd-prompt');
+
+  function openExtractPasswordPrompt(taskId, filename) {
+    extractPasswordTargetTaskId = taskId;
+    if (extractPwdFilename) extractPwdFilename.textContent = filename || 'Encrypted Archive';
+    if (inputExtractPassword) {
+      inputExtractPassword.value = '';
+      inputExtractPassword.type = 'password';
+    }
+    if (modalExtractPassword) {
+      closeAllModals();
+      modalExtractPassword.classList.add('open');
+      setTimeout(() => inputExtractPassword?.focus(), 60);
+    }
+  }
+  window.openExtractPasswordPrompt = openExtractPasswordPrompt;
+
+  window.addEventListener('extract:password-required', (e) => {
+    if (e.detail && e.detail.taskId) {
+      openExtractPasswordPrompt(e.detail.taskId, e.detail.name || e.detail.groupKey);
+    }
+  });
+
+  if (btnSubmitExtractPassword) {
+    btnSubmitExtractPassword.onclick = async () => {
+      if (!extractPasswordTargetTaskId) return;
+      const password = inputExtractPassword?.value || '';
+      const remember = checkRememberExtractPassword ? checkRememberExtractPassword.checked : true;
+
+      try {
+        const res = await fetch(`/api/downloads/${extractPasswordTargetTaskId}/set-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, remember })
+        });
+        const data = await res.json();
+        if (modalExtractPassword) modalExtractPassword.classList.remove('open');
+        extractPasswordTargetTaskId = null;
+      } catch (err) {
+        alert('Could not submit archive password: ' + err.message);
+      }
+    };
+  }
+
+  if (btnTogglePwdPrompt && inputExtractPassword) {
+    btnTogglePwdPrompt.onclick = () => {
+      inputExtractPassword.type = inputExtractPassword.type === 'password' ? 'text' : 'password';
+    };
+  }
+
+  if (inputExtractPassword) {
+    inputExtractPassword.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (btnSubmitExtractPassword) btnSubmitExtractPassword.click();
+      }
+    });
+  }
+
   // ==========================================================================
   // Delete Download Confirmation Modal (Disk Cleanup Engine)
   // ==========================================================================
@@ -2181,6 +2881,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!modalDeleteConfirm) {
       const delDisk = confirm(`Delete ${tasks.length} task(s)? Click OK to also delete downloaded files from disk, or Cancel to keep files on disk.`);
+      const delIds = new Set(tasks.map(t => String(t.id)));
+      window.appState.tasks = window.appState.tasks.filter(t => !delIds.has(String(t.id)));
+      tasks.forEach(t => {
+        selectedTaskIds.delete(t.id);
+        selectedTaskIds.delete(String(t.id));
+      });
+      renderDownloads();
+      updateBadges();
+      updateBatchBar();
+      if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
+
       if (tasks.length === 1) {
         fetch(`/api/downloads/${tasks[0].id}?deleteFile=${delDisk}`, { method: 'DELETE' });
       } else {
@@ -2216,25 +2927,36 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDeleteFromDisk.onclick = async () => {
       if (tasksPendingDelete.length === 0) return;
       btnDeleteFromDisk.disabled = true;
+      const toDelete = [...tasksPendingDelete];
+      modalDeleteConfirm.classList.remove('open');
+      tasksPendingDelete = [];
+
+      // Optimistic instant UI removal
+      const delIds = new Set(toDelete.map(t => String(t.id)));
+      window.appState.tasks = window.appState.tasks.filter(t => !delIds.has(String(t.id)));
+      toDelete.forEach(t => {
+        selectedTaskIds.delete(t.id);
+        selectedTaskIds.delete(String(t.id));
+      });
+      renderDownloads();
+      updateBadges();
+      updateBatchBar();
+      if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
+
       try {
-        if (tasksPendingDelete.length === 1) {
-          await fetch(`/api/downloads/${tasksPendingDelete[0].id}?deleteFile=true`, { method: 'DELETE' });
+        if (toDelete.length === 1) {
+          await fetch(`/api/downloads/${toDelete[0].id}?deleteFile=true`, { method: 'DELETE' });
         } else {
           await fetch('/api/downloads/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', ids: tasksPendingDelete.map(t => t.id), deleteFiles: true })
+            body: JSON.stringify({ action: 'delete', ids: toDelete.map(t => t.id), deleteFiles: true })
           });
         }
       } catch (err) {
         console.warn('Delete from disk error:', err);
       } finally {
         btnDeleteFromDisk.disabled = false;
-        selectedTaskIds.clear();
-        updateBatchBar();
-        if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
-        modalDeleteConfirm.classList.remove('open');
-        tasksPendingDelete = [];
       }
     };
   }
@@ -2243,25 +2965,36 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDeleteListOnly.onclick = async () => {
       if (tasksPendingDelete.length === 0) return;
       btnDeleteListOnly.disabled = true;
+      const toDelete = [...tasksPendingDelete];
+      modalDeleteConfirm.classList.remove('open');
+      tasksPendingDelete = [];
+
+      // Optimistic instant UI removal
+      const delIds = new Set(toDelete.map(t => String(t.id)));
+      window.appState.tasks = window.appState.tasks.filter(t => !delIds.has(String(t.id)));
+      toDelete.forEach(t => {
+        selectedTaskIds.delete(t.id);
+        selectedTaskIds.delete(String(t.id));
+      });
+      renderDownloads();
+      updateBadges();
+      updateBatchBar();
+      if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
+
       try {
-        if (tasksPendingDelete.length === 1) {
-          await fetch(`/api/downloads/${tasksPendingDelete[0].id}?deleteFile=false`, { method: 'DELETE' });
+        if (toDelete.length === 1) {
+          await fetch(`/api/downloads/${toDelete[0].id}?deleteFile=false`, { method: 'DELETE' });
         } else {
           await fetch('/api/downloads/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', ids: tasksPendingDelete.map(t => t.id), deleteFiles: false })
+            body: JSON.stringify({ action: 'delete', ids: toDelete.map(t => t.id), deleteFiles: false })
           });
         }
       } catch (err) {
         console.warn('Delete from list error:', err);
       } finally {
         btnDeleteListOnly.disabled = false;
-        selectedTaskIds.clear();
-        updateBatchBar();
-        if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
-        modalDeleteConfirm.classList.remove('open');
-        tasksPendingDelete = [];
       }
     };
   }
@@ -2269,7 +3002,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnToolbarDelete) {
     btnToolbarDelete.onclick = () => {
       if (selectedTaskIds && selectedTaskIds.size > 0) {
-        const tasks = window.appState.tasks.filter(t => selectedTaskIds.has(t.id));
+        const tasks = window.appState.tasks.filter(t => selectedTaskIds.has(t.id) || selectedTaskIds.has(String(t.id)));
         openDeleteConfirmModal(tasks);
       } else if (window.appState.tasks && window.appState.tasks.length > 0) {
         const first = window.appState.tasks[0];
@@ -2540,6 +3273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.waterfallDesktop.setAlwaysOnTop(isPinned);
       }
       updateLimiterStatusLabel(window.appState.config);
+      updateFilterTabsBarVisibility(Boolean(window.appState.config.showTopFilterBar));
     }
   });
 
@@ -2554,6 +3288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.waterfallDesktop.setAlwaysOnTop(isPinned);
       }
       updateLimiterStatusLabel(window.appState.config);
+      updateFilterTabsBarVisibility(Boolean(window.appState.config.showTopFilterBar));
     }
   });
 
@@ -2666,6 +3401,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('cfg-volume-label')) document.getElementById('cfg-volume-label').textContent = `${Math.round(vol * 100)}%`;
 
     // 7. Theme & System
+    if (document.getElementById('cfg-show-top-filter-bar')) document.getElementById('cfg-show-top-filter-bar').checked = !!cfg.showTopFilterBar;
+    updateFilterTabsBarVisibility(Boolean(cfg.showTopFilterBar));
     if (document.getElementById('cfg-show-confirm')) document.getElementById('cfg-show-confirm').checked = cfg.showDownloadConfirmation !== false;
     if (document.getElementById('cfg-auto-download-no-confirm')) document.getElementById('cfg-auto-download-no-confirm').checked = !!cfg.autoDownloadWithoutConfirmation;
     if (document.getElementById('cfg-force-top-download')) document.getElementById('cfg-force-top-download').checked = cfg.forceTopOnDownload !== false;
@@ -2767,6 +3504,7 @@ document.addEventListener('DOMContentLoaded', () => {
       soundChimeVolume: parseFloat(document.getElementById('cfg-sound-volume')?.value || '0.8'),
 
       // Interface
+      showTopFilterBar: document.getElementById('cfg-show-top-filter-bar')?.checked || false,
       showDownloadConfirmation: document.getElementById('cfg-show-confirm')?.checked,
       autoDownloadWithoutConfirmation: document.getElementById('cfg-auto-download-no-confirm')?.checked || false,
       forceTopOnDownload: document.getElementById('cfg-force-top-download')?.checked !== false,
@@ -2789,6 +3527,7 @@ document.addEventListener('DOMContentLoaded', () => {
       applyThemeAccent(themeAccent);
       updateLimiterStatusLabel(updated);
       updatePinTopButton(Boolean(updated.alwaysOnTop));
+      updateFilterTabsBarVisibility(Boolean(updated.showTopFilterBar));
       if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
         window.waterfallDesktop.setAlwaysOnTop(Boolean(updated.alwaysOnTop));
       }
@@ -2926,4 +3665,155 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Live toggle for show-top-filter-bar in settings modal
+  const cfgShowTopFilterBar = document.getElementById('cfg-show-top-filter-bar');
+  if (cfgShowTopFilterBar) {
+    cfgShowTopFilterBar.addEventListener('change', () => {
+      updateFilterTabsBarVisibility(cfgShowTopFilterBar.checked);
+    });
+  }
+
+  // ==========================================================================
+  // Resizable Data Grid Columns Engine (Main Downloads Queue)
+  // ==========================================================================
+  const DEFAULT_COL_WIDTHS = {
+    select: 36,
+    name: 280,
+    size: 95,
+    status: 105,
+    progress: 175,
+    speed: 95,
+    finish: 125,
+    hoster: 85,
+    actions: 155
+  };
+
+  const MIN_COL_WIDTHS = {
+    select: 36,
+    name: 120,
+    size: 65,
+    status: 80,
+    progress: 110,
+    speed: 70,
+    finish: 85,
+    hoster: 65,
+    actions: 110
+  };
+
+  function applyColumnWidths(widths) {
+    const table = document.getElementById('downloads-table');
+    const cols = document.querySelectorAll('#downloads-colgroup col');
+    if (!cols.length) return;
+    let total = 0;
+    cols.forEach(col => {
+      const k = col.dataset.col;
+      if (k) {
+        const w = Math.max(MIN_COL_WIDTHS[k] || 36, widths[k] || DEFAULT_COL_WIDTHS[k] || 80);
+        col.style.width = w + 'px';
+        const th = document.querySelector(`.downloads-table th[data-col="${k}"]`);
+        if (th) th.style.width = w + 'px';
+        total += w;
+      }
+    });
+    if (table) {
+      table.style.minWidth = total + 'px';
+    }
+  }
+
+  function loadColumnWidths() {
+    let saved = null;
+    try {
+      const raw = localStorage.getItem('waterfall_col_widths');
+      if (raw) saved = JSON.parse(raw);
+    } catch (_) {}
+    applyColumnWidths(saved && typeof saved === 'object' ? { ...DEFAULT_COL_WIDTHS, ...saved } : DEFAULT_COL_WIDTHS);
+  }
+
+  function initTableColumnResizing() {
+    const table = document.getElementById('downloads-table');
+    const handles = document.querySelectorAll('.downloads-table .col-resize-handle');
+    if (!table || !handles.length) return;
+
+    loadColumnWidths();
+
+    handles.forEach(handle => {
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const colKey = handle.dataset.col;
+        if (!colKey) return;
+
+        const th = handle.closest('th');
+        const col = document.querySelector(`#downloads-colgroup col[data-col="${colKey}"]`);
+        if (!th || !col) return;
+
+        const startX = e.clientX;
+        const startWidth = th.getBoundingClientRect().width;
+        const minW = MIN_COL_WIDTHS[colKey] || 50;
+
+        document.body.classList.add('resizing-columns');
+        handle.classList.add('resizing');
+
+        function onMouseMove(moveEvent) {
+          const delta = moveEvent.clientX - startX;
+          const newW = Math.max(minW, Math.round(startWidth + delta));
+          col.style.width = newW + 'px';
+          th.style.width = newW + 'px';
+
+          // Recalculate table minWidth
+          const cols = document.querySelectorAll('#downloads-colgroup col');
+          let total = 0;
+          cols.forEach(c => {
+            total += parseInt(c.style.width, 10) || Math.round(c.getBoundingClientRect().width);
+          });
+          table.style.minWidth = total + 'px';
+        }
+
+        function onMouseUp() {
+          document.body.classList.remove('resizing-columns');
+          handle.classList.remove('resizing');
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+
+          // Save to localStorage
+          const widths = {};
+          document.querySelectorAll('#downloads-colgroup col').forEach(c => {
+            const k = c.dataset.col;
+            if (k) {
+              widths[k] = parseInt(c.style.width, 10) || Math.round(c.getBoundingClientRect().width);
+            }
+          });
+          try {
+            localStorage.setItem('waterfall_col_widths', JSON.stringify(widths));
+          } catch (_) {}
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+
+      // Double-click to reset column to default width
+      handle.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const colKey = handle.dataset.col;
+        if (colKey && DEFAULT_COL_WIDTHS[colKey]) {
+          try {
+            let saved = {};
+            const raw = localStorage.getItem('waterfall_col_widths');
+            if (raw) saved = JSON.parse(raw);
+            saved[colKey] = DEFAULT_COL_WIDTHS[colKey];
+            localStorage.setItem('waterfall_col_widths', JSON.stringify(saved));
+          } catch (_) {}
+          loadColumnWidths();
+        }
+      });
+    });
+  }
+
+  // Initialize table resizers & initial filter tabs bar visibility
+  initTableColumnResizing();
+  updateFilterTabsBarVisibility(Boolean(window.appState.config && window.appState.config.showTopFilterBar));
 });

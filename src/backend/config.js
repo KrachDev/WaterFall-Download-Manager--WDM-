@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
 
   // Acceleration Engine & Network Connection
   maxConcurrentDownloads: 3,
+  maxConcurrentPerHost: 2,
   segmentsPerFile: 8,
   downloadEngineMode: 'inPlace', // 'inPlace' (Zero Assembly) | 'singleStream' (Whole File) | 'legacyTemp'
   bufferSizeBytes: 1048576, // 1MB highWaterMark chunk buffer
@@ -54,6 +55,7 @@ const DEFAULT_CONFIG = {
   clipboardMonitoring: false,
 
   // UI, Audio & Notifications
+  showTopFilterBar: false, // Show top filter tabs bar in main menu - OFF by default
   autoDownloadWithoutConfirmation: false, // Auto-download files immediately without confirmation (OFF by default)
   showDownloadConfirmation: true, // IDM-style confirmation dialog before starting (ON by default)
   forceTopOnDownload: true, // Force window to top when a new download is prompted/intercepted

@@ -85,7 +85,6 @@ class ChunkDownloader extends EventEmitter {
 
     if (useInPlace) {
       // In-Place Direct Writing Engine (Zero-Assembly)
-      // Open random-access file descriptor directly on the target .part file
       const partDir = path.dirname(this.partFilePath);
       if (!fs.existsSync(partDir)) {
         try { fs.mkdirSync(partDir, { recursive: true }); } catch (_) {}
@@ -309,7 +308,6 @@ class ChunkDownloader extends EventEmitter {
       // If server returned 200 OK instead of 206 Partial Content, Range is unsupported
       if (res.status === 200) {
         if (segment.id > 0) {
-          // Server ignored Range request - only worker #0 will download the file
           this.task.acceptRanges = false;
           segment.status = 'completed';
           segment.totalBytes = 0;
@@ -346,6 +344,31 @@ class ChunkDownloader extends EventEmitter {
       let lastSegBytes = segment.downloadedBytes;
       const speedLimitPerSec = this.options.speedLimitBytesPerSec || 0;
 
+      // High-performance coalescing buffer (eliminates synchronous event loop blocking)
+      let pendingChunks = [];
+      let pendingLength = 0;
+      const FLUSH_THRESHOLD = 256 * 1024; // 256 KB chunk batching
+      let segmentWriteCursor = segment.startByte + (segment.downloadedBytes || 0);
+
+      const flushPendingBuffers = async () => {
+        if (pendingLength === 0 || this.fd === null) return;
+        const chunkToWrite = (pendingChunks.length === 1)
+          ? pendingChunks[0]
+          : Buffer.concat(pendingChunks, pendingLength);
+
+        const writeAt = segmentWriteCursor;
+        segmentWriteCursor += pendingLength;
+        pendingChunks = [];
+        pendingLength = 0;
+
+        await new Promise((resolve, reject) => {
+          fs.write(this.fd, chunkToWrite, 0, chunkToWrite.length, writeAt, (err) => {
+            if (err) return reject(err);
+            resolve();
+          });
+        });
+      };
+
       while (true) {
         if (this.isPaused || this.isCancelled) break;
 
@@ -353,7 +376,7 @@ class ChunkDownloader extends EventEmitter {
         if (done) break;
 
         if (value && value.length > 0) {
-          let chunkBuf = value;
+          let chunkBuf = Buffer.isBuffer(value) ? value : Buffer.from(value);
           if (segment.totalBytes > 0) {
             const needed = segment.totalBytes - segment.downloadedBytes;
             if (needed <= 0) break;
@@ -363,9 +386,12 @@ class ChunkDownloader extends EventEmitter {
           }
 
           if (useInPlace && this.fd !== null) {
-            // In-Place direct write to pre-calculated byte offset (Zero Assembly)
-            const writeOffset = segment.startByte + segment.downloadedBytes;
-            fs.writeSync(this.fd, chunkBuf, 0, chunkBuf.length, writeOffset);
+            pendingChunks.push(chunkBuf);
+            pendingLength += chunkBuf.length;
+
+            if (pendingLength >= FLUSH_THRESHOLD) {
+              await flushPendingBuffers();
+            }
           } else if (legacyStream) {
             legacyStream.write(chunkBuf);
           }
@@ -398,6 +424,11 @@ class ChunkDownloader extends EventEmitter {
             this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + s.downloadedBytes, 0);
           }
         }
+      }
+
+      // Flush any remaining accumulated bytes before completing segment
+      if (useInPlace && pendingLength > 0) {
+        await flushPendingBuffers();
       }
 
       if (legacyStream) legacyStream.end();
@@ -475,7 +506,6 @@ class ChunkDownloader extends EventEmitter {
 
     await new Promise(resolve => outStream.end(resolve));
 
-    // Preserve remote server Last-Modified timestamp
     if (this.task.lastModified) {
       try {
         const mdate = new Date(this.task.lastModified);
@@ -542,4 +572,3 @@ class ChunkDownloader extends EventEmitter {
 }
 
 module.exports = ChunkDownloader;
-
