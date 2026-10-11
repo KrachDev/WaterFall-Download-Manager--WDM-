@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const path = require('path');
 const hosterManager = require('./hosters');
+const { resolveBestFilename } = require('./namingEngine');
 
 const COMPRESSED_EXTS = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso', 'pkg', 'part']);
 const PROGRAM_EXTS = new Set(['exe', 'msi', 'bat', 'apk', 'bin', 'dmg', 'appimage', 'deb', 'rpm']);
@@ -19,31 +20,13 @@ function getCategoryFromFilename(filename) {
 }
 
 function extractFilenameFromHeadersOrUrl(url, headers) {
-  let filename = '';
   const cd = headers ? headers.get('content-disposition') : null;
-  if (cd) {
-    const filenameMatch = cd.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/i);
-    if (filenameMatch && filenameMatch[1]) {
-      filename = decodeURIComponent(filenameMatch[1].trim());
-    }
-  }
-
-  if (!filename) {
-    try {
-      const u = new URL(url);
-      const base = path.basename(u.pathname);
-      if (base && base.length > 1) {
-        filename = decodeURIComponent(base);
-      }
-    } catch (_) {}
-  }
-
-  if (!filename || filename === '/' || filename === '.') {
-    filename = `download_${Date.now()}`;
-  }
-
-  // Clean illegal Windows filename chars
-  return filename.replace(/[<>:"/\\|?*]/g, '_');
+  const contentType = headers ? headers.get('content-type') : null;
+  return resolveBestFilename({
+    contentDisposition: cd,
+    initialUrl: url,
+    contentType
+  });
 }
 
 class LinkGrabber {

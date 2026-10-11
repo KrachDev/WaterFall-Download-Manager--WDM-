@@ -134,6 +134,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Toolbar Actions
   const btnAddUrl = document.getElementById('btn-add-url');
+  const btnAddDropdownToggle = document.getElementById('btn-add-dropdown-toggle');
+  const addDownloadDropdownMenu = document.getElementById('add-download-dropdown-menu');
+  const menuAddDirect = document.getElementById('menu-add-direct');
+  const menuAddYouTube = document.getElementById('menu-add-youtube');
+  const menuAddGrabber = document.getElementById('menu-add-grabber');
+  const addModalTabDirect = document.getElementById('add-modal-tab-direct');
+  const addModalTabYouTube = document.getElementById('add-modal-tab-youtube');
+  const addModalTabGrabber = document.getElementById('add-modal-tab-grabber');
+  const limiterStatusLabel = document.getElementById('limiter-status-label');
   const btnToggleGrabber = document.getElementById('btn-toggle-grabber');
   const btnResumeAll = document.getElementById('btn-resume-all');
   const btnPauseAll = document.getElementById('btn-pause-all');
@@ -246,7 +255,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
   tabDownloadsView.addEventListener('click', () => switchView('downloads'));
   tabGrabberView.addEventListener('click', () => switchView('grabber'));
-  btnToggleGrabber.addEventListener('click', () => switchView('grabber'));
+  if (btnToggleGrabber) btnToggleGrabber.addEventListener('click', () => switchView('grabber'));
+
+  // Unified Add Download Split Button & Dropdown Menu
+  if (btnAddDropdownToggle && addDownloadDropdownMenu) {
+    btnAddDropdownToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addDownloadDropdownMenu.classList.toggle('show');
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (addDownloadDropdownMenu && !e.target.closest('.add-download-dropdown-wrap')) {
+      addDownloadDropdownMenu.classList.remove('show');
+    }
+  });
+
+  if (menuAddDirect) {
+    menuAddDirect.addEventListener('click', () => {
+      if (addDownloadDropdownMenu) addDownloadDropdownMenu.classList.remove('show');
+      if (modalAddUrl) {
+        const inputUrl = document.getElementById('input-url');
+        if (inputUrl) { inputUrl.value = ''; setTimeout(() => inputUrl.focus(), 60); }
+        modalAddUrl.classList.add('open');
+      }
+    });
+  }
+
+  if (menuAddYouTube) {
+    menuAddYouTube.addEventListener('click', () => {
+      if (addDownloadDropdownMenu) addDownloadDropdownMenu.classList.remove('show');
+      if (modalYouTubeConverter) {
+        modalYouTubeConverter.classList.add('open');
+        if (ytInputUrl) ytInputUrl.focus();
+      }
+    });
+  }
+
+  if (menuAddGrabber) {
+    menuAddGrabber.addEventListener('click', () => {
+      if (addDownloadDropdownMenu) addDownloadDropdownMenu.classList.remove('show');
+      switchView('grabber');
+    });
+  }
+
+  if (addModalTabYouTube) {
+    addModalTabYouTube.addEventListener('click', () => {
+      if (modalAddUrl) modalAddUrl.classList.remove('open');
+      if (modalYouTubeConverter) {
+        modalYouTubeConverter.classList.add('open');
+        if (ytInputUrl) ytInputUrl.focus();
+      }
+    });
+  }
+
+  if (addModalTabGrabber) {
+    addModalTabGrabber.addEventListener('click', () => {
+      if (modalAddUrl) modalAddUrl.classList.remove('open');
+      switchView('grabber');
+    });
+  }
 
   // Interactive Filter Tabs Bar (All, Done, Paused, Canceled, Videos, Photos, etc.)
   if (filterTabsBar) {
@@ -895,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Update Tick
   window.addEventListener('state:tick', () => {
-    globalSpeedDisplay.textContent = formatSpeed(window.appState.globalSpeed);
+    if (globalSpeedDisplay) globalSpeedDisplay.textContent = formatSpeed(window.appState.globalSpeed);
     updateBadges();
 
     if (window.appState.activeView === 'downloads') {
@@ -1388,10 +1456,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   // YouTube Downloader & Audio/Video Converter Controller
   // ==========================================================================
-  btnOpenYouTube.addEventListener('click', () => {
-    modalYouTubeConverter.classList.add('open');
-    ytInputUrl.focus();
-  });
+  if (btnOpenYouTube) {
+    btnOpenYouTube.addEventListener('click', () => {
+      modalYouTubeConverter.classList.add('open');
+      ytInputUrl.focus();
+    });
+  }
 
   async function inspectYouTubeUrl() {
     const url = ytInputUrl.value.trim();
@@ -2289,27 +2359,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Speed Limiter Modal
-  btnSpeedLimiter.addEventListener('click', () => {
-    const cfg = window.appState.config || {};
-    const checkEnable = document.getElementById('check-enable-limiter');
-    const inputVal = document.getElementById('input-limiter-val');
-    const selectUnit = document.getElementById('select-limiter-unit');
-
-    if (checkEnable) checkEnable.checked = !!cfg.speedLimitEnabled;
-    const limitBytes = cfg.speedLimitBytesPerSec || 0;
-    if (limitBytes >= 1024 * 1024) {
-      if (inputVal) inputVal.value = parseFloat((limitBytes / (1024 * 1024)).toFixed(1));
-      if (selectUnit) selectUnit.value = 'MB';
-    } else if (limitBytes > 0) {
-      if (inputVal) inputVal.value = Math.round(limitBytes / 1024);
-      if (selectUnit) selectUnit.value = 'KB';
+  function updateLimiterStatusLabel(cfg) {
+    if (!limiterStatusLabel) return;
+    const config = cfg || window.appState.config || {};
+    const btnLimiter = document.getElementById('btn-speed-limiter');
+    if (config.speedLimitEnabled && config.speedLimitBytesPerSec > 0) {
+      limiterStatusLabel.textContent = `Limit: ${formatSpeed(config.speedLimitBytesPerSec)}`;
+      if (btnLimiter) btnLimiter.classList.add('limiter-active');
     } else {
-      if (inputVal) inputVal.value = 5;
-      if (selectUnit) selectUnit.value = 'MB';
+      limiterStatusLabel.textContent = 'Speed Limit: Off';
+      if (btnLimiter) btnLimiter.classList.remove('limiter-active');
     }
-    modalSpeedLimiter.classList.add('open');
-  });
+  }
+
+  // Speed Limiter Modal
+  if (btnSpeedLimiter) {
+    btnSpeedLimiter.addEventListener('click', () => {
+      const cfg = window.appState.config || {};
+      const checkEnable = document.getElementById('check-enable-limiter');
+      const inputVal = document.getElementById('input-limiter-val');
+      const selectUnit = document.getElementById('select-limiter-unit');
+
+      if (checkEnable) checkEnable.checked = !!cfg.speedLimitEnabled;
+      const limitBytes = cfg.speedLimitBytesPerSec || 0;
+      if (limitBytes >= 1024 * 1024) {
+        if (inputVal) inputVal.value = parseFloat((limitBytes / (1024 * 1024)).toFixed(1));
+        if (selectUnit) selectUnit.value = 'MB';
+      } else if (limitBytes > 0) {
+        if (inputVal) inputVal.value = Math.round(limitBytes / 1024);
+        if (selectUnit) selectUnit.value = 'KB';
+      } else {
+        if (inputVal) inputVal.value = 5;
+        if (selectUnit) selectUnit.value = 'MB';
+      }
+      modalSpeedLimiter.classList.add('open');
+    });
+  }
 
   if (btnSaveSpeedLimiter) {
     btnSaveSpeedLimiter.addEventListener('click', async () => {
@@ -2336,6 +2421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const updated = await res.json();
         window.appState.config = updated;
+        updateLimiterStatusLabel(updated);
         modalSpeedLimiter.classList.remove('open');
       } catch (err) {
         alert('Failed to apply speed limit: ' + err.message);
@@ -2453,6 +2539,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
         window.waterfallDesktop.setAlwaysOnTop(isPinned);
       }
+      updateLimiterStatusLabel(window.appState.config);
     }
   });
 
@@ -2466,6 +2553,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
         window.waterfallDesktop.setAlwaysOnTop(isPinned);
       }
+      updateLimiterStatusLabel(window.appState.config);
     }
   });
 
@@ -2699,6 +2787,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const updated = await res.json();
       window.appState.config = updated;
       applyThemeAccent(themeAccent);
+      updateLimiterStatusLabel(updated);
       updatePinTopButton(Boolean(updated.alwaysOnTop));
       if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
         window.waterfallDesktop.setAlwaysOnTop(Boolean(updated.alwaysOnTop));

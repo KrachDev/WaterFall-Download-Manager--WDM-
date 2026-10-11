@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { sanitizeFilename } = require('./namingEngine');
 
 function getYtDlpPath() {
   const candidates = [
@@ -175,7 +176,7 @@ class MediaDownloader {
     const ext = (mediaType === 'audio') ? audioFormat : 'mp4';
     const hasExplicitTitle = Boolean(baseTitle && !isGenericTitle(baseTitle));
     const sanitizedTitle = hasExplicitTitle
-      ? baseTitle.replace(/[<>:"/\\|?*]/g, '_').replace(/\.[^/.]+$/, '').trim()
+      ? sanitizeFilename(baseTitle.replace(/\.[^/.]+$/, '').trim())
       : '%(title)s';
 
     let targetFile = hasExplicitTitle ? path.join(outputDir, `${sanitizedTitle}.${ext}`) : '';

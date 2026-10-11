@@ -10,6 +10,7 @@ const { getCategoryFromFilename } = require('./linkGrabber');
 const { resolveDestinationPath, preserveMetadata } = require('./folderManager');
 const { isArchiveFile, unpackArchive } = require('./archiveUnpacker');
 const { executePostDownloadScript } = require('./scriptRunner');
+const { resolveBestFilename, sanitizeFilename } = require('./namingEngine');
 
 const STATE_FILE = path.join(__dirname, '..', '..', 'downloads.json');
 
@@ -445,28 +446,14 @@ class DownloadManager extends EventEmitter {
     const isMedia = options.isMedia || isMediaUrl(options.url);
     const mediaOptions = options.mediaOptions || (isMedia ? { mediaType: 'audio', audioFormat: 'mp3', audioQuality: '0' } : null);
 
-    let filename = options.filename;
-    // Derive filename from packageName or URL if filename is missing or generic
-    if (isGenericTitle(filename)) {
-      if (options.packageName && !isGenericTitle(options.packageName)) {
-        const cleanPkg = options.packageName.trim().replace(/[<>:"/\\|?*]/g, '_');
-        const mediaExt = (mediaOptions && mediaOptions.mediaType === 'video') ? '.mp4' : '.mp3';
-        const hasExt = path.extname(cleanPkg).length > 1;
-        filename = hasExt ? cleanPkg : `${cleanPkg}${isMedia ? mediaExt : ''}`;
-      } else if (!isMedia && options.url) {
-        try {
-          const parsed = new URL(options.url);
-          const base = path.basename(parsed.pathname);
-          if (base && !isGenericTitle(base)) {
-            filename = decodeURIComponent(base);
-          }
-        } catch (_) {}
-      }
-    }
-
-    if (!filename || isGenericTitle(filename)) {
-      filename = isMedia ? 'Media Download' : ('file_' + Date.now());
-    }
+    let filename = resolveBestFilename({
+      explicitFilename: options.filename,
+      contentDisposition: '',
+      finalUrl: options.directUrl || '',
+      initialUrl: options.url,
+      packageName: options.packageName,
+      isMedia
+    });
 
     let saveFolder = options.saveDir;
     let savePath = '';
@@ -1094,32 +1081,27 @@ class DownloadManager extends EventEmitter {
         acceptRanges = true;
       }
 
-      const cd = res.headers.get('content-disposition');
-      if (cd) {
-        const matchStar = cd.match(/filename\*=UTF-8''([^;\r\n]+)/i);
-        const matchNorm = cd.match(/filename="?([^";\r\n]+)"?/i);
-        if (matchStar && matchStar[1]) {
-          try { filename = decodeURIComponent(matchStar[1].trim()); } catch (_) { filename = matchStar[1].trim(); }
-        } else if (matchNorm && matchNorm[1]) {
-          filename = matchNorm[1].trim();
-        }
-      }
+      let finalUrl = res && res.url ? res.url : cleanUrl;
+      const cd = res && res.headers ? res.headers.get('content-disposition') : '';
+
+      filename = resolveBestFilename({
+        explicitFilename: options.filename,
+        contentDisposition: cd,
+        finalUrl,
+        initialUrl: cleanUrl,
+        contentType,
+        packageName: options.packageName,
+        isMedia: false
+      });
     } catch (err) {
       console.warn('[Waterfall Probe] Direct fetch probe note:', err.message);
-    }
-
-    if (!filename) {
-      try {
-        const u = new URL(cleanUrl);
-        const base = path.basename(u.pathname);
-        if (base && base !== 'download' && base !== 'download.php') {
-          filename = decodeURIComponent(base);
-        }
-      } catch (_) {}
-    }
-
-    if (!filename || isGenericTitle(filename)) {
-      filename = 'download_' + Date.now();
+      if (!filename) {
+        filename = resolveBestFilename({
+          explicitFilename: options.filename,
+          initialUrl: cleanUrl,
+          packageName: options.packageName
+        });
+      }
     }
 
     const isMedia = this.isMediaFile(filename, contentType);
