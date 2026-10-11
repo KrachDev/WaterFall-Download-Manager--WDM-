@@ -494,8 +494,8 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="icon-btn btn-folder" data-path="${(t.savePath || '').replace(/"/g, '&quot;')}" title="Open Folder">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               </button>
-              <button class="icon-btn btn-del" data-id="${t.id}" title="Delete">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <button class="icon-btn btn-del btn-del-disk" data-id="${t.id}" title="Delete Download (Remove from list or permanently delete from disk)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
               </button>
             </div>
           </td>
@@ -583,9 +583,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     tableBody.querySelectorAll('.btn-del').forEach(btn => {
-      btn.onclick = () => {
-        if (confirm('Delete this download from the list?')) {
-          fetch(`/api/downloads/${btn.dataset.id}?deleteFile=false`, { method: 'DELETE' });
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const task = window.appState.tasks.find(t => t.id === btn.dataset.id);
+        if (!task) return;
+        if (e.shiftKey) {
+          if (confirm(`Permanently delete "${task.name || task.filename}" from disk and remove from list?`)) {
+            fetch(`/api/downloads/${task.id}?deleteFile=true`, { method: 'DELETE' });
+          }
+        } else {
+          openDeleteConfirmModal([task]);
         }
       };
     });
@@ -655,18 +662,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnBatchDelete) {
-    btnBatchDelete.onclick = async () => {
+    btnBatchDelete.onclick = () => {
       if (selectedTaskIds.size === 0) return;
-      const count = selectedTaskIds.size;
-      const deleteDisk = confirm(`Delete ${count} selected tasks?\n\nClick OK to also remove downloaded files from disk, or Cancel to just remove from list.`);
-      await fetch('/api/downloads/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', ids: Array.from(selectedTaskIds), deleteFiles: deleteDisk })
-      });
-      selectedTaskIds.clear();
-      updateBatchBar();
-      if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
+      const tasks = window.appState.tasks.filter(t => selectedTaskIds.has(t.id));
+      openDeleteConfirmModal(tasks);
     };
   }
 
@@ -830,14 +829,24 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  const ctxDelete = document.getElementById('ctx-delete');
-  if (ctxDelete) {
-    ctxDelete.onclick = () => {
+  const ctxDeleteDisk = document.getElementById('ctx-delete-disk');
+  if (ctxDeleteDisk) {
+    ctxDeleteDisk.onclick = () => {
+      if (contextTask) {
+        const task = contextTask;
+        hideContextMenu();
+        openDeleteConfirmModal([task]);
+      }
+    };
+  }
+
+  const ctxDeleteList = document.getElementById('ctx-delete-list');
+  if (ctxDeleteList) {
+    ctxDeleteList.onclick = () => {
       if (contextTask) {
         const id = contextTask.id;
         hideContextMenu();
-        const deleteDisk = confirm('Also delete downloaded file from disk?');
-        fetch(`/api/downloads/${id}?deleteFile=${deleteDisk}`, { method: 'DELETE' });
+        fetch(`/api/downloads/${id}?deleteFile=false`, { method: 'DELETE' });
       }
     };
   }
@@ -1729,6 +1738,30 @@ document.addEventListener('DOMContentLoaded', () => {
         hideContextMenu();
       }
     }
+
+    if (e.key === 'Delete' || e.key === 'Del') {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+      }
+      if (selectedTaskIds && selectedTaskIds.size > 0) {
+        e.preventDefault();
+        const tasks = window.appState.tasks.filter(t => selectedTaskIds.has(t.id));
+        if (e.shiftKey) {
+          if (confirm(`Permanently delete ${tasks.length} selected download(s) from disk and remove from list?`)) {
+            fetch('/api/downloads/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'delete', ids: tasks.map(t => t.id), deleteFiles: true })
+            });
+            selectedTaskIds.clear();
+            updateBatchBar();
+          }
+        } else {
+          openDeleteConfirmModal(tasks);
+        }
+      }
+    }
   });
 
   // Add URL Modal
@@ -2058,6 +2091,124 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnIdmCancel) btnIdmCancel.addEventListener('click', () => {
     if (modalIdmConfirm) modalIdmConfirm.classList.remove('open');
   });
+
+  // ==========================================================================
+  // Delete Download Confirmation Modal (Disk Cleanup Engine)
+  // ==========================================================================
+  const modalDeleteConfirm = document.getElementById('modal-delete-confirm');
+  const deleteConfirmPrompt = document.getElementById('delete-confirm-prompt');
+  const deleteConfirmFilename = document.getElementById('delete-confirm-filename');
+  const deleteConfirmPath = document.getElementById('delete-confirm-path');
+  const deleteConfirmSize = document.getElementById('delete-confirm-size');
+  const btnDeleteFromDisk = document.getElementById('btn-delete-from-disk');
+  const btnDeleteListOnly = document.getElementById('btn-delete-list-only');
+  const btnToolbarDelete = document.getElementById('btn-toolbar-delete');
+  let tasksPendingDelete = [];
+
+  function openDeleteConfirmModal(tasks = []) {
+    if (!tasks || tasks.length === 0) return;
+    tasksPendingDelete = tasks;
+
+    if (!modalDeleteConfirm) {
+      const delDisk = confirm(`Delete ${tasks.length} task(s)? Click OK to also delete downloaded files from disk, or Cancel to keep files on disk.`);
+      if (tasks.length === 1) {
+        fetch(`/api/downloads/${tasks[0].id}?deleteFile=${delDisk}`, { method: 'DELETE' });
+      } else {
+        fetch('/api/downloads/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', ids: tasks.map(t => t.id), deleteFiles: delDisk })
+        });
+      }
+      return;
+    }
+
+    if (tasks.length === 1) {
+      const t = tasks[0];
+      if (deleteConfirmPrompt) deleteConfirmPrompt.textContent = `Are you sure you want to delete this download?`;
+      if (deleteConfirmFilename) deleteConfirmFilename.textContent = t.name || t.filename || 'Download';
+      if (deleteConfirmPath) deleteConfirmPath.textContent = t.savePath || 'Default Downloads folder';
+      const sz = t.totalBytes || t.downloadedBytes || 0;
+      if (deleteConfirmSize) deleteConfirmSize.textContent = sz > 0 ? formatBytes(sz) : 'Unknown / Stream';
+    } else {
+      if (deleteConfirmPrompt) deleteConfirmPrompt.textContent = `Are you sure you want to delete ${tasks.length} selected downloads?`;
+      if (deleteConfirmFilename) deleteConfirmFilename.textContent = `${tasks.length} download tasks selected`;
+      if (deleteConfirmPath) deleteConfirmPath.textContent = `Multiple disk storage paths`;
+      const totalSz = tasks.reduce((acc, t) => acc + (t.totalBytes || t.downloadedBytes || 0), 0);
+      if (deleteConfirmSize) deleteConfirmSize.textContent = totalSz > 0 ? formatBytes(totalSz) : 'Multiple files';
+    }
+
+    closeAllModals();
+    modalDeleteConfirm.classList.add('open');
+  }
+
+  if (btnDeleteFromDisk) {
+    btnDeleteFromDisk.onclick = async () => {
+      if (tasksPendingDelete.length === 0) return;
+      btnDeleteFromDisk.disabled = true;
+      try {
+        if (tasksPendingDelete.length === 1) {
+          await fetch(`/api/downloads/${tasksPendingDelete[0].id}?deleteFile=true`, { method: 'DELETE' });
+        } else {
+          await fetch('/api/downloads/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', ids: tasksPendingDelete.map(t => t.id), deleteFiles: true })
+          });
+        }
+      } catch (err) {
+        console.warn('Delete from disk error:', err);
+      } finally {
+        btnDeleteFromDisk.disabled = false;
+        selectedTaskIds.clear();
+        updateBatchBar();
+        if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
+        modalDeleteConfirm.classList.remove('open');
+        tasksPendingDelete = [];
+      }
+    };
+  }
+
+  if (btnDeleteListOnly) {
+    btnDeleteListOnly.onclick = async () => {
+      if (tasksPendingDelete.length === 0) return;
+      btnDeleteListOnly.disabled = true;
+      try {
+        if (tasksPendingDelete.length === 1) {
+          await fetch(`/api/downloads/${tasksPendingDelete[0].id}?deleteFile=false`, { method: 'DELETE' });
+        } else {
+          await fetch('/api/downloads/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', ids: tasksPendingDelete.map(t => t.id), deleteFiles: false })
+          });
+        }
+      } catch (err) {
+        console.warn('Delete from list error:', err);
+      } finally {
+        btnDeleteListOnly.disabled = false;
+        selectedTaskIds.clear();
+        updateBatchBar();
+        if (checkSelectAllDownloads) checkSelectAllDownloads.checked = false;
+        modalDeleteConfirm.classList.remove('open');
+        tasksPendingDelete = [];
+      }
+    };
+  }
+
+  if (btnToolbarDelete) {
+    btnToolbarDelete.onclick = () => {
+      if (selectedTaskIds && selectedTaskIds.size > 0) {
+        const tasks = window.appState.tasks.filter(t => selectedTaskIds.has(t.id));
+        openDeleteConfirmModal(tasks);
+      } else if (window.appState.tasks && window.appState.tasks.length > 0) {
+        const first = window.appState.tasks[0];
+        openDeleteConfirmModal([first]);
+      } else {
+        alert('There are no downloads in the queue to delete.');
+      }
+    };
+  }
 
   // ==========================================================================
   // Cinema Live Media Streaming Player ("Watch While Downloading")

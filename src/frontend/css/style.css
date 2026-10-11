@@ -273,6 +273,33 @@ body {
   background: linear-gradient(180deg, #388bfd 0%, #1f6feb 100%);
 }
 
+.tool-btn.btn-danger-subtle {
+  color: #f85149;
+}
+
+.tool-btn.btn-danger-subtle:hover {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: #f85149;
+  color: #ff7b72;
+}
+
+.tool-btn.danger {
+  background: linear-gradient(180deg, #da3633 0%, #b62324 100%);
+  border-color: #f85149;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.tool-btn.danger:hover {
+  background: linear-gradient(180deg, #f85149 0%, #da3633 100%);
+}
+
+.row-actions .btn-del-disk:hover {
+  background: rgba(248, 81, 73, 0.2) !important;
+  color: #ff7b72 !important;
+  border-color: rgba(248, 81, 73, 0.4) !important;
+}
+
 .toolbar-sep {
   width: 1px;
   height: 22px;

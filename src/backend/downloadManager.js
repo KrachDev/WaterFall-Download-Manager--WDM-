@@ -802,13 +802,53 @@ class DownloadManager extends EventEmitter {
 
     const downloader = this.activeDownloaders.get(id);
     if (downloader) {
-      downloader.cancel();
+      try { downloader.cancel(); } catch (_) {}
       this.activeDownloaders.delete(id);
     }
 
-    if (deleteFile && task.savePath && fs.existsSync(task.savePath)) {
+    if (deleteFile) {
+      const unlinkSafely = (targetPath) => {
+        if (!targetPath) return;
+        try {
+          if (fs.existsSync(targetPath)) {
+            const stat = fs.statSync(targetPath);
+            if (stat.isDirectory()) {
+              fs.rmSync(targetPath, { recursive: true, force: true });
+            } else {
+              fs.unlinkSync(targetPath);
+            }
+          }
+        } catch (_) {
+          // If Windows locked file momentarily while closing descriptor, retry after short delay
+          setTimeout(() => {
+            try {
+              if (fs.existsSync(targetPath)) {
+                const stat = fs.statSync(targetPath);
+                if (stat.isDirectory()) {
+                  fs.rmSync(targetPath, { recursive: true, force: true });
+                } else {
+                  fs.unlinkSync(targetPath);
+                }
+              }
+            } catch (_) {}
+          }, 300);
+        }
+      };
+
+      // 1. Delete main downloaded file
+      if (task.savePath) unlinkSafely(task.savePath);
+
+      // 2. Delete partial download file (.part)
+      if (task.savePath) unlinkSafely(`${task.savePath}.part`);
+
+      // 3. Delete temporary chunk files
       try {
-        fs.unlinkSync(task.savePath);
+        const config = this.getConfig();
+        const tempDir = config.tempDir || (task.savePath ? path.dirname(task.savePath) : null);
+        if (tempDir) {
+          const taskTempDir = path.join(tempDir, task.id);
+          unlinkSafely(taskTempDir);
+        }
       } catch (_) {}
     }
 

@@ -85,6 +85,10 @@ class ChunkDownloader extends EventEmitter {
     if (useInPlace) {
       // In-Place Direct Writing Engine (Zero-Assembly)
       // Open random-access file descriptor directly on the target .part file
+      const partDir = path.dirname(this.partFilePath);
+      if (!fs.existsSync(partDir)) {
+        try { fs.mkdirSync(partDir, { recursive: true }); } catch (_) {}
+      }
       const partExists = fs.existsSync(this.partFilePath);
       this.fd = fs.openSync(this.partFilePath, partExists ? 'r+' : 'w+');
 
