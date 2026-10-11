@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterfall Download Suite — Options & Diagnostics</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="../icons/icon48.png" alt="Waterfall Logo" class="brand-logo">
+        <div>
+          <div class="brand-name">WATERFALL</div>
+          <div class="brand-tag">IDM COMPANION</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#section-connection" class="nav-item active" data-target="section-connection">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          <span>Connection & Engine</span>
+        </a>
+        <a href="#section-video" class="nav-item" data-target="section-video">
+          <svg viewBox="0 0 24 24"><path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/></svg>
+          <span>IDM Video Grabber</span>
+        </a>
+        <a href="#section-intercept" class="nav-item" data-target="section-intercept">
+          <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+          <span>Download Interception</span>
+        </a>
+        <a href="#section-media" class="nav-item" data-target="section-media">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <span>YouTube & Converter</span>
+        </a>
+        <a href="#section-diagnostics" class="nav-item" data-target="section-diagnostics">
+          <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+          <span>Live Diagnostics</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="version-label">Waterfall v1.0.0 (Manifest V3)</div>
+      </div>
+    </aside>
+
+    <!-- Main Content Panels -->
+    <main class="main-content">
+      <header class="content-header">
+        <div>
+          <h1 class="page-title">Waterfall Companion Dashboard</h1>
+          <p class="page-subtitle">Configure Waterfall Engine integration, IDM video sniffer, download interception, and media conversion.</p>
+        </div>
+        <button class="btn-save" id="btn-save-all">
+          <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+          <span>Save Changes</span>
+        </button>
+      </header>
+
+      <!-- Section: Connection & Engine -->
+      <section class="config-card" id="section-connection">
+        <h2 class="card-heading">Waterfall Engine Connection & Endpoints</h2>
+        <p class="card-subtext">The extension communicates directly with Waterfall's local daemon on port 4567.</p>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="field-label" for="opt-hydra-host">Waterfall Daemon Address:</label>
+            <input type="text" id="opt-hydra-host" class="field-input" value="http://127.0.0.1:4567">
+            <span class="field-help">Default is <code>http://127.0.0.1:4567</code>. Local REST & WebSocket API.</span>
+          </div>
+
+          <div class="form-field">
+            <label class="field-label" for="opt-jd-fallback">Fallback JDownloader Address:</label>
+            <input type="text" id="opt-jd-fallback" class="field-input" value="http://127.0.0.1:9666">
+            <span class="field-help">Optional fallback if Waterfall is not active (standard JDownloader port 9666).</span>
+          </div>
+
+          <div class="status-box" id="conn-status-box">
+            <div class="status-indicator">
+              <span class="status-bulb" id="diag-bulb"></span>
+              <span class="status-title" id="diag-status-title">Checking connection...</span>
+            </div>
+            <p class="status-desc" id="diag-status-desc">Probing port 4567...</p>
+            <button class="btn-secondary" id="btn-quick-ping">Test Now</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: IDM Video Grabber -->
+      <section class="config-card" id="section-video">
+        <h2 class="card-heading">IDM-Style In-Player Video Grabber</h2>
+        <p class="card-subtext">Displays an obsidian glassmorphic mini-pill on video players with instant dismiss.</p>
+
+        <div class="setting-toggle-row">
+          <div>
+            <div class="setting-title">Enable Video Floating Badge</div>
+            <div class="setting-desc">Detects HTML5 video players and displays download/converter actions.</div>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="opt-enable-video-panel" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="form-field" style="margin-top: 14px;">
+          <label class="field-label" for="opt-video-position">Default Badge Position on Video:</label>
+          <select id="opt-video-position" class="field-input">
+            <option value="top-right">Top Right (Recommended)</option>
+            <option value="top-left">Top Left</option>
+            <option value="bottom-right">Bottom Right</option>
+            <option value="bottom-left">Bottom Left</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Section: Download Interception -->
+      <section class="config-card" id="section-intercept">
+        <h2 class="card-heading">Browser Download Interception</h2>
+        <p class="card-subtext">Automatically routes browser downloads to Waterfall chunk engine with zero browser duplicates.</p>
+
+        <div class="setting-toggle-row">
+          <div>
+            <div class="setting-title">Intercept Browser Downloads</div>
+            <div class="setting-desc">Cancels native browser downloads and feeds links to Waterfall. <em>Hold <strong>Ctrl</strong> (or <strong>Alt</strong>) while clicking to force browser download.</em></div>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="opt-intercept" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="form-field" style="margin-top: 14px;">
+          <label class="field-label" for="opt-bypass-key">Bypass Keybind (Force Browser Download):</label>
+          <select id="opt-bypass-key" class="field-input">
+            <option value="both">Ctrl or Alt (Recommended)</option>
+            <option value="ctrl">Ctrl Only</option>
+            <option value="alt">Alt Only</option>
+          </select>
+          <span class="field-help">Holding this key while clicking any download link forces your browser to download directly instead of Waterfall.</span>
+        </div>
+
+        <div class="form-field" style="margin-top: 14px;">
+          <label class="field-label" for="opt-intercept-extensions">Intercepted File Extensions (comma separated):</label>
+          <textarea id="opt-intercept-extensions" class="field-textarea" rows="3"></textarea>
+          <span class="field-help">Downloads matching these extensions will be routed directly to Waterfall.</span>
+        </div>
+      </section>
+
+      <!-- Section: YouTube & Converter -->
+      <section class="config-card" id="section-media">
+        <h2 class="card-heading">YouTube & Media Conversion Presets</h2>
+        <p class="card-subtext">Configure default formats for Waterfall's built-in yt-dlp & ffmpeg converter engine.</p>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="field-label" for="opt-default-audio">Default Audio Format:</label>
+            <select id="opt-default-audio" class="field-input">
+              <option value="mp3-320">MP3 320 kbps (Extreme Quality)</option>
+              <option value="mp3-192">MP3 192 kbps (Standard Quality)</option>
+              <option value="flac-lossless">FLAC Lossless (Audiophile)</option>
+              <option value="wav-lossless">WAV Lossless Uncompressed</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label class="field-label" for="opt-default-video">Default Video Quality:</label>
+            <select id="opt-default-video" class="field-input">
+              <option value="1080">1080p Full HD (Recommended)</option>
+              <option value="720">720p HD</option>
+              <option value="best">Best Available (Up to 4K)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setting-toggle-row" style="margin-top: 14px;">
+          <div>
+            <div class="setting-title">Autostart Downloads</div>
+            <div class="setting-desc">Begin chunk transfer immediately upon link arrival in Waterfall.</div>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="opt-autostart" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-toggle-row" style="margin-top: 10px;">
+          <div>
+            <div class="setting-title">Desktop Notifications</div>
+            <div class="setting-desc">Display native notifications when links are pushed to Waterfall.</div>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="opt-notifications" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Section: Live Diagnostics -->
+      <section class="config-card" id="section-diagnostics">
+        <h2 class="card-heading">Live Diagnostics & Self-Test</h2>
+        <p class="card-subtext">Verify end-to-end communication with Waterfall Engine.</p>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="field-label" for="test-url-input">Send Test Link:</label>
+            <div class="test-input-row">
+              <input type="text" id="test-url-input" class="field-input flex-1" value="https://proof.ovh.net/files/10Mb.dat">
+              <button class="btn-primary" id="btn-send-test-link" style="width: auto; padding: 0 18px;">Send Test</button>
+            </div>
+            <span class="field-help">Dispatches a test download to Waterfall to verify the REST/FlashGot pipeline.</span>
+          </div>
+
+          <div class="test-output-box" id="test-result-box" style="display: none;"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="save-toast" id="save-toast" style="display: none;">Changes saved successfully!</div>
+
+  <script src="options.js"></script>
+</body>
+</html>

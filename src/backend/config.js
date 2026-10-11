@@ -1,0 +1,105 @@
+const fs = require('fs');
+const path = require('path');
+
+const CONFIG_FILE = path.join(__dirname, '..', '..', 'config.json');
+
+const DEFAULT_CONFIG = {
+  // Storage & Directory Architecture
+  downloadDir: path.join(__dirname, '..', '..', 'downloads'),
+  tempDir: path.join(__dirname, '..', '..', 'temp'),
+  useOsMediaFolders: true,
+  createPackageSubfolders: false,
+  duplicateAction: 'rename', // 'rename' | 'overwrite' | 'skip'
+  preserveMetadata: true,
+
+  // Acceleration Engine & Network Connection
+  maxConcurrentDownloads: 3,
+  segmentsPerFile: 8,
+  downloadEngineMode: 'inPlace', // 'inPlace' (Zero Assembly) | 'singleStream' (Whole File) | 'legacyTemp'
+  bufferSizeBytes: 1048576, // 1MB highWaterMark chunk buffer
+  connectionTimeoutSec: 15,
+  maxRetries: 5,
+  retryDelaySec: 3,
+  customUserAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WaterfallDL/2.0',
+
+  // Bandwidth & Speed Limiter
+  speedLimitEnabled: false,
+  speedLimitBytesPerSec: 0, // 0 = unlimited
+
+  // Post-Processing & Automation
+  autoExtractArchives: true,
+  deleteArchiveAfterExtract: false,
+  postDownloadCommand: '',
+  powerActionOnComplete: 'none', // 'none' | 'sleep' | 'shutdown'
+
+  // Post-Download Script Execution Engine
+  postDownloadScriptEnabled: false,
+  postDownloadScriptType: 'auto', // 'auto' | 'python' | 'powershell' | 'batch' | 'node' | 'custom'
+  postDownloadScriptPath: '',
+  postDownloadCustomCompiler: '',
+  postDownloadArguments: '"%FILE%"',
+  postDownloadRunCondition: 'all', // 'all' | 'video' | 'audio' | 'compressed' | 'programs' | 'documents'
+
+  // Media & YouTube / yt-dlp Engine
+  defaultVideoQuality: '1080', // 'best' | '2160' | '1080' | '720' | '480'
+  defaultAudioFormat: 'mp3',   // 'mp3' | 'm4a' | 'flac' | 'wav'
+  defaultAudioQuality: '0',    // '0' (320k) | '128k' | '192k' | '256k'
+  embedMediaMetadata: true,
+  embedMediaThumbnail: true,
+  embedMediaChapters: true,
+  nodeJsAcceleration: true,
+
+  // Browser Integration & Clipboard
+  listenPort: 4567,
+  clipboardMonitoring: false,
+
+  // UI, Audio & Notifications
+  showDownloadConfirmation: true, // IDM-style confirmation dialog before starting
+  mediaStreamPreviewEnabled: true, // Watch as you download live streaming preview
+  soundChimeEnabled: true,
+  soundChimeVolume: 0.8,
+  nativeOsNotifications: true,
+  inAppCompletionToast: true,
+  highFramerateTick: true,
+  themeAccent: 'cyan' // 'cyan' | 'purple' | 'emerald' | 'amber' | 'crimson'
+};
+
+let currentConfig = { ...DEFAULT_CONFIG };
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      currentConfig = { ...DEFAULT_CONFIG, ...data };
+    } else {
+      saveConfig(DEFAULT_CONFIG);
+    }
+  } catch (err) {
+    console.error('Failed to load config, using defaults:', err.message);
+    currentConfig = { ...DEFAULT_CONFIG };
+  }
+  return currentConfig;
+}
+
+function saveConfig(newConfig) {
+  try {
+    currentConfig = { ...currentConfig, ...newConfig };
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save config:', err.message);
+  }
+  return currentConfig;
+}
+
+function getConfig() {
+  return currentConfig;
+}
+
+loadConfig();
+
+module.exports = {
+  getConfig,
+  saveConfig,
+  loadConfig,
+  DEFAULT_CONFIG
+};

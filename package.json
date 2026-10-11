@@ -1,0 +1,33 @@
+{
+  "name": "waterfall",
+  "productName": "Waterfall",
+  "version": "1.0.0",
+  "description": "Waterfall — Ultra-lightweight IDM & JDownloader modern hybrid download suite",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "app": "electron .",
+    "electron": "electron .",
+    "stamp": "node -e \"const { rcedit } = require('rcedit'); rcedit('node_modules/electron/dist/electron.exe', { icon: 'assets/icon.ico', 'version-string': { ProductName: 'Waterfall', FileDescription: 'Waterfall Download Suite' } }).then(() => console.log('Icon stamped successfully')).catch(console.error);\"",
+    "postinstall": "node -e \"try { const { rcedit } = require('rcedit'); rcedit('node_modules/electron/dist/electron.exe', { icon: 'assets/icon.ico', 'version-string': { ProductName: 'Waterfall', FileDescription: 'Waterfall Download Suite' } }); } catch (_) {}\"",
+    "daemon": "node server.js",
+    "bench": "node test-benchmark.js",
+    "build": "npx @electron/packager . Waterfall --platform=win32 --arch=x64 --icon=assets/icon.ico --out=dist --overwrite --electron-version=44.7.0 --ignore=dist --ignore=downloads --ignore=temp",
+    "build:electron": "npx @electron/packager . Waterfall --platform=win32 --arch=x64 --icon=assets/icon.ico --out=dist --overwrite --electron-version=44.7.0 --ignore=dist --ignore=downloads --ignore=temp",
+    "build:native": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /r:System.Windows.Forms.dll,System.Drawing.dll /target:winexe /win32icon:assets\\icon.ico /optimize+ /out:Waterfall.exe src\\native\\HydraApp.cs",
+    "shortcut": "powershell -ExecutionPolicy Bypass -File .\\create-desktop-shortcut.ps1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "open": "^11.0.4",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "rcedit": "^5.0.2"
+  }
+}

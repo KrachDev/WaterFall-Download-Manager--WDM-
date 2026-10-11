@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterfall Download Suite</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Top App Bar -->
+  <header class="app-header">
+    <div class="brand">
+      <img src="../icons/icon32.png" alt="Waterfall Logo" class="brand-icon">
+      <div class="brand-text">
+        <h1 class="brand-title">WATERFALL <span class="badge-pro">SUITE</span></h1>
+        <div class="connection-status" id="status-pill">
+          <span class="status-dot status-checking"></span>
+          <span class="status-label" id="status-text">Checking Waterfall...</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="btn-refresh-status" title="Refresh Connection">
+        <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-open-options" title="Open Settings Dashboard">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-tab="tab-grabber">
+      <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      <span>Link Grabber</span>
+      <span class="tab-badge" id="grabber-count">0</span>
+    </button>
+    <button class="nav-tab" data-tab="tab-media">
+      <svg viewBox="0 0 24 24"><path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/></svg>
+      <span>Media Sniffer</span>
+      <span class="tab-badge" id="media-count">0</span>
+    </button>
+    <button class="nav-tab" data-tab="tab-direct">
+      <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+      <span>Direct Add</span>
+    </button>
+    <button class="nav-tab" data-tab="tab-settings">
+      <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+
+  <!-- TAB 1: Link Grabber -->
+  <main class="tab-pane active" id="tab-grabber">
+    <div class="filter-chips">
+      <button class="chip active" data-filter="all">All (<span id="count-all">0</span>)</button>
+      <button class="chip" data-filter="video">Videos (<span id="count-video">0</span>)</button>
+      <button class="chip" data-filter="audio">Audio (<span id="count-audio">0</span>)</button>
+      <button class="chip" data-filter="archive">Archives (<span id="count-archive">0</span>)</button>
+      <button class="chip" data-filter="document">Docs (<span id="count-document">0</span>)</button>
+      <button class="chip" data-filter="image">Images (<span id="count-image">0</span>)</button>
+    </div>
+
+    <div class="search-bar-row">
+      <div class="search-input-wrapper">
+        <svg viewBox="0 0 24 24" class="search-icon"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="link-search" placeholder="Filter by keyword or extension (.mp4, .zip)...">
+      </div>
+      <div class="selection-actions">
+        <button class="btn-text" id="btn-select-all">Select All</button>
+        <button class="btn-text" id="btn-deselect-all">Clear</button>
+      </div>
+    </div>
+
+    <div class="links-container" id="links-list">
+      <div class="empty-state">
+        <div class="spinner"></div>
+        <p>Scanning page for downloadable links...</p>
+      </div>
+    </div>
+
+    <footer class="action-footer">
+      <div class="package-name-row">
+        <input type="text" id="package-name" placeholder="Package Name (e.g. Video Pack)" class="input-text">
+        <label class="switch-toggle" title="Autostart download immediately in Waterfall">
+          <input type="checkbox" id="grabber-autostart" checked>
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Autostart</span>
+        </label>
+      </div>
+      <div class="button-row">
+        <button class="btn-primary" id="btn-send-selected">
+          <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <span id="btn-send-label">Download Selected (0)</span>
+        </button>
+        <button class="btn-secondary" id="btn-stage-selected" title="Transfer into Waterfall LinkGrabber tab without starting immediately">
+          <span>Stage in LinkGrabber</span>
+        </button>
+      </div>
+    </footer>
+  </main>
+
+  <!-- TAB 2: Media Sniffer -->
+  <section class="tab-pane" id="tab-media">
+    <div class="media-header-info">
+      <div>
+        <h2 class="sub-title">Live Captured Media Streams</h2>
+        <p class="sub-desc">Active video & audio streams sniffed from network requests.</p>
+      </div>
+      <button class="btn-secondary" id="btn-download-all-media">Download All</button>
+    </div>
+    <div class="media-container" id="media-list">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" class="empty-icon"><path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/></svg>
+        <p>No video or audio streams captured yet.<br>Play a video or media player on this page!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 3: Direct URL Add -->
+  <section class="tab-pane" id="tab-direct">
+    <div class="form-group">
+      <label for="direct-urls" class="form-label">Download URLs or YouTube Links (one per line):</label>
+      <textarea id="direct-urls" class="input-textarea" rows="4" placeholder="https://example.com/movie.mp4&#10;https://www.youtube.com/watch?v=...&#10;https://example.com/archive.zip"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group flex-1">
+        <label for="direct-format" class="form-label">Media Preset (YouTube / Audio / Video):</label>
+        <select id="direct-format" class="input-select">
+          <option value="default">Standard Direct Download (Multithreaded)</option>
+          <option value="mp3-320">🎵 Convert to MP3 (320 kbps High Quality)</option>
+          <option value="mp3-192">🎵 Convert to MP3 (192 kbps Standard)</option>
+          <option value="flac-lossless">🎵 Convert to FLAC (Lossless)</option>
+          <option value="mp4-1080">🎬 Video MP4 (1080p Full HD)</option>
+          <option value="mp4-720">🎬 Video MP4 (720p HD)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="direct-package" class="form-label">Package Name:</label>
+      <input type="text" id="direct-package" class="input-text" placeholder="My Waterfall Downloads">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group flex-1">
+        <label for="direct-password" class="form-label">Archive Password (optional):</label>
+        <input type="text" id="direct-password" class="input-text" placeholder="Password for .rar / .7z / .zip">
+      </div>
+      <div class="form-group">
+        <label class="form-label">&nbsp;</label>
+        <label class="switch-toggle">
+          <input type="checkbox" id="direct-autostart" checked>
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Autostart</span>
+        </label>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btn-send-direct">
+      <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span>Dispatch to Waterfall Engine</span>
+    </button>
+  </section>
+
+  <!-- TAB 4: Quick Settings -->
+  <section class="tab-pane" id="tab-settings">
+    <div class="settings-card">
+      <div class="settings-card-header">
+        <span class="card-title">Waterfall Engine Connection</span>
+        <button class="btn-text-small" id="btn-test-connection">Test Connection</button>
+      </div>
+      <div class="form-group">
+        <label for="setting-hydra-host" class="form-label">Waterfall Core Daemon Address:</label>
+        <input type="text" id="setting-hydra-host" class="input-text" value="http://127.0.0.1:4567">
+        <span class="form-hint">Default port is 4567 (Waterfall Engine & WebSocket Core)</span>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="setting-toggle-row">
+        <div>
+          <div class="setting-title">Intercept Browser Downloads</div>
+          <div class="setting-desc">Take over browser downloads with Waterfall chunk engine. <em>Hold <strong>Alt</strong> to bypass.</em></div>
+        </div>
+        <label class="switch-toggle">
+          <input type="checkbox" id="setting-intercept" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-toggle-row">
+        <div>
+          <div class="setting-title">Floating Video Download Button</div>
+          <div class="setting-desc">Non-intrusive badge on video hover with instant dismiss.</div>
+        </div>
+        <label class="switch-toggle">
+          <input type="checkbox" id="setting-video-panel" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <label for="setting-video-pos" class="setting-label">Video Badge Position:</label>
+        <select id="setting-video-pos" class="input-select">
+          <option value="top-right">Top Right (Recommended)</option>
+          <option value="top-left">Top Left</option>
+          <option value="bottom-right">Bottom Right</option>
+          <option value="bottom-left">Bottom Left</option>
+        </select>
+      </div>
+
+      <div class="setting-toggle-row">
+        <div>
+          <div class="setting-title">Autostart Downloads</div>
+          <div class="setting-desc">Begin chunk transfer immediately upon link reception.</div>
+        </div>
+        <label class="switch-toggle">
+          <input type="checkbox" id="setting-autostart" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <button class="btn-secondary w-full" id="btn-save-settings">Save Settings</button>
+    <a href="#" class="options-link" id="link-full-options">Open Full Diagnostics Dashboard &rarr;</a>
+  </section>
+
+  <!-- Feedback Toast -->
+  <div class="popup-toast" id="popup-toast" style="display: none;"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

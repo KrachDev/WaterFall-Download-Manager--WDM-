@@ -1,0 +1,213 @@
+/* ==========================================================================
+   IDM Multi-Segment Chunk Inspector Modal & Allocation Map
+   ========================================================================== */
+
+.inspector-modal-card {
+  width: 740px;
+  max-width: 95vw;
+  background: #0d121f;
+  border: 1px solid #23314d;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(56, 139, 253, 0.15);
+}
+
+.inspector-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  background: #080c14;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+.stat-val {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-val.accent {
+  color: #58a6ff;
+}
+
+.stat-val.success {
+  color: #3fb950;
+}
+
+/* Master Progress Bar */
+.inspector-main-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.main-progress-bar-wrap {
+  height: 10px;
+  background: #080c14;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--border-dim);
+}
+
+.main-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1f6feb, #58a6ff);
+  border-radius: var(--radius-full);
+  transition: width 0.15s ease;
+  box-shadow: 0 0 10px rgba(56, 139, 253, 0.4);
+}
+
+/* The Legendary IDM Allocation Block Grid Matrix */
+.block-matrix-container {
+  background: #060910;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+
+.matrix-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.matrix-cells {
+  display: grid;
+  grid-template-columns: repeat(50, 1fr);
+  gap: 2px;
+  height: 24px;
+}
+
+.matrix-cell {
+  background: #151d2d;
+  border-radius: 1px;
+}
+
+.matrix-cell.filled {
+  background: #2ea043;
+}
+
+.matrix-cell.active {
+  background: #e3b341;
+  animation: cell-blink 0.6s infinite alternate;
+}
+
+@keyframes cell-blink {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+/* Segments Container */
+.segments-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.segments-section-header h4 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.segments-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.segment-strip {
+  background: #080c14;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-xs);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.segment-strip:hover {
+  border-color: var(--border-mid);
+  background: #0d121f;
+}
+
+.segment-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+}
+
+.segment-id-tag {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #58a6ff;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.segment-byte-range {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.segment-speed-tag {
+  font-family: var(--font-mono);
+  color: #3fb950;
+  font-weight: 600;
+}
+
+.segment-bar-track {
+  height: 5px;
+  background: #141c2c;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.segment-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1f6feb, #58a6ff);
+  border-radius: var(--radius-full);
+  transition: width 0.15s ease;
+}
+
+.segment-bar-fill.active {
+  background: linear-gradient(90deg, #2ea043, #58a6ff);
+}
+
+.segment-bar-fill.completed {
+  background: #2ea043;
+}

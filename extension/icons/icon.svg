@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="waterfallG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="50%" stop-color="#388bfd"/>
+      <stop offset="100%" stop-color="#2ea043"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="10" fill="#090d16" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  <!-- Cascading waterfall stream -->
+  <path d="M16 10 C16 20, 22 24, 22 38" fill="none" stroke="url(#waterfallG)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M24 8 C24 18, 28 22, 28 40" fill="none" stroke="#00f2fe" stroke-width="3" stroke-linecap="round"/>
+  <path d="M32 10 C32 19, 34 24, 34 38" fill="none" stroke="#388bfd" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

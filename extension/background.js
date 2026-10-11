@@ -1,0 +1,638 @@
+/**
+ * Waterfall Download Suite — Background Service Worker
+ * Manages local Waterfall Engine bridge, IDM-style network stream sniffer,
+ * download interception with zero browser duplicates, context menus, and YouTube converter dispatch.
+ */
+
+const DEFAULT_SETTINGS = {
+  hydraHost: 'http://127.0.0.1:4567',
+  jdFallbackHost: 'http://127.0.0.1:9666',
+  autostart: true,
+  interceptDownloads: true,
+  interceptExtensions: [
+    '.zip', '.rar', '.7z', '.tar', '.gz', '.iso', '.exe', '.msi', '.bin',
+    '.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.m4v', '.ts',
+    '.mp3', '.flac', '.wav', '.aac', '.m4a', '.ogg', '.opus',
+    '.apk', '.dmg', '.pkg', '.pdf', '.docx', '.xlsx'
+  ],
+  interceptMinSizeKB: 500,
+  enableVideoPanel: true,
+  videoPanelPosition: 'top-right',
+  videoPanelTrigger: 'hover',
+  showDesktopNotifications: true,
+  showInPageToasts: true,
+  packageNamePattern: '{title}',
+  defaultAudioFormat: 'mp3-320',
+  defaultVideoQuality: '1080',
+  bypassKey: 'both' // 'ctrl', 'alt', 'both'
+};
+
+// In-memory cache for sniffed media streams per tab (IDM-style sniffer)
+const tabMediaMap = new Map();
+
+// Synchronous settings cache
+let cachedSettings = { ...DEFAULT_SETTINGS };
+
+// Track intercepted downloads and deduplicate
+const interceptedDownloadIds = new Set();
+const recentlyInterceptedUrls = new Map();
+const bypassedUrls = new Map();
+let lastBypassTimestamp = 0;
+
+/**
+ * Load settings with defaults
+ */
+async function getSettings() {
+  try {
+    const stored = await chrome.storage.sync.get('settings');
+    cachedSettings = { ...DEFAULT_SETTINGS, ...(stored.settings || {}) };
+  } catch (err) {
+    cachedSettings = { ...DEFAULT_SETTINGS };
+  }
+  return cachedSettings;
+}
+
+getSettings().catch(() => {});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'sync' && changes.settings) {
+    cachedSettings = { ...DEFAULT_SETTINGS, ...(changes.settings.newValue || {}) };
+    broadcastSettings(cachedSettings);
+  }
+});
+
+function broadcastSettings(settings) {
+  chrome.tabs.query({}, (tabs) => {
+    if (!tabs || !Array.isArray(tabs)) return;
+    tabs.forEach(tab => {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'SETTINGS_UPDATED',
+        settings
+      }).catch(() => {});
+    });
+  });
+}
+
+async function saveSettings(newSettings) {
+  const current = await getSettings();
+  const updated = { ...current, ...newSettings };
+  await chrome.storage.sync.set({ settings: updated });
+  cachedSettings = updated;
+  broadcastSettings(updated);
+  return updated;
+}
+
+/**
+ * Check connectivity to Waterfall Hybrid Engine (or fallback to JD)
+ */
+async function checkHydraStatus(hostOverride) {
+  const settings = await getSettings();
+  const host = (hostOverride || settings.hydraHost || 'http://127.0.0.1:4567').replace(/\/+$/, '');
+  const startTime = Date.now();
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    // 1. Try Waterfall native downloads API
+    const response = await fetch(`${host}/api/downloads`, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal
+    }).catch(async () => {
+      // 2. Try Waterfall / JDownloader jdcheck.js
+      return await fetch(`${host}/jdcheck.js`, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal
+      });
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response && response.ok) {
+      const latency = Date.now() - startTime;
+      return {
+        connected: true,
+        latency,
+        host,
+        version: 'Waterfall Hybrid Engine'
+      };
+    }
+
+    // 3. Optional fallback check to JD port 9666
+    if (!hostOverride && settings.jdFallbackHost) {
+      const fbRes = await fetch(`${settings.jdFallbackHost}/jdcheck.js`, { method: 'GET', cache: 'no-store' }).catch(() => null);
+      if (fbRes && fbRes.ok) {
+        return {
+          connected: true,
+          latency: Date.now() - startTime,
+          host: settings.jdFallbackHost,
+          version: 'JDownloader 2 (Fallback)'
+        };
+      }
+    }
+
+    return { connected: false, latency: null, host, error: `HTTP ${response ? response.status : 'No response'}` };
+  } catch (err) {
+    return {
+      connected: false,
+      latency: null,
+      host,
+      error: err.name === 'AbortError' ? 'Connection timed out' : (err.message || 'Connection refused')
+    };
+  }
+}
+
+function isMediaUrl(url) {
+  if (!url) return false;
+  return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|soundcloud\.com|vimeo\.com|tiktok\.com|twitch\.tv|twitter\.com|x\.com)\/.+/i.test(url);
+}
+
+/**
+ * Dispatch downloads to Hydra Engine
+ */
+async function sendToHydra({ urls, packageName, source, autostartOverride, isMedia, mediaOptions, filename }) {
+  if (!urls) return { success: false, error: 'No URLs provided' };
+
+  const settings = await getSettings();
+  const host = (settings.hydraHost || 'http://127.0.0.1:4567').replace(/\/+$/, '');
+  const autostart = autostartOverride !== undefined ? autostartOverride : settings.autostart;
+
+  const urlList = Array.isArray(urls) ? urls : [urls];
+  const cleanUrls = urlList.map(u => String(u).trim()).filter(u => u.length > 0);
+
+  if (cleanUrls.length === 0) {
+    return { success: false, error: 'Empty URL list' };
+  }
+
+  let cleanFilename = (filename || '').trim();
+  let targetUrl = cleanUrls[0];
+  const isMediaDetection = !!(isMedia || isMediaUrl(targetUrl) || (source && isMediaUrl(source)));
+
+  // If source is a YouTube/media page and captured stream is raw googlevideo or blob, use source URL for full HD
+  if (source && isMediaUrl(source) && (targetUrl.includes('googlevideo.com') || targetUrl.startsWith('blob:') || targetUrl.includes('/videoplayback'))) {
+    targetUrl = source;
+  }
+
+  // If filename is not supplied or generic, infer from packageName if meaningful
+  const isGeneric = !cleanFilename || /^file[_\-\d]/i.test(cleanFilename) || /^stream/i.test(cleanFilename) || /^videoplayback/i.test(cleanFilename);
+  if (isGeneric && packageName && packageName !== 'Browser Downloads' && !packageName.startsWith('Package_') && !packageName.startsWith('file_')) {
+    let base = packageName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
+    if (!base.includes('.')) {
+      base += (isMediaDetection && mediaOptions && mediaOptions.mediaType === 'audio') ? '.mp3' : '.mp4';
+    }
+    cleanFilename = base;
+  }
+
+  const pkgName = packageName || cleanFilename || 'Browser Downloads';
+
+  // Strategy A: Native Hydra REST API (single item or media conversion)
+  if (cleanUrls.length === 1 || isMediaDetection) {
+    try {
+      const payload = {
+        url: targetUrl,
+        filename: cleanFilename || undefined,
+        packageName: pkgName,
+        isMedia: isMediaDetection,
+        mediaOptions: mediaOptions || undefined,
+        autoStart: autostart
+      };
+
+      const res = await fetch(`${host}/api/downloads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        notifySuccess(1, pkgName, isMedia ? 'Sent to YouTube/Media Converter' : 'Added to Waterfall');
+        return { success: true, count: 1, package: pkgName };
+      }
+    } catch (e) {
+      console.warn('[Waterfall Ext] Native endpoint failed, falling back to batch crawl:', e.message);
+    }
+  }
+
+  // Strategy B: Waterfall LinkGrabber Crawl / Batch
+  try {
+    const crawlRes = await fetch(`${host}/api/linkgrabber/crawl`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: cleanUrls.join('\n'),
+        packageName: pkgName
+      })
+    });
+
+    if (crawlRes.ok) {
+      notifySuccess(cleanUrls.length, pkgName, 'Added to Waterfall LinkGrabber');
+      return { success: true, count: cleanUrls.length, package: pkgName };
+    }
+  } catch (err) {}
+
+  // Strategy C: FlashGot Compatibility Fallback
+  const endpoints = ['/flashgot', '/flash/add'];
+  for (const ep of endpoints) {
+    try {
+      const formData = new URLSearchParams();
+      formData.append('urls', cleanUrls.join('\r\n'));
+      formData.append('package', pkgName);
+      if (source) formData.append('source', source);
+      formData.append('autostart', autostart ? '1' : '0');
+
+      const fgRes = await fetch(`${host}${ep}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString()
+      });
+
+      if (fgRes.ok) {
+        notifySuccess(cleanUrls.length, pkgName, 'Pushed via FlashGot bridge');
+        return { success: true, count: cleanUrls.length, package: pkgName };
+      }
+    } catch (err) {}
+  }
+
+  notifyFailure('Could not connect to Waterfall Engine on ' + host);
+  return {
+    success: false,
+    error: `Could not reach Waterfall Engine at ${host}. Please ensure Waterfall is running.`
+  };
+}
+
+/**
+ * Desktop Notifications
+ */
+function notifySuccess(count, packageName, subtext = '') {
+  if (cachedSettings.showDesktopNotifications) {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: 'Waterfall Download Suite',
+      message: `${subtext || 'Successfully added ' + count + ' item(s)'}\nPackage: ${packageName}`
+    });
+  }
+}
+
+function notifyFailure(errorMessage) {
+  if (cachedSettings.showDesktopNotifications) {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: 'Waterfall Connection Notice',
+      message: `${errorMessage}`
+    });
+  }
+}
+
+/**
+ * Context Menus
+ */
+function initContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'hydra-download-link',
+      title: '⚡ Download Link with Waterfall',
+      contexts: ['link']
+    });
+
+    chrome.contextMenus.create({
+      id: 'hydra-download-media',
+      title: '🎬 Download Media with Waterfall',
+      contexts: ['image', 'video', 'audio']
+    });
+
+    chrome.contextMenus.create({
+      id: 'hydra-convert-mp3',
+      title: '🎵 Convert to MP3 (320k) with Waterfall',
+      contexts: ['link', 'video', 'audio']
+    });
+
+    chrome.contextMenus.create({
+      id: 'hydra-download-selection',
+      title: '📥 Download Selected Links with Waterfall',
+      contexts: ['selection']
+    });
+
+    chrome.contextMenus.create({
+      id: 'hydra-sep-1',
+      type: 'separator',
+      contexts: ['page', 'selection']
+    });
+
+    chrome.contextMenus.create({
+      id: 'hydra-download-all',
+      title: '📑 Download All Links on Page with Waterfall',
+      contexts: ['page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'hydra-download-page',
+      title: '🌐 Download Page URL with Waterfall',
+      contexts: ['page']
+    });
+  });
+}
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  const pageTitle = (tab && tab.title) || 'Browser Links';
+  const pageUrl = (tab && tab.url) || '';
+
+  if (info.menuItemId === 'hydra-download-link' && info.linkUrl) {
+    await sendToHydra({
+      urls: [info.linkUrl],
+      packageName: pageTitle,
+      source: pageUrl
+    });
+  } else if (info.menuItemId === 'hydra-download-media' && info.srcUrl) {
+    await sendToHydra({
+      urls: [info.srcUrl],
+      packageName: pageTitle,
+      source: pageUrl
+    });
+  } else if (info.menuItemId === 'hydra-convert-mp3') {
+    const targetUrl = info.linkUrl || info.srcUrl || info.pageUrl;
+    if (targetUrl) {
+      await sendToHydra({
+        urls: [targetUrl],
+        packageName: pageTitle,
+        source: pageUrl,
+        isMedia: true,
+        mediaOptions: {
+          mediaType: 'audio',
+          audioFormat: 'mp3',
+          audioQuality: '0'
+        }
+      });
+    }
+  } else if (info.menuItemId === 'hydra-download-selection' && info.selectionText) {
+    const extracted = extractUrlsFromText(info.selectionText);
+    if (extracted.length > 0) {
+      await sendToHydra({
+        urls: extracted,
+        packageName: `${pageTitle} (Selected Links)`,
+        source: pageUrl
+      });
+    } else {
+      notifyFailure('No valid URLs found in selection.');
+    }
+  } else if (info.menuItemId === 'hydra-download-page' && info.pageUrl) {
+    await sendToHydra({
+      urls: [info.pageUrl],
+      packageName: pageTitle,
+      source: pageUrl
+    });
+  } else if (info.menuItemId === 'hydra-download-all' && tab && tab.id) {
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'HARVEST_PAGE_LINKS' });
+      if (response && response.links && response.links.length > 0) {
+        await sendToHydra({
+          urls: response.links,
+          packageName: pageTitle,
+          source: pageUrl
+        });
+      } else {
+        notifyFailure('No downloadable links detected on page.');
+      }
+    } catch {
+      notifyFailure('Could not collect page links. Please reload tab.');
+    }
+  }
+});
+
+function extractUrlsFromText(text) {
+  if (!text) return [];
+  const urlRegex = /(?:https?|ftp):\/\/[^\s"'<>)\]}]+/gi;
+  const magnetRegex = /magnet:\?[^\s"'<>)\]}]+/gi;
+
+  const urls = text.match(urlRegex) || [];
+  const magnets = text.match(magnetRegex) || [];
+  return Array.from(new Set([...urls, ...magnets].map(u => u.trim())));
+}
+
+/**
+ * IDM-Style Network Sniffer
+ */
+chrome.webRequest.onResponseStarted.addListener(
+  (details) => {
+    if (details.tabId < 0) return;
+
+    const url = details.url;
+    if (url.startsWith('chrome-extension://') || url.includes('127.0.0.1:4567') || url.includes('127.0.0.1:9666')) return;
+
+    let contentType = '';
+    let contentLength = 0;
+
+    if (details.responseHeaders) {
+      for (const h of details.responseHeaders) {
+        const name = h.name.toLowerCase();
+        if (name === 'content-type') contentType = (h.value || '').toLowerCase();
+        else if (name === 'content-length') contentLength = parseInt(h.value, 10) || 0;
+      }
+    }
+
+    const isMediaContentType =
+      contentType.startsWith('video/') ||
+      contentType.startsWith('audio/') ||
+      contentType.includes('application/vnd.apple.mpegurl') ||
+      contentType.includes('application/x-mpegurl') ||
+      contentType.includes('application/dash+xml') ||
+      contentType.includes('video/mp4') ||
+      contentType.includes('video/webm');
+
+    const mediaExtensions = /\.(mp4|mkv|webm|avi|mov|flv|m4v|ts|m3u8|mpd|mp3|m4a|flac|wav|ogg|opus)(\?|$)/i;
+    const isMediaExtension = mediaExtensions.test(url);
+
+    if (isMediaContentType || isMediaExtension) {
+      if (contentLength > 0 && contentLength < 50000 && !url.includes('.m3u8')) return;
+
+      const mediaItem = {
+        url,
+        contentType: contentType || 'media/stream',
+        contentLength,
+        formattedSize: formatBytes(contentLength),
+        timestamp: Date.now()
+      };
+
+      let list = tabMediaMap.get(details.tabId) || [];
+      if (!list.some(m => m.url === url)) {
+        list.unshift(mediaItem);
+        if (list.length > 50) list = list.slice(0, 50);
+        tabMediaMap.set(details.tabId, list);
+
+        chrome.tabs.sendMessage(details.tabId, {
+          action: 'MEDIA_DETECTED',
+          media: mediaItem,
+          allMedia: list
+        }).catch(() => {});
+      }
+    }
+  },
+  { urls: ['<all_urls>'] },
+  ['responseHeaders']
+);
+
+/**
+ * Chrome Download Interception Engine
+ */
+async function handleDownloadInterception(downloadItem, candidateFilename) {
+  if (!cachedSettings.interceptDownloads) return false;
+  if (!downloadItem || !downloadItem.id) return false;
+  if (interceptedDownloadIds.has(downloadItem.id)) return true;
+
+  const url = downloadItem.url || '';
+  if (!url || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('chrome-extension:')) {
+    return false;
+  }
+
+  // Check Ctrl / Alt key bypass (forces native browser download)
+  const now = Date.now();
+  if (now - lastBypassTimestamp < 5000) {
+    return false;
+  }
+
+  if (bypassedUrls.has(url)) {
+    const bypassTime = bypassedUrls.get(url);
+    if (now - bypassTime < 20000) return false;
+    else bypassedUrls.delete(url);
+  }
+
+  if (downloadItem.referrer && bypassedUrls.has(downloadItem.referrer)) {
+    const bypassTime = bypassedUrls.get(downloadItem.referrer);
+    if (now - bypassTime < 20000) return false;
+    else bypassedUrls.delete(downloadItem.referrer);
+  }
+
+  const filename = candidateFilename || downloadItem.filename || url.split('?')[0];
+  const cleanName = filename.split(/[\\/]/).pop().split('?')[0];
+  const ext = ('.' + cleanName.split('.').pop()).toLowerCase();
+
+  const isGeneric = !cleanName || cleanName.toLowerCase() === 'download' || cleanName.toLowerCase() === 'download.php' || cleanName.toLowerCase().startsWith('file_');
+
+  // If candidateFilename is not provided (e.g. onCreated event) and the name is generic,
+  // do NOT intercept yet - wait for onDeterminingFilename where Chrome provides the real Content-Disposition filename!
+  if (!candidateFilename && isGeneric) {
+    return false;
+  }
+
+  const isMatchedExt = (cachedSettings.interceptExtensions || []).some(e => e.toLowerCase() === ext);
+
+  const isMediaOrArchiveMime = downloadItem.mime && (
+    downloadItem.mime.startsWith('video/') ||
+    downloadItem.mime.startsWith('audio/') ||
+    downloadItem.mime.includes('zip') ||
+    downloadItem.mime.includes('compressed') ||
+    downloadItem.mime.includes('tar') ||
+    downloadItem.mime.includes('iso') ||
+    downloadItem.mime.includes('x-rar') ||
+    downloadItem.mime.includes('7z') ||
+    downloadItem.mime.includes('application/octet-stream') && isMatchedExt
+  );
+
+  if (!isMatchedExt && !isMediaOrArchiveMime) return false;
+
+  interceptedDownloadIds.add(downloadItem.id);
+
+  try {
+    await chrome.downloads.cancel(downloadItem.id);
+  } catch (err) {}
+
+  try {
+    await chrome.downloads.erase({ id: downloadItem.id });
+  } catch (err) {}
+
+  if (recentlyInterceptedUrls.has(url) && (now - recentlyInterceptedUrls.get(url)) < 5000) {
+    return true;
+  }
+  recentlyInterceptedUrls.set(url, now);
+
+  const pkgName = cleanName || 'Intercepted Download';
+  await sendToHydra({
+    urls: [url],
+    filename: cleanName,
+    packageName: pkgName,
+    source: downloadItem.referrer || ''
+  });
+
+  return true;
+}
+
+chrome.downloads.onCreated.addListener((downloadItem) => {
+  handleDownloadInterception(downloadItem).catch(() => {});
+});
+
+chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+  handleDownloadInterception(downloadItem, downloadItem.filename)
+    .then((intercepted) => {
+      if (!intercepted) suggest();
+    })
+    .catch(() => suggest());
+  return true;
+});
+
+/**
+ * Message Handler
+ */
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const action = message.action;
+
+  if (action === 'GET_SETTINGS') {
+    getSettings().then(sendResponse);
+    return true;
+  }
+
+  if (action === 'SAVE_SETTINGS') {
+    saveSettings(message.settings).then(sendResponse);
+    return true;
+  }
+
+  if (action === 'CHECK_STATUS' || action === 'CHECK_WATERFALL_STATUS' || action === 'CHECK_HYDRA_STATUS') {
+    checkHydraStatus(message.host).then(sendResponse);
+    return true;
+  }
+
+  if (action === 'SEND_TO_WATERFALL' || action === 'SEND_TO_HYDRA') {
+    sendToHydra(message.data).then(sendResponse);
+    return true;
+  }
+
+  if (action === 'GET_TAB_MEDIA') {
+    const tabId = message.tabId || (sender.tab && sender.tab.id);
+    const media = tabId ? (tabMediaMap.get(tabId) || []) : [];
+    sendResponse({ media });
+    return false;
+  }
+
+  if (action === 'REGISTER_BYPASS_URL' || action === 'REGISTER_BYPASS') {
+    const ts = Date.now();
+    lastBypassTimestamp = ts;
+    if (message.url) bypassedUrls.set(message.url, ts);
+    if (message.pageUrl) bypassedUrls.set(message.pageUrl, ts);
+    sendResponse({ ok: true, timestamp: ts });
+    return false;
+  }
+
+  return false;
+});
+
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return 'Stream / Dynamic';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// Lifecycle
+chrome.runtime.onInstalled.addListener(() => {
+  initContextMenus();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  initContextMenus();
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabMediaMap.delete(tabId);
+});
