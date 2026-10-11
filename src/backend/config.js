@@ -54,7 +54,10 @@ const DEFAULT_CONFIG = {
   clipboardMonitoring: false,
 
   // UI, Audio & Notifications
-  showDownloadConfirmation: true, // IDM-style confirmation dialog before starting
+  autoDownloadWithoutConfirmation: false, // Auto-download files immediately without confirmation (OFF by default)
+  showDownloadConfirmation: true, // IDM-style confirmation dialog before starting (ON by default)
+  forceTopOnDownload: true, // Force window to top when a new download is prompted/intercepted
+  alwaysOnTop: false, // Keep Waterfall pinned on top of other windows (OFF by default)
   mediaStreamPreviewEnabled: true, // Watch as you download live streaming preview
   soundChimeEnabled: true,
   soundChimeVolume: 0.8,

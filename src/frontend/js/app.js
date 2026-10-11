@@ -1887,8 +1887,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const cfg = window.appState.config || {};
-    if (scriptCheck) scriptCheck.checked = !!cfg.postDownloadScriptEnabled;
-    if (scriptDetails) scriptDetails.style.display = cfg.postDownloadScriptEnabled ? 'block' : 'none';
+    // Script execution for individual download prompts must be OFF by default
+    if (scriptCheck) scriptCheck.checked = false;
+    if (scriptDetails) scriptDetails.style.display = 'none';
     if (scriptPathEl) scriptPathEl.value = cfg.postDownloadScriptPath || '';
     if (scriptTypeEl) scriptTypeEl.value = cfg.postDownloadScriptType || 'auto';
     if (scriptArgsEl) scriptArgsEl.value = cfg.postDownloadArguments || '"%FILE%"';
@@ -1896,10 +1897,17 @@ document.addEventListener('DOMContentLoaded', () => {
     closeAllModals();
     modalIdmConfirm.classList.add('open');
     if (nameEl) setTimeout(() => nameEl.focus(), 60);
+
+    // Force window to top when download confirmation is shown
+    if (window.waterfallDesktop && window.waterfallDesktop.forceTop) {
+      window.waterfallDesktop.forceTop();
+    }
   }
 
   window.addEventListener('download:confirm', (e) => {
-    if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
+    if (window.waterfallDesktop && window.waterfallDesktop.forceTop) {
+      window.waterfallDesktop.forceTop();
+    } else if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
       window.waterfallDesktop.focusWindow();
     }
     if (e.detail) {
@@ -2244,15 +2252,69 @@ document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.style.setProperty('--accent-idm-blue-glow', c.glow);
   }
 
+  function updatePinTopButton(isPinned) {
+    const btnPin = document.getElementById('btn-pin-top');
+    const labelPin = document.getElementById('pin-top-label');
+    if (!btnPin) return;
+    if (isPinned) {
+      btnPin.classList.add('active');
+      btnPin.style.background = 'rgba(88, 166, 255, 0.25)';
+      btnPin.style.borderColor = 'var(--accent-primary, #58a6ff)';
+      btnPin.style.color = '#58a6ff';
+      if (labelPin) labelPin.textContent = 'Pinned';
+    } else {
+      btnPin.classList.remove('active');
+      btnPin.style.background = '';
+      btnPin.style.borderColor = '';
+      btnPin.style.color = '';
+      if (labelPin) labelPin.textContent = 'Pin';
+    }
+  }
+
+  const btnPinTop = document.getElementById('btn-pin-top');
+  if (btnPinTop) {
+    btnPinTop.addEventListener('click', async () => {
+      const currentPinned = !!(window.appState.config && window.appState.config.alwaysOnTop);
+      const newPinned = !currentPinned;
+      if (!window.appState.config) window.appState.config = {};
+      window.appState.config.alwaysOnTop = newPinned;
+      updatePinTopButton(newPinned);
+      if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
+        window.waterfallDesktop.setAlwaysOnTop(newPinned);
+      }
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alwaysOnTop: newPinned })
+        });
+      } catch (_) {}
+    });
+  }
+
   window.addEventListener('state:init', () => {
-    if (window.appState.config && window.appState.config.themeAccent) {
-      applyThemeAccent(window.appState.config.themeAccent);
+    if (window.appState.config) {
+      if (window.appState.config.themeAccent) {
+        applyThemeAccent(window.appState.config.themeAccent);
+      }
+      const isPinned = Boolean(window.appState.config.alwaysOnTop);
+      updatePinTopButton(isPinned);
+      if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
+        window.waterfallDesktop.setAlwaysOnTop(isPinned);
+      }
     }
   });
 
   window.addEventListener('state:config', () => {
-    if (window.appState.config && window.appState.config.themeAccent) {
-      applyThemeAccent(window.appState.config.themeAccent);
+    if (window.appState.config) {
+      if (window.appState.config.themeAccent) {
+        applyThemeAccent(window.appState.config.themeAccent);
+      }
+      const isPinned = Boolean(window.appState.config.alwaysOnTop);
+      updatePinTopButton(isPinned);
+      if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
+        window.waterfallDesktop.setAlwaysOnTop(isPinned);
+      }
     }
   });
 
@@ -2366,6 +2428,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 7. Theme & System
     if (document.getElementById('cfg-show-confirm')) document.getElementById('cfg-show-confirm').checked = cfg.showDownloadConfirmation !== false;
+    if (document.getElementById('cfg-auto-download-no-confirm')) document.getElementById('cfg-auto-download-no-confirm').checked = !!cfg.autoDownloadWithoutConfirmation;
+    if (document.getElementById('cfg-force-top-download')) document.getElementById('cfg-force-top-download').checked = cfg.forceTopOnDownload !== false;
+    if (document.getElementById('cfg-always-on-top')) document.getElementById('cfg-always-on-top').checked = !!cfg.alwaysOnTop;
     if (document.getElementById('cfg-media-stream-preview')) document.getElementById('cfg-media-stream-preview').checked = cfg.mediaStreamPreviewEnabled !== false;
     if (document.getElementById('cfg-high-fps')) document.getElementById('cfg-high-fps').checked = cfg.highFramerateTick !== false;
     if (document.getElementById('cfg-clipboard-monitor')) document.getElementById('cfg-clipboard-monitor').checked = !!cfg.clipboardMonitoring;
@@ -2464,6 +2529,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Interface
       showDownloadConfirmation: document.getElementById('cfg-show-confirm')?.checked,
+      autoDownloadWithoutConfirmation: document.getElementById('cfg-auto-download-no-confirm')?.checked || false,
+      forceTopOnDownload: document.getElementById('cfg-force-top-download')?.checked !== false,
+      alwaysOnTop: document.getElementById('cfg-always-on-top')?.checked || false,
       mediaStreamPreviewEnabled: document.getElementById('cfg-media-stream-preview')?.checked,
       highFramerateTick: document.getElementById('cfg-high-fps')?.checked,
       clipboardMonitoring: document.getElementById('cfg-clipboard-monitor')?.checked,
@@ -2480,6 +2548,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const updated = await res.json();
       window.appState.config = updated;
       applyThemeAccent(themeAccent);
+      updatePinTopButton(Boolean(updated.alwaysOnTop));
+      if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
+        window.waterfallDesktop.setAlwaysOnTop(Boolean(updated.alwaysOnTop));
+      }
       modalSettings.classList.remove('open');
     } catch (err) {
       alert('Failed to save settings: ' + err.message);

@@ -102,7 +102,8 @@ app.post('/api/downloads', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const config = getConfig();
-  if (config.showDownloadConfirmation && !confirmed) {
+  const shouldConfirm = !config.autoDownloadWithoutConfirmation && config.showDownloadConfirmation !== false;
+  if (shouldConfirm && !confirmed) {
     try {
       const probeData = await downloadManager.probeUrl(url);
       if (filename) probeData.filename = filename;

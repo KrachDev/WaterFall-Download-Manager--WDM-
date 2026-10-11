@@ -63,6 +63,16 @@ let downloadManager = null;
 const PORT = 4567;
 const APP_URL = `http://localhost:${PORT}`;
 
+function getAppConfig() {
+  try {
+    const configPath = path.join(__dirname, 'config.json');
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (_) {}
+  return {};
+}
+
 // In-process backend server integration (avoids running a separate node.exe process!)
 async function initServer() {
   try {
@@ -252,6 +262,11 @@ function connectBackendWebSocket() {
           handleTaskCompletion(msg.task);
         } else if (msg.type === 'taskFailed') {
           handleTaskFailure(msg);
+        } else if (msg.type === 'showDownloadConfirmation' || msg.type === 'taskCreated' || msg.type === 'linkgrabberUpdated') {
+          const cfg = getAppConfig();
+          if (cfg.forceTopOnDownload !== false) {
+            forceWindowToTop();
+          }
         }
       } catch (_) {}
     });
@@ -445,6 +460,10 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.once('ready-to-show', () => {
+    const cfg = getAppConfig();
+    if (cfg && cfg.alwaysOnTop) {
+      mainWindow.setAlwaysOnTop(true, 'floating');
+    }
     mainWindow.show();
     mainWindow.focus();
   });
@@ -656,11 +675,55 @@ ipcMain.handle('select-folder', async (event, defaultPath) => {
   }
 });
 
-ipcMain.on('window-focus', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    if (!mainWindow.isVisible()) mainWindow.show();
+function forceWindowToTop(keepPinned = false) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  try {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+
+    // Force window to front through Windows foreground lock
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    mainWindow.moveTop();
+    mainWindow.show();
     mainWindow.focus();
+    mainWindow.flashFrame(true);
+
+    let isAlwaysOnTopEnabled = keepPinned;
+    try {
+      const cfg = getAppConfig();
+      if (cfg && cfg.alwaysOnTop) isAlwaysOnTopEnabled = true;
+    } catch (_) {}
+
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (!isAlwaysOnTopEnabled) {
+          mainWindow.setAlwaysOnTop(false);
+        } else {
+          mainWindow.setAlwaysOnTop(true, 'floating');
+        }
+      }
+    }, 1200);
+  } catch (err) {
+    console.warn('[Waterfall Electron] forceWindowToTop error:', err.message);
+  }
+}
+
+ipcMain.on('window-focus', () => {
+  forceWindowToTop();
+});
+
+ipcMain.on('window-force-top', (event, keepPinned) => {
+  forceWindowToTop(keepPinned);
+});
+
+ipcMain.on('window-set-always-on-top', (event, flag) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setAlwaysOnTop(!!flag, 'floating');
   }
 });
 
