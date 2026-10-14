@@ -122,13 +122,17 @@ class QueueManager extends EventEmitter {
     // Clear any existing retry timer for this task
     this.clearRetryTimer(task.id);
 
-    // Detect permanent non-retryable errors (e.g. video unavailable/removed or age restriction)
-    const isPermanent = /video unavailable|this video is not available|private video|confirm your age|inappropriate for some users|account has been terminated/i.test(errorMsg);
+    // Detect permanent non-retryable errors (e.g. video unavailable/removed, copyright takedowns, or age restriction)
+    const isPermanent = /video unavailable|this video is not available|private video|confirm your age|inappropriate for some users|account has been terminated|copyright removal|removed following a copyright|sign in required|age-restricted/i.test(errorMsg);
     if (isPermanent) {
       task.status = 'error';
-      task.error = /confirm your age|inappropriate for some users/i.test(errorMsg)
-        ? 'Sign in required on YouTube (Age-restricted video)'
-        : (errorMsg.includes('unavailable') ? 'Video unavailable on YouTube' : errorMsg);
+      if (/confirm your age|inappropriate for some users|age-restricted|sign in required/i.test(errorMsg)) {
+        task.error = 'Sign in required on YouTube (Age-restricted video)';
+      } else if (/copyright/i.test(errorMsg)) {
+        task.error = 'Video removed due to copyright request on YouTube';
+      } else {
+        task.error = errorMsg.includes('unavailable') ? 'Video unavailable on YouTube' : errorMsg;
+      }
       task.retrying = false;
       task.retryInSec = 0;
       return false;

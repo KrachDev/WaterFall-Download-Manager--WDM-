@@ -163,6 +163,7 @@ body {
    Header & IDM Tactile Command Toolbar
    ========================================================================== */
 .app-header {
+  position: relative;
   height: 54px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border-mid);
@@ -170,11 +171,11 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  z-index: 100;
+  z-index: 1000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: visible !important;
   box-sizing: border-box;
 }
 
@@ -311,6 +312,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: stretch;
+  z-index: 1001;
 }
 
 .add-download-dropdown-wrap .add-main-btn {
@@ -336,8 +338,8 @@ body {
   background: #111726;
   border: 1px solid #233454;
   border-radius: var(--radius-sm);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  z-index: 1000;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  z-index: 10002;
   min-width: 310px;
   display: none;
   overflow: hidden;
@@ -347,6 +349,7 @@ body {
 .add-download-dropdown-menu.show {
   display: block;
   animation: dropdownFadeIn 0.15s ease;
+  z-index: 10002;
 }
 
 @keyframes dropdownFadeIn {
@@ -1346,6 +1349,22 @@ body.resizing-columns * {
   outline: none;
 }
 
+select.text-input {
+  cursor: pointer;
+  appearance: none;
+  background-color: #0d1220;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+}
+
+select.text-input option {
+  background-color: #111726;
+  color: #e2e8f0;
+  padding: 8px 12px;
+}
+
 .text-input:focus {
   border-color: var(--accent-idm-blue);
 }
@@ -1432,17 +1451,18 @@ body.resizing-columns * {
    ========================================================================== */
 .power-dropdown-wrap {
   position: relative;
+  z-index: 1001;
 }
 
 .power-dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-medium);
+  background: #111726;
+  border: 1px solid #233454;
   border-radius: var(--radius-sm);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
-  z-index: 1000;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  z-index: 10002;
   min-width: 200px;
   display: none;
   overflow: hidden;
@@ -1450,6 +1470,7 @@ body.resizing-columns * {
 
 .power-dropdown-menu.show {
   display: block;
+  z-index: 10002;
 }
 
 .power-option {
@@ -2586,7 +2607,6 @@ body.resizing-columns * {
    ========================================================================== */
 html,
 body,
-.app-header,
 .app-body,
 .content-area,
 .content-toolbar,
