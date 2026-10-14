@@ -19,7 +19,12 @@ const desktopApi = {
   notifyDownloadProgress: (data) => ipcRenderer.send('notify-download-progress', data),
   openConfirmWindow: (probeData) => ipcRenderer.send('open-confirm-window', probeData),
   closeConfirmWindow: () => ipcRenderer.send('close-confirm-window'),
-  onConfirmData: (cb) => { ipcRenderer.on('set-confirm-data', (e, data) => cb(data)); }
+  onConfirmData: (cb) => { ipcRenderer.on('set-confirm-data', (e, data) => cb(data)); },
+  openProgressWindow: (task) => ipcRenderer.send('open-progress-window', task),
+  closeProgressWindow: (taskId) => ipcRenderer.send('close-progress-window', taskId),
+  onProgressData: (cb) => { ipcRenderer.on('set-progress-data', (e, data) => cb(data)); },
+  onProgressTick: (cb) => { ipcRenderer.on('download-progress-tick', (e, data) => cb(data)); },
+  onTaskCompleted: (cb) => { ipcRenderer.on('task-completed', (e, task) => cb(task)); }
 };
 
 contextBridge.exposeInMainWorld('waterfallDesktop', desktopApi);

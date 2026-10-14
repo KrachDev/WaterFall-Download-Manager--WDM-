@@ -15,6 +15,7 @@
     "downloads",
     "notifications",
     "activeTab",
+    "tabs",
     "scripting",
     "webRequest"
   ],

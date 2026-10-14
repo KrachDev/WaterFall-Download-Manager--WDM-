@@ -262,6 +262,34 @@
             <input type="text" id="search-input" placeholder="Filter by name, package, hoster...">
           </div>
 
+          <!-- Quick Toggle: Hide Finished Downloads -->
+          <button class="tool-btn toggle-finished-btn" id="btn-toggle-finished" title="Toggle finished downloads visibility in All Downloads">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+            <span id="label-toggle-finished">Hide Finished</span>
+            <span class="badge-hidden-count" id="badge-finished-hidden" style="display: none;">0</span>
+          </button>
+
+          <!-- Queue Sorting Dropdown Menu -->
+          <div class="sort-dropdown-wrap">
+            <button class="tool-btn sort-btn" id="btn-sort-menu" title="Queue Sorting Options">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="11" y2="14"></line><line x1="21" y1="18" x2="15" y2="18"></line></svg>
+              <span id="sort-status-label">Sort: Active First</span>
+            </button>
+            <div class="sort-dropdown-menu" id="sort-dropdown-menu">
+              <div class="sort-option selected" data-sort="active-first">⚡ Active First (Downloading at Top)</div>
+              <div class="sort-option" data-sort="date-desc">🕒 Date Added (Newest First)</div>
+              <div class="sort-option" data-sort="date-asc">🕒 Date Added (Oldest First)</div>
+              <div class="sort-option" data-sort="name-asc">🔤 Name (A → Z)</div>
+              <div class="sort-option" data-sort="name-desc">🔤 Name (Z → A)</div>
+              <div class="sort-option" data-sort="size-desc">📦 Size (Largest First)</div>
+              <div class="sort-option" data-sort="size-asc">📦 Size (Smallest First)</div>
+              <div class="sort-option" data-sort="progress-desc">📊 Progress (Highest First)</div>
+              <div class="sort-option" data-sort="progress-asc">📊 Progress (Lowest First)</div>
+              <div class="sort-option" data-sort="speed-desc">🚀 Speed (Fastest First)</div>
+              <div class="sort-option" data-sort="hoster-asc">🌐 Hoster (A → Z)</div>
+            </div>
+          </div>
+
           <button class="tool-btn limiter-inline-btn" id="btn-speed-limiter" title="Bandwidth & Speed Limiter (Throttle download speeds)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             <span id="limiter-status-label">Speed Limit: Off</span>
@@ -358,36 +386,57 @@
           <thead>
             <tr>
               <th style="width: 36px;"><input type="checkbox" id="check-select-all-downloads"></th>
-              <th data-col="name" class="resizable-th">
-                <span class="th-content">File Name</span>
+              <th data-col="name" class="resizable-th sortable-th" title="Click to sort by File Name">
+                <span class="th-content">
+                  <span class="th-title">File Name</span>
+                  <span class="sort-arrow" data-col="name"></span>
+                </span>
                 <div class="col-resize-handle" data-col="name" title="Drag to resize column (Double-click to reset)"></div>
               </th>
-              <th data-col="size" class="resizable-th">
-                <span class="th-content">Size</span>
+              <th data-col="size" class="resizable-th sortable-th" title="Click to sort by Size">
+                <span class="th-content">
+                  <span class="th-title">Size</span>
+                  <span class="sort-arrow" data-col="size"></span>
+                </span>
                 <div class="col-resize-handle" data-col="size" title="Drag to resize column (Double-click to reset)"></div>
               </th>
-              <th data-col="status" class="resizable-th">
-                <span class="th-content">Status</span>
+              <th data-col="status" class="resizable-th sortable-th" title="Click to sort by Status">
+                <span class="th-content">
+                  <span class="th-title">Status</span>
+                  <span class="sort-arrow" data-col="status"></span>
+                </span>
                 <div class="col-resize-handle" data-col="status" title="Drag to resize column (Double-click to reset)"></div>
               </th>
-              <th data-col="progress" class="resizable-th">
-                <span class="th-content">Progress</span>
+              <th data-col="progress" class="resizable-th sortable-th" title="Click to sort by Progress">
+                <span class="th-content">
+                  <span class="th-title">Progress</span>
+                  <span class="sort-arrow" data-col="progress"></span>
+                </span>
                 <div class="col-resize-handle" data-col="progress" title="Drag to resize column (Double-click to reset)"></div>
               </th>
-              <th data-col="speed" class="resizable-th">
-                <span class="th-content">Speed</span>
+              <th data-col="speed" class="resizable-th sortable-th" title="Click to sort by Speed">
+                <span class="th-content">
+                  <span class="th-title">Speed</span>
+                  <span class="sort-arrow" data-col="speed"></span>
+                </span>
                 <div class="col-resize-handle" data-col="speed" title="Drag to resize column (Double-click to reset)"></div>
               </th>
-              <th data-col="finish" class="resizable-th" title="Estimated Completion Date & Time">
-                <span class="th-content">Est. Finish</span>
+              <th data-col="finish" class="resizable-th sortable-th" title="Click to sort by Est. Finish / Date Added">
+                <span class="th-content">
+                  <span class="th-title">Est. Finish</span>
+                  <span class="sort-arrow" data-col="finish"></span>
+                </span>
                 <div class="col-resize-handle" data-col="finish" title="Drag to resize column (Double-click to reset)"></div>
               </th>
-              <th data-col="hoster" class="resizable-th">
-                <span class="th-content">Hoster</span>
+              <th data-col="hoster" class="resizable-th sortable-th" title="Click to sort by Hoster">
+                <span class="th-content">
+                  <span class="th-title">Hoster</span>
+                  <span class="sort-arrow" data-col="hoster"></span>
+                </span>
                 <div class="col-resize-handle" data-col="hoster" title="Drag to resize column (Double-click to reset)"></div>
               </th>
               <th data-col="actions" class="resizable-th" style="text-align: right;">
-                <span class="th-content">Actions</span>
+                <span class="th-content"><span class="th-title">Actions</span></span>
                 <div class="col-resize-handle" data-col="actions" title="Drag to resize column (Double-click to reset)"></div>
               </th>
             </tr>
@@ -416,6 +465,20 @@
             <button class="tool-btn" id="empty-btn-grabber">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
               <span>Batch LinkGrabber</span>
+            </button>
+          </div>
+          <div class="empty-finished-hint" id="empty-finished-hint" style="display: none; margin-top: 14px; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap;">
+            <button class="tool-btn accent-blue" id="empty-btn-show-finished">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <span>Show Finished Downloads</span>
+            </button>
+            <button class="tool-btn" id="empty-btn-view-finished-tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <span>Go to Finished Tab</span>
+            </button>
+            <button class="tool-btn danger" id="empty-btn-clear-finished">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>Clear Done from List</span>
             </button>
           </div>
         </div>
@@ -1567,6 +1630,64 @@
 
               <div class="settings-toggle-card">
                 <div class="toggle-info">
+                  <div class="toggle-title">Hide Finished Downloads in "All Downloads"</div>
+                  <div class="toggle-desc">Automatically filters completed downloads out of the "All Downloads" queue. Finished downloads remain safe and accessible under the "Finished" tab in the sidebar.</div>
+                </div>
+                <input type="checkbox" id="cfg-hide-finished" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Default Queue Sorting</div>
+                  <div class="toggle-desc">Choose the default order for downloads in the queue (e.g. Active First pins downloading items to top).</div>
+                </div>
+                <select id="cfg-default-sort" class="text-input" style="width: 220px;">
+                  <option value="active-first">⚡ Active First (Downloading at Top)</option>
+                  <option value="date-desc">🕒 Date Added (Newest First)</option>
+                  <option value="date-asc">🕒 Date Added (Oldest First)</option>
+                  <option value="name-asc">🔤 Name (A → Z)</option>
+                  <option value="name-desc">🔤 Name (Z → A)</option>
+                  <option value="size-desc">📦 Size (Largest First)</option>
+                  <option value="size-asc">📦 Size (Smallest First)</option>
+                  <option value="progress-desc">📊 Progress (Highest First)</option>
+                  <option value="speed-desc">🚀 Speed (Fastest First)</option>
+                </select>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Start Waterfall with Windows (System Startup)</div>
+                  <div class="toggle-desc">Automatically launches Waterfall when Windows boots up so the IDM companion and accelerated queue are always running (ON by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-start-with-windows" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Start with Window Open (Visible on Launch)</div>
+                  <div class="toggle-desc">Opens the main Waterfall desktop window immediately when the application launches (OFF by default for silent system tray operation).</div>
+                </div>
+                <input type="checkbox" id="cfg-start-with-window" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Show IDM-Style Download Progress Dialog</div>
+                  <div class="toggle-desc">Opens a small, dedicated floating window to track live download progress, transfer speed, and ETA without opening the main window (ON by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-show-download-progress" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Show IDM-Style Download Complete Dialog</div>
+                  <div class="toggle-desc">Displays a dedicated completion window with quick actions to Open File or Open Folder when a download finishes (ON by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-show-download-complete" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
                   <div class="toggle-title">Auto-Download Files Immediately (Bypass Confirmation)</div>
                   <div class="toggle-desc">Automatically starts downloads in the background without prompting the confirmation dialog (Disabled / OFF by default).</div>
                 </div>
@@ -1575,10 +1696,10 @@
 
               <div class="settings-toggle-card">
                 <div class="toggle-info">
-                  <div class="toggle-title">Force Window to Top on New Download</div>
-                  <div class="toggle-desc">Automatically brings Waterfall to the foreground over other apps whenever a download is prompted or intercepted.</div>
+                  <div class="toggle-title">Force Main Window to Top on New Download</div>
+                  <div class="toggle-desc">Automatically brings the main Waterfall window to the foreground whenever a download starts (OFF by default).</div>
                 </div>
-                <input type="checkbox" id="cfg-force-top-download" class="toggle-checkbox" checked>
+                <input type="checkbox" id="cfg-force-top-download" class="toggle-checkbox">
               </div>
 
               <div class="settings-toggle-card">

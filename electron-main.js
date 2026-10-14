@@ -9,6 +9,11 @@ const fs = require('fs');
 const http = require('http');
 const { execFile } = require('child_process');
 const WebSocket = require('ws');
+const { getStorageDir } = require('./src/backend/storagePaths');
+
+try {
+  process.env.WATERFALL_DATA_DIR = getStorageDir();
+} catch (_) {}
 
 // Augment PATH with local bin directory and WinGet links
 const binPath = path.join(__dirname, 'bin');
@@ -70,7 +75,7 @@ function openConfirmWindow(probeData) {
   pendingConfirmData = probeData;
   const icoPath = path.join(__dirname, 'assets', 'icon.ico');
   const pngPath = path.join(__dirname, 'assets', 'icon.png');
-  const appIcon = nativeImage.createFromPath(fs.existsSync(icoPath) ? icoPath : pngPath);
+  const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
 
   if (confirmWindow && !confirmWindow.isDestroyed()) {
     if (confirmWindow.isMinimized()) confirmWindow.restore();
@@ -85,13 +90,13 @@ function openConfirmWindow(probeData) {
   }
 
   confirmWindow = new BrowserWindow({
-    width: 680,
-    height: 740,
-    minWidth: 540,
-    minHeight: 560,
+    width: 620,
+    height: 580,
+    minWidth: 520,
+    minHeight: 500,
     backgroundColor: '#090d16',
     title: 'Waterfall — Download File Info',
-    icon: !appIcon.isEmpty() ? appIcon : (fs.existsSync(icoPath) ? icoPath : undefined),
+    icon: windowIcon,
     show: false,
     autoHideMenuBar: true,
     alwaysOnTop: true,
@@ -148,6 +153,89 @@ function openConfirmWindow(probeData) {
   });
 
   return confirmWindow;
+}
+
+const progressWindows = new Map();
+
+function openProgressWindow(task) {
+  if (!task || !task.id) return null;
+  const taskId = task.id;
+
+  const icoPath = path.join(__dirname, 'assets', 'icon.ico');
+  const pngPath = path.join(__dirname, 'assets', 'icon.png');
+  const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
+
+  if (progressWindows.has(taskId)) {
+    const existingWin = progressWindows.get(taskId);
+    if (existingWin && !existingWin.isDestroyed()) {
+      if (existingWin.isMinimized()) existingWin.restore();
+      if (!existingWin.isVisible()) existingWin.show();
+      existingWin.focus();
+      try {
+        existingWin.webContents.send('set-progress-data', task);
+      } catch (_) {}
+      return existingWin;
+    }
+  }
+
+  const pWin = new BrowserWindow({
+    width: 530,
+    height: 360,
+    minWidth: 500,
+    minHeight: 340,
+    resizable: true,
+    backgroundColor: '#0a0f1d',
+    title: `Waterfall — ${task.name || task.filename || 'Downloading'}`,
+    icon: windowIcon,
+    show: false,
+    autoHideMenuBar: true,
+    alwaysOnTop: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      spellcheck: false,
+      backgroundThrottling: false
+    }
+  });
+
+  pWin.setMenuBarVisibility(false);
+  progressWindows.set(taskId, pWin);
+
+  const deliverTask = () => {
+    if (pWin && !pWin.isDestroyed()) {
+      try {
+        pWin.webContents.send('set-progress-data', task);
+      } catch (_) {}
+    }
+  };
+
+  pWin.webContents.on('did-finish-load', () => {
+    deliverTask();
+  });
+
+  pWin.once('ready-to-show', () => {
+    if (pWin && !pWin.isDestroyed()) {
+      pWin.show();
+      pWin.focus();
+      deliverTask();
+    }
+  });
+
+  pWin.on('closed', () => {
+    progressWindows.delete(taskId);
+  });
+
+  const progressUrl = `${APP_URL}/download-progress.html?taskId=${encodeURIComponent(taskId)}`;
+  pWin.loadURL(progressUrl).catch(() => {
+    if (pWin && !pWin.isDestroyed()) {
+      pWin.loadFile(path.join(__dirname, 'src', 'frontend', 'download-progress.html'), {
+        query: { taskId }
+      }).catch(() => {});
+    }
+  });
+
+  return pWin;
 }
 
 function getAppConfig() {
@@ -289,6 +377,50 @@ function checkServerRunning() {
       resolve(false);
     });
   });
+}
+
+function flushBackendSaveState() {
+  if (serverInstance && downloadManager && typeof downloadManager.saveState === 'function') {
+    try { downloadManager.saveState(true); } catch (_) {}
+  }
+  // Also ping /api/save in case server is running as an external daemon
+  try {
+    const req = http.request(`${APP_URL}/api/save`, { method: 'POST', timeout: 800 }, () => {});
+    req.on('error', () => {});
+    req.end();
+  } catch (_) {}
+}
+
+function syncWindowsStartup(startWithWindows, startWithWindow) {
+  if (process.platform !== 'win32') return;
+  try {
+    const isPackaged = !process.defaultApp && !__dirname.includes('node_modules');
+    let targetExe = process.execPath;
+    if (!isPackaged) {
+      const candidateExe = path.join(__dirname, 'dist', 'Waterfall-win32-x64', 'Waterfall.exe');
+      if (fs.existsSync(candidateExe)) targetExe = candidateExe;
+    }
+
+    const args = (startWithWindow !== true) ? ['--hidden'] : [];
+
+    if (app && typeof app.setLoginItemSettings === 'function') {
+      app.setLoginItemSettings({
+        openAtLogin: Boolean(startWithWindows),
+        path: targetExe,
+        args
+      });
+    }
+
+    // Also synchronize Windows Registry HKCU\...\Run key for guaranteed persistence
+    if (startWithWindows) {
+      const regValue = `"${targetExe}"${args.length ? ' ' + args.join(' ') : ''}`;
+      execFile('reg', ['add', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'Waterfall', '/t', 'REG_SZ', '/d', regValue, '/f'], { windowsHide: true }, () => {});
+    } else {
+      execFile('reg', ['delete', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'Waterfall', '/f'], { windowsHide: true }, () => {});
+    }
+  } catch (err) {
+    console.warn('[Waterfall Electron] syncWindowsStartup warning:', err.message);
+  }
 }
 
 function formatSpeed(bytes) {
@@ -439,17 +571,53 @@ function connectBackendWebSocket() {
         const msg = JSON.parse(data.toString());
         if (msg.type === 'tick') {
           handleEngineTick(msg);
+          // Forward ticks to active individual download progress windows
+          if (Array.isArray(msg.tasks) && progressWindows.size > 0) {
+            for (const t of msg.tasks) {
+              if (progressWindows.has(t.id)) {
+                const pWin = progressWindows.get(t.id);
+                if (pWin && !pWin.isDestroyed()) {
+                  pWin.webContents.send('download-progress-tick', t);
+                }
+              }
+            }
+          }
         } else if (msg.type === 'taskCompleted') {
           handleTaskCompletion(msg.task);
+          if (msg.task && msg.task.id) {
+            if (progressWindows.has(msg.task.id)) {
+              const pWin = progressWindows.get(msg.task.id);
+              if (pWin && !pWin.isDestroyed()) {
+                if (pWin.isMinimized()) pWin.restore();
+                if (!pWin.isVisible()) pWin.show();
+                pWin.focus();
+                pWin.webContents.send('task-completed', msg.task);
+              }
+            } else {
+              const cfg = getAppConfig();
+              if (cfg.showDownloadCompleteDialog !== false) {
+                openProgressWindow(msg.task);
+              }
+            }
+          }
         } else if (msg.type === 'taskFailed') {
           handleTaskFailure(msg);
         } else if (msg.type === 'showDownloadConfirmation') {
           openConfirmWindow(msg.probeData);
-        } else if (msg.type === 'taskCreated' || msg.type === 'linkgrabberUpdated') {
+        } else if (msg.type === 'taskCreated') {
           const cfg = getAppConfig();
-          if (cfg.forceTopOnDownload !== false) {
+          if (cfg.showDownloadProgressDialog !== false && msg.task && (msg.task.status === 'downloading' || msg.task.status === 'pending')) {
+            openProgressWindow(msg.task);
+          }
+          if (cfg.forceTopOnDownload === true && mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
             forceWindowToTop();
           }
+        } else if (msg.type === 'configUpdated') {
+          const cfg = msg.config || getAppConfig();
+          if (cfg.alwaysOnTop !== undefined && mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setAlwaysOnTop(!!cfg.alwaysOnTop, 'floating');
+          }
+          syncWindowsStartup(cfg.startWithWindows !== false, cfg.startWithWindow === true);
         }
       } catch (_) {}
     });
@@ -606,7 +774,7 @@ function saveWindowState() {
 function createWindow() {
   const icoPath = path.join(__dirname, 'assets', 'icon.ico');
   const pngPath = path.join(__dirname, 'assets', 'icon.png');
-  const appIcon = nativeImage.createFromPath(fs.existsSync(icoPath) ? icoPath : pngPath);
+  const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
 
   const windowState = getWindowState();
 
@@ -619,7 +787,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: '#090d16',
     title: 'Waterfall — Modern IDM & JDownloader Suite',
-    icon: !appIcon.isEmpty() ? appIcon : (fs.existsSync(icoPath) ? icoPath : undefined),
+    icon: windowIcon,
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -634,9 +802,9 @@ function createWindow() {
     mainWindow.maximize();
   }
 
-  if (!appIcon.isEmpty()) {
+  if (windowIcon) {
     try {
-      mainWindow.setIcon(appIcon);
+      mainWindow.setIcon(windowIcon);
     } catch (_) {}
   }
 
@@ -647,8 +815,13 @@ function createWindow() {
     if (cfg && cfg.alwaysOnTop) {
       mainWindow.setAlwaysOnTop(true, 'floating');
     }
-    mainWindow.show();
-    mainWindow.focus();
+    const isHiddenStart = process.argv.includes('--hidden') || process.argv.includes('--minimized') || (cfg && cfg.startWithWindow !== true);
+    if (!isHiddenStart) {
+      mainWindow.show();
+      mainWindow.focus();
+    } else {
+      console.log('[Waterfall Electron] Starting silently minimized to system tray (startWithWindow is OFF by default).');
+    }
   });
 
   let resizeSaveTimeout = null;
@@ -693,32 +866,22 @@ function createWindow() {
         } catch (err) {}
       } else {
         // Otherwise quit cleanly so no orphaned background processes remain
-        if (downloadManager && typeof downloadManager.saveState === 'function') {
-          downloadManager.saveState(true);
-        }
+        flushBackendSaveState();
         app.isQuitting = true;
         app.quit();
       }
-    }
-  });
-
-  app.on('before-quit', () => {
-    if (downloadManager && typeof downloadManager.saveState === 'function') {
-      downloadManager.saveState(true);
     }
   });
 }
 
 function createTray() {
   try {
-    const iconPath = path.join(__dirname, 'assets', 'icon.png');
-    if (!fs.existsSync(iconPath)) return;
+    const icoPath = path.join(__dirname, 'assets', 'icon.ico');
+    const pngPath = path.join(__dirname, 'assets', 'icon.png');
+    const trayIconPath = (process.platform === 'win32' && fs.existsSync(icoPath)) ? icoPath : pngPath;
+    if (!fs.existsSync(trayIconPath)) return;
 
-    const img = nativeImage.createFromPath(iconPath);
-    if (img.isEmpty()) return;
-
-    const trayIcon = img.resize({ width: 16, height: 16 });
-    tray = new Tray(trayIcon);
+    tray = new Tray(trayIconPath);
     tray.setToolTip('Waterfall — Modern IDM & JDownloader Suite');
 
     const contextMenu = Menu.buildFromTemplate([
@@ -809,6 +972,17 @@ ipcMain.on('open-confirm-window', (event, probeData) => {
 ipcMain.on('close-confirm-window', () => {
   if (confirmWindow && !confirmWindow.isDestroyed()) {
     confirmWindow.close();
+  }
+});
+
+ipcMain.on('open-progress-window', (event, task) => {
+  openProgressWindow(task);
+});
+
+ipcMain.on('close-progress-window', (event, taskId) => {
+  if (taskId && progressWindows.has(taskId)) {
+    const pWin = progressWindows.get(taskId);
+    if (pWin && !pWin.isDestroyed()) pWin.close();
   }
 });
 
@@ -965,6 +1139,8 @@ ipcMain.on('notify-download-progress', () => {
 app.whenReady().then(async () => {
   app.setAppUserModelId('Waterfall.DownloadSuite');
   await initServer();
+  const cfg = getAppConfig();
+  syncWindowsStartup(cfg.startWithWindows !== false, cfg.startWithWindow !== false);
   createWindow();
   createTray();
   setupTaskbarProgress();
@@ -980,7 +1156,12 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
+  flushBackendSaveState();
   app.isQuitting = true;
+});
+
+app.on('will-quit', () => {
+  flushBackendSaveState();
 });
 
 app.on('window-all-closed', () => {

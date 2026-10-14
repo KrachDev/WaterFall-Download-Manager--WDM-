@@ -24,17 +24,22 @@
   const btnBrowseFolder = document.getElementById('btn-browse-folder');
   const engineModeEl = document.getElementById('confirm-engine-mode');
   const mediaBox = document.getElementById('confirm-media-box');
+  const mediaFormatEl = document.getElementById('confirm-media-format');
+  const mediaThumbImg = document.getElementById('media-thumb-img');
+  const mediaVideoTitle = document.getElementById('media-video-title');
+  const mediaVideoAuthor = document.getElementById('media-video-author');
   const btnWatchNow = document.getElementById('btn-watch-now');
   const extractBox = document.getElementById('confirm-extract-box');
   const checkExtract = document.getElementById('confirm-enable-extract');
+  const extractDetails = document.getElementById('confirm-extract-details');
   const inputExtractPwd = document.getElementById('confirm-archive-password');
   const btnTogglePwd = document.getElementById('btn-toggle-pwd');
   const checkDeleteArchive = document.getElementById('confirm-delete-archive');
   const checkScript = document.getElementById('confirm-enable-script');
-  const scriptDetails = document.getElementById('confirm-script-details');
   const scriptTypeEl = document.getElementById('confirm-script-type');
   const scriptPathEl = document.getElementById('confirm-script-path');
   const scriptArgsEl = document.getElementById('confirm-script-args');
+  const scriptDetails = document.getElementById('confirm-script-details');
 
   // Duplicate Alert Elements
   const dupBanner = document.getElementById('duplicate-alert-banner');
@@ -137,9 +142,43 @@
     }
 
     // Media card
-    const isMedia = Boolean(data.isMedia || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|ogg|opus)$/i.test(data.filename || ''));
+    const isMedia = Boolean(data.isMedia || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|ogg|opus)$/i.test(data.filename || '') || (data.url && (data.url.includes('youtube.com') || data.url.includes('youtu.be'))));
     if (mediaBox) {
-      mediaBox.style.display = isMedia ? 'block' : 'none';
+      mediaBox.style.display = isMedia ? 'flex' : 'none';
+      if (isMedia) {
+        if (mediaThumbImg) {
+          mediaThumbImg.src = data.mediaThumbnail || data.thumbnail || 'assets/logo.png';
+          mediaThumbImg.onerror = () => { mediaThumbImg.src = 'assets/logo.png'; };
+        }
+        if (mediaVideoTitle) mediaVideoTitle.textContent = data.mediaTitle || data.title || data.filename || 'Media Stream';
+        if (mediaVideoAuthor) mediaVideoAuthor.textContent = data.mediaAuthor || data.uploader ? `Channel: ${data.mediaAuthor || data.uploader}` : 'YouTube Video';
+        if (categoryBadge) {
+          categoryBadge.textContent = 'Video';
+          categoryBadge.className = 'type-badge badge-video';
+        }
+      }
+    }
+
+    if (mediaFormatEl) {
+      mediaFormatEl.onchange = () => {
+        const val = mediaFormatEl.value;
+        const curName = filenameEl.value.trim();
+        const baseName = curName.replace(/\.[^/.]+$/, '');
+        if (val.startsWith('audio')) {
+          const ext = val.includes('flac') ? 'flac' : (val.includes('m4a') ? 'm4a' : 'mp3');
+          filenameEl.value = `${baseName}.${ext}`;
+          if (categoryBadge) {
+            categoryBadge.textContent = 'Audio';
+            categoryBadge.className = 'type-badge badge-audio';
+          }
+        } else {
+          filenameEl.value = `${baseName}.mp4`;
+          if (categoryBadge) {
+            categoryBadge.textContent = 'Video';
+            categoryBadge.className = 'type-badge badge-video';
+          }
+        }
+      };
     }
 
     if (engineModeEl) {
@@ -258,6 +297,26 @@
     const archivePassword = inputExtractPwd ? inputExtractPwd.value.trim() : '';
     const deleteAfterExtract = Boolean(checkDeleteArchive && checkDeleteArchive.checked);
 
+    const isMedia = Boolean(currentProbeData.isMedia || (mediaBox && mediaBox.style.display !== 'none'));
+    let mediaOptions = null;
+    if (isMedia) {
+      const val = mediaFormatEl ? mediaFormatEl.value : 'video-1080';
+      if (val.startsWith('audio')) {
+        const ext = val.includes('flac') ? 'flac' : (val.includes('m4a') ? 'm4a' : 'mp3');
+        mediaOptions = {
+          mediaType: 'audio',
+          audioFormat: ext,
+          audioQuality: val.includes('192') ? '192k' : '0'
+        };
+      } else {
+        const q = val === 'video-720' ? '720' : (val === 'video-best' ? 'best' : '1080');
+        mediaOptions = {
+          mediaType: 'video',
+          videoQuality: q
+        };
+      }
+    }
+
     btnStart.disabled = true;
     btnStart.textContent = 'Queueing...';
 
@@ -275,7 +334,8 @@
           singleStream,
           segments,
           customScript,
-          isMedia: currentProbeData.isMedia,
+          isMedia,
+          mediaOptions,
           autoExtract,
           archivePassword,
           deleteAfterExtract,
@@ -286,6 +346,10 @@
 
       if (!res.ok) throw new Error(await res.text());
       const task = await res.json();
+
+      if (autoStart && window.waterfallDesktop && typeof window.waterfallDesktop.openProgressWindow === 'function') {
+        window.waterfallDesktop.openProgressWindow(task);
+      }
 
       closeThisWindow();
     } catch (err) {
@@ -302,10 +366,19 @@
   if (btnCloseWindow) btnCloseWindow.onclick = closeThisWindow;
   if (btnWatchNow) btnWatchNow.onclick = () => submitDownload(true, true);
 
-  // Script toggle
-  if (checkScript && scriptDetails) {
-    checkScript.onchange = () => {
-      scriptDetails.style.display = checkScript.checked ? 'block' : 'none';
+  // Keyboard Shortcuts: Enter starts download, Esc cancels
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeThisWindow();
+    } else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+      submitDownload(true);
+    }
+  });
+
+  // Extraction options toggle
+  if (checkExtract && extractDetails) {
+    checkExtract.onchange = () => {
+      extractDetails.style.display = checkExtract.checked ? 'flex' : 'none';
     };
   }
 

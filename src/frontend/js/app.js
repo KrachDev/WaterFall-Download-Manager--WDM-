@@ -120,6 +120,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const powerDropdownMenu = document.getElementById('power-dropdown-menu');
   const powerStatusLabel = document.getElementById('power-status-label');
 
+  // Queue Controls (Hide Finished & Sorting)
+  const btnToggleFinished = document.getElementById('btn-toggle-finished');
+  const labelToggleFinished = document.getElementById('label-toggle-finished');
+  const badgeFinishedHidden = document.getElementById('badge-finished-hidden');
+  const btnSortMenu = document.getElementById('btn-sort-menu');
+  const sortDropdownMenu = document.getElementById('sort-dropdown-menu');
+  const sortStatusLabel = document.getElementById('sort-status-label');
+  const emptyFinishedHint = document.getElementById('empty-finished-hint');
+  const emptyBtnShowFinished = document.getElementById('empty-btn-show-finished');
+  const emptyBtnViewFinishedTab = document.getElementById('empty-btn-view-finished-tab');
+  const emptyBtnClearFinished = document.getElementById('empty-btn-clear-finished');
+
+  // Initialize sorting and filter states from localStorage / config
+  const savedHideFinished = localStorage.getItem('waterfall_hide_finished');
+  window.appState.hideFinished = savedHideFinished !== null
+    ? savedHideFinished === 'true'
+    : Boolean(window.appState.config?.hideFinishedInAllDownloads);
+
+  const savedSortMode = localStorage.getItem('waterfall_sort_mode');
+  window.appState.sortMode = savedSortMode || window.appState.config?.defaultQueueSorting || 'active-first';
+  window.appState.sortCol = localStorage.getItem('waterfall_sort_col') || null;
+  window.appState.sortDir = localStorage.getItem('waterfall_sort_dir') || 'desc';
+
   // Playlist Elements
   const ytPlaylistCard = document.getElementById('yt-playlist-card');
   const ytPlaylistTitle = document.getElementById('yt-playlist-title');
@@ -905,15 +928,274 @@ document.addEventListener('DOMContentLoaded', () => {
     return parentRowHtml + childrenHtml;
   }
 
+  function getItemValue(item, field) {
+    if (item.type === 'group') {
+      switch (field) {
+        case 'name':
+          return (item.groupName || '').toLowerCase();
+        case 'size':
+          return item.tasks.reduce((sum, t) => sum + (t.totalBytes || 0), 0);
+        case 'status': {
+          let maxWeight = 0;
+          for (const t of item.tasks) {
+            const w = getStatusWeight(t.status, t.extractStatus);
+            if (w > maxWeight) maxWeight = w;
+          }
+          return maxWeight;
+        }
+        case 'progress': {
+          const tot = item.tasks.reduce((s, t) => s + (t.totalBytes || 0), 0);
+          const done = item.tasks.reduce((s, t) => s + (t.downloadedBytes || 0), 0);
+          return tot > 0 ? (done / tot) : 0;
+        }
+        case 'speed':
+          return item.tasks.reduce((s, t) => s + (t.status === 'downloading' ? (t.speed || 0) : 0), 0);
+        case 'finish':
+        case 'date':
+        case 'addedAt':
+          return item.addedAt || Math.max(...item.tasks.map(t => t.addedAt || t.createdAt || 0), 0);
+        case 'hoster':
+          return (item.tasks[0]?.hoster || '').toLowerCase();
+        default:
+          return 0;
+      }
+    } else {
+      const t = item.task;
+      switch (field) {
+        case 'name':
+          return (t.name || t.filename || '').toLowerCase();
+        case 'size':
+          return t.totalBytes || 0;
+        case 'status':
+          return getStatusWeight(t.status, t.extractStatus);
+        case 'progress':
+          return (t.totalBytes > 0) ? (t.downloadedBytes / t.totalBytes) : (t.status === 'completed' ? 1 : 0);
+        case 'speed':
+          return (t.status === 'downloading') ? (t.speed || 0) : 0;
+        case 'finish':
+        case 'date':
+        case 'addedAt':
+          return t.addedAt || t.createdAt || 0;
+        case 'hoster':
+          return (t.hoster || '').toLowerCase();
+        default:
+          return 0;
+      }
+    }
+  }
+
+  function getStatusWeight(status, extractStatus) {
+    if (extractStatus === 'extracting') return 95;
+    switch (status) {
+      case 'downloading':
+      case 'assembling':
+        return 100;
+      case 'extracting':
+        return 95;
+      case 'paused':
+        return 80;
+      case 'queued':
+        return 75;
+      case 'error':
+      case 'canceled':
+        return 40;
+      case 'completed':
+        return 10;
+      default:
+        return 50;
+    }
+  }
+
+  function sortDownloadItems(items, sortMode, sortCol, sortDir) {
+    if (sortCol) {
+      const isAsc = sortDir === 'asc';
+      items.sort((a, b) => {
+        const valA = getItemValue(a, sortCol);
+        const valB = getItemValue(b, sortCol);
+        if (typeof valA === 'string' && typeof valB === 'string') {
+          const cmp = valA.localeCompare(valB);
+          return isAsc ? cmp : -cmp;
+        }
+        if (valA !== valB) {
+          return isAsc ? (valA > valB ? 1 : -1) : (valB > valA ? 1 : -1);
+        }
+        const timeA = a.addedAt || 0;
+        const timeB = b.addedAt || 0;
+        return timeB - timeA;
+      });
+      return;
+    }
+
+    switch (sortMode) {
+      case 'active-first':
+        items.sort((a, b) => {
+          const weightA = getItemValue(a, 'status');
+          const weightB = getItemValue(b, 'status');
+          if (weightB !== weightA) return weightB - weightA;
+          const timeA = a.addedAt || 0;
+          const timeB = b.addedAt || 0;
+          return timeB - timeA;
+        });
+        break;
+
+      case 'date-desc':
+        items.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+        break;
+
+      case 'date-asc':
+        items.sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+        break;
+
+      case 'name-asc':
+        items.sort((a, b) => getItemValue(a, 'name').localeCompare(getItemValue(b, 'name')));
+        break;
+
+      case 'name-desc':
+        items.sort((a, b) => getItemValue(b, 'name').localeCompare(getItemValue(a, 'name')));
+        break;
+
+      case 'size-desc':
+        items.sort((a, b) => getItemValue(b, 'size') - getItemValue(a, 'size'));
+        break;
+
+      case 'size-asc':
+        items.sort((a, b) => getItemValue(a, 'size') - getItemValue(b, 'size'));
+        break;
+
+      case 'progress-desc':
+        items.sort((a, b) => getItemValue(b, 'progress') - getItemValue(a, 'progress'));
+        break;
+
+      case 'progress-asc':
+        items.sort((a, b) => getItemValue(a, 'progress') - getItemValue(b, 'progress'));
+        break;
+
+      case 'speed-desc':
+        items.sort((a, b) => getItemValue(b, 'speed') - getItemValue(a, 'speed'));
+        break;
+
+      case 'hoster-asc':
+        items.sort((a, b) => getItemValue(a, 'hoster').localeCompare(getItemValue(b, 'hoster')));
+        break;
+
+      default:
+        items.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+        break;
+    }
+  }
+
+  function updateSortControlsUI() {
+    if (!sortStatusLabel) return;
+    if (window.appState.sortCol) {
+      const colLabels = {
+        name: 'Name',
+        size: 'Size',
+        status: 'Status',
+        progress: 'Progress',
+        speed: 'Speed',
+        finish: 'Est. Finish',
+        hoster: 'Hoster'
+      };
+      const colName = colLabels[window.appState.sortCol] || window.appState.sortCol;
+      const arrow = window.appState.sortDir === 'asc' ? '▲' : '▼';
+      sortStatusLabel.textContent = `Sort: ${colName} ${arrow}`;
+    } else {
+      const modeLabels = {
+        'active-first': '⚡ Active First',
+        'date-desc': '🕒 Newest Added',
+        'date-asc': '🕒 Oldest Added',
+        'name-asc': '🔤 Name (A → Z)',
+        'name-desc': '🔤 Name (Z → A)',
+        'size-desc': '📦 Size (Largest)',
+        'size-asc': '📦 Size (Smallest)',
+        'progress-desc': '📊 Progress (Highest)',
+        'progress-asc': '📊 Progress (Lowest)',
+        'speed-desc': '🚀 Speed (Fastest)',
+        'hoster-asc': '🌐 Hoster (A → Z)'
+      };
+      sortStatusLabel.textContent = `Sort: ${modeLabels[window.appState.sortMode] || 'Active First'}`;
+    }
+
+    if (sortDropdownMenu) {
+      sortDropdownMenu.querySelectorAll('.sort-option').forEach(opt => {
+        if (!window.appState.sortCol && opt.dataset.sort === window.appState.sortMode) {
+          opt.classList.add('selected');
+        } else {
+          opt.classList.remove('selected');
+        }
+      });
+    }
+
+    // Update table header arrows
+    document.querySelectorAll('.downloads-table th.sortable-th').forEach(th => {
+      const col = th.dataset.col;
+      th.classList.remove('sorted-asc', 'sorted-desc');
+      const arrowEl = th.querySelector('.sort-arrow');
+      if (arrowEl) arrowEl.textContent = '';
+
+      if (window.appState.sortCol === col) {
+        if (window.appState.sortDir === 'asc') {
+          th.classList.add('sorted-asc');
+          if (arrowEl) arrowEl.textContent = '▲';
+        } else {
+          th.classList.add('sorted-desc');
+          if (arrowEl) arrowEl.textContent = '▼';
+        }
+      }
+    });
+  }
+
+  function initTableColumnSorting() {
+    const table = document.getElementById('downloads-table');
+    if (!table) return;
+
+    table.querySelectorAll('th.sortable-th').forEach(th => {
+      th.addEventListener('click', (e) => {
+        if (e.target.closest('.col-resize-handle')) return;
+
+        const col = th.dataset.col;
+        if (!col) return;
+
+        if (window.appState.sortCol === col) {
+          window.appState.sortDir = (window.appState.sortDir === 'asc') ? 'desc' : 'asc';
+        } else {
+          window.appState.sortCol = col;
+          if (col === 'name' || col === 'hoster') {
+            window.appState.sortDir = 'asc';
+          } else {
+            window.appState.sortDir = 'desc';
+          }
+        }
+
+        window.appState.sortMode = null;
+        try {
+          localStorage.setItem('waterfall_sort_col', window.appState.sortCol);
+          localStorage.setItem('waterfall_sort_dir', window.appState.sortDir);
+          localStorage.removeItem('waterfall_sort_mode');
+        } catch (_) {}
+
+        updateSortControlsUI();
+        renderDownloads();
+      });
+    });
+  }
+
   // Render Downloads Table
   function renderDownloads() {
     const tasks = window.appState.tasks;
     const filter = window.appState.activeFilter;
     const category = window.appState.activeCategory;
     const search = window.appState.searchQuery;
+    const hideFinished = Boolean(window.appState.hideFinished);
 
     const filtered = tasks.filter(t => {
       if (category && t.category !== category) return false;
+
+      // Filter out completed tasks if hideFinished is active in All Downloads
+      // (Completed tasks remain always available when filter === 'completed')
+      if (hideFinished && filter === 'all' && t.status === 'completed') {
+        return false;
+      }
 
       if (filter === 'downloading' && t.status !== 'downloading' && t.status !== 'assembling') return false;
       if (filter === 'paused' && t.status !== 'paused' && t.status !== 'queued') return false;
@@ -952,26 +1234,31 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     });
 
-    // Sort by date: newest first, always newest at the top
-    filtered.sort((a, b) => {
-      const timeA = a.addedAt || a.createdAt || 0;
-      const timeB = b.addedAt || b.createdAt || 0;
-      if (timeB !== timeA) return timeB - timeA;
-      return String(b.id || '').localeCompare(String(a.id || ''));
-    });
-
     if (filtered.length === 0) {
       tableBody.innerHTML = '';
       emptyState.style.display = 'flex';
-      const emptyTitle = emptyState.querySelector('div:nth-of-type(1)');
-      const emptyDesc = emptyState.querySelector('div:nth-of-type(2)');
-      if (emptyTitle && emptyDesc) {
-        if (filter === 'extracting') {
-          emptyTitle.textContent = 'No Archives Currently Being Extracted';
-          emptyDesc.textContent = 'Archives currently unpacking, queued, or awaiting password input will appear here in real-time.';
-        } else {
-          emptyTitle.textContent = 'Queue is Empty';
-          emptyDesc.textContent = 'Click "+ Add URL", "YouTube / MP3", or switch to LinkGrabber to crawl links.';
+      const emptyTitle = emptyState.querySelector('.empty-title') || emptyState.querySelector('div:nth-of-type(1)');
+      const emptyDesc = emptyState.querySelector('.empty-desc') || emptyState.querySelector('div:nth-of-type(2)');
+      const finishedHint = document.getElementById('empty-finished-hint');
+
+      const completedCount = tasks.filter(t => t.status === 'completed').length;
+      if (hideFinished && filter === 'all' && completedCount > 0) {
+        if (emptyTitle) emptyTitle.textContent = 'Active Queue is Clear';
+        if (emptyDesc) emptyDesc.textContent = `${completedCount} finished download${completedCount > 1 ? 's are' : ' is'} hidden. You can show them below or view them anytime under the Finished tab.`;
+        if (finishedHint) finishedHint.style.display = 'flex';
+      } else {
+        if (finishedHint) finishedHint.style.display = 'none';
+        if (emptyTitle && emptyDesc) {
+          if (filter === 'extracting') {
+            emptyTitle.textContent = 'No Archives Currently Being Extracted';
+            emptyDesc.textContent = 'Archives currently unpacking, queued, or awaiting password input will appear here in real-time.';
+          } else if (filter === 'completed') {
+            emptyTitle.textContent = 'No Finished Downloads';
+            emptyDesc.textContent = 'Completed downloads will appear here with instant file opening and folder explorer shortcuts.';
+          } else {
+            emptyTitle.textContent = 'Queue is Ready for Downloads';
+            emptyDesc.textContent = 'Add direct URLs, download YouTube playlists and audio streams, or crawl links with multi-socket acceleration.';
+          }
         }
       }
       rowDomCache.clear();
@@ -979,9 +1266,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const finishedHint = document.getElementById('empty-finished-hint');
+    if (finishedHint) finishedHint.style.display = 'none';
     emptyState.style.display = 'none';
 
     const renderItems = getGroupedDownloads(filtered);
+    sortDownloadItems(renderItems, window.appState.sortMode, window.appState.sortCol, window.appState.sortDir);
+    updateSortControlsUI();
     let html = '';
 
     for (const item of renderItems) {
@@ -2151,7 +2442,28 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (t.category === 'Documents') docCount++;
     }
 
-    badgeAll.textContent = tasks.length;
+    if (window.appState.hideFinished) {
+      const activeAll = tasks.length - doneCount;
+      badgeAll.textContent = activeAll;
+      badgeAll.title = `${activeAll} active downloads (${doneCount} finished hidden)`;
+      if (badgeFinishedHidden) {
+        badgeFinishedHidden.style.display = doneCount > 0 ? 'inline-flex' : 'none';
+        badgeFinishedHidden.textContent = `${doneCount}`;
+      }
+      if (btnToggleFinished) {
+        btnToggleFinished.classList.add('active');
+        if (labelToggleFinished) labelToggleFinished.textContent = 'Finished Hidden';
+      }
+    } else {
+      badgeAll.textContent = tasks.length;
+      badgeAll.title = 'All downloads';
+      if (badgeFinishedHidden) badgeFinishedHidden.style.display = 'none';
+      if (btnToggleFinished) {
+        btnToggleFinished.classList.remove('active');
+        if (labelToggleFinished) labelToggleFinished.textContent = 'Hide Finished';
+      }
+    }
+
     badgeDownloading.textContent = dlCount;
     badgePaused.textContent = pauseCount;
     badgeCompleted.textContent = doneCount;
@@ -2603,6 +2915,81 @@ document.addEventListener('DOMContentLoaded', () => {
     updateBadges();
     fetch('/api/downloads/clear-completed', { method: 'POST' });
   });
+
+  // Hide Finished Toggle Button
+  if (btnToggleFinished) {
+    btnToggleFinished.addEventListener('click', () => {
+      window.appState.hideFinished = !window.appState.hideFinished;
+      try {
+        localStorage.setItem('waterfall_hide_finished', window.appState.hideFinished);
+      } catch (_) {}
+      updateBadges();
+      renderDownloads();
+    });
+  }
+
+  // Queue Sorting Menu Button & Options
+  if (btnSortMenu && sortDropdownMenu) {
+    btnSortMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sortDropdownMenu.classList.toggle('show');
+      btnSortMenu.classList.toggle('open');
+    });
+
+    sortDropdownMenu.querySelectorAll('.sort-option').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const mode = opt.dataset.sort;
+        window.appState.sortMode = mode;
+        window.appState.sortCol = null;
+        window.appState.sortDir = null;
+        try {
+          localStorage.setItem('waterfall_sort_mode', mode);
+          localStorage.removeItem('waterfall_sort_col');
+          localStorage.removeItem('waterfall_sort_dir');
+        } catch (_) {}
+
+        sortDropdownMenu.classList.remove('show');
+        btnSortMenu.classList.remove('open');
+        updateSortControlsUI();
+        renderDownloads();
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.sort-dropdown-wrap')) {
+        sortDropdownMenu.classList.remove('show');
+        btnSortMenu.classList.remove('open');
+      }
+    });
+  }
+
+  // Empty State Action Buttons for Hidden Finished Downloads
+  if (emptyBtnShowFinished) {
+    emptyBtnShowFinished.addEventListener('click', () => {
+      window.appState.hideFinished = false;
+      try {
+        localStorage.setItem('waterfall_hide_finished', 'false');
+      } catch (_) {}
+      updateBadges();
+      renderDownloads();
+    });
+  }
+
+  if (emptyBtnViewFinishedTab) {
+    emptyBtnViewFinishedTab.addEventListener('click', () => {
+      window.appState.activeFilter = 'completed';
+      window.appState.activeCategory = null;
+      syncSidebarActiveFilter();
+      renderDownloads();
+    });
+  }
+
+  if (emptyBtnClearFinished) {
+    emptyBtnClearFinished.addEventListener('click', () => {
+      if (btnClearCompleted) btnClearCompleted.click();
+    });
+  }
 
   // Modals Management & Event Wiring
   function closeModal(modalEl) {
@@ -3180,15 +3567,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.addEventListener('download:confirm', (e) => {
-    if (window.waterfallDesktop && window.waterfallDesktop.forceTop) {
-      window.waterfallDesktop.forceTop();
-    } else if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
-      window.waterfallDesktop.focusWindow();
-    }
     // In Electron native shell, electron-main.js connects to the backend WebSocket directly
-    // and opens confirmWindow natively. We do not re-dispatch or open another window here.
+    // and opens confirmWindow natively. We do not focus or unminimize the main window!
     if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
       return;
+    }
+    if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
+      window.waterfallDesktop.focusWindow();
     }
     if (e.detail) {
       if (e.detail.existingMatch) {
@@ -3979,9 +4364,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 7. Theme & System
     if (document.getElementById('cfg-show-top-filter-bar')) document.getElementById('cfg-show-top-filter-bar').checked = !!cfg.showTopFilterBar;
     updateFilterTabsBarVisibility(Boolean(cfg.showTopFilterBar));
+    if (document.getElementById('cfg-hide-finished')) document.getElementById('cfg-hide-finished').checked = !!cfg.hideFinishedInAllDownloads;
+    if (document.getElementById('cfg-default-sort')) document.getElementById('cfg-default-sort').value = cfg.defaultQueueSorting || 'active-first';
     if (document.getElementById('cfg-show-confirm')) document.getElementById('cfg-show-confirm').checked = cfg.showDownloadConfirmation !== false;
+    if (document.getElementById('cfg-start-with-windows')) document.getElementById('cfg-start-with-windows').checked = cfg.startWithWindows !== false;
+    if (document.getElementById('cfg-start-with-window')) document.getElementById('cfg-start-with-window').checked = !!cfg.startWithWindow;
+    if (document.getElementById('cfg-show-download-progress')) document.getElementById('cfg-show-download-progress').checked = cfg.showDownloadProgressDialog !== false;
+    if (document.getElementById('cfg-show-download-complete')) document.getElementById('cfg-show-download-complete').checked = cfg.showDownloadCompleteDialog !== false;
     if (document.getElementById('cfg-auto-download-no-confirm')) document.getElementById('cfg-auto-download-no-confirm').checked = !!cfg.autoDownloadWithoutConfirmation;
-    if (document.getElementById('cfg-force-top-download')) document.getElementById('cfg-force-top-download').checked = cfg.forceTopOnDownload !== false;
+    if (document.getElementById('cfg-force-top-download')) document.getElementById('cfg-force-top-download').checked = !!cfg.forceTopOnDownload;
     if (document.getElementById('cfg-always-on-top')) document.getElementById('cfg-always-on-top').checked = !!cfg.alwaysOnTop;
     if (document.getElementById('cfg-media-stream-preview')) document.getElementById('cfg-media-stream-preview').checked = cfg.mediaStreamPreviewEnabled !== false;
     if (document.getElementById('cfg-high-fps')) document.getElementById('cfg-high-fps').checked = cfg.highFramerateTick !== false;
@@ -4082,9 +4473,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Interface
       showTopFilterBar: document.getElementById('cfg-show-top-filter-bar')?.checked || false,
+      hideFinishedInAllDownloads: Boolean(document.getElementById('cfg-hide-finished')?.checked),
+      defaultQueueSorting: document.getElementById('cfg-default-sort')?.value || 'active-first',
       showDownloadConfirmation: document.getElementById('cfg-show-confirm')?.checked,
+      startWithWindows: document.getElementById('cfg-start-with-windows')?.checked !== false,
+      startWithWindow: Boolean(document.getElementById('cfg-start-with-window')?.checked),
+      showDownloadProgressDialog: document.getElementById('cfg-show-download-progress')?.checked !== false,
+      showDownloadCompleteDialog: document.getElementById('cfg-show-download-complete')?.checked !== false,
       autoDownloadWithoutConfirmation: document.getElementById('cfg-auto-download-no-confirm')?.checked || false,
-      forceTopOnDownload: document.getElementById('cfg-force-top-download')?.checked !== false,
+      forceTopOnDownload: Boolean(document.getElementById('cfg-force-top-download')?.checked),
       alwaysOnTop: document.getElementById('cfg-always-on-top')?.checked || false,
       mediaStreamPreviewEnabled: document.getElementById('cfg-media-stream-preview')?.checked,
       highFramerateTick: document.getElementById('cfg-high-fps')?.checked,
@@ -4101,6 +4498,16 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const updated = await res.json();
       window.appState.config = updated;
+      window.appState.hideFinished = Boolean(updated.hideFinishedInAllDownloads);
+      try {
+        localStorage.setItem('waterfall_hide_finished', window.appState.hideFinished);
+      } catch (_) {}
+      if (!window.appState.sortCol) {
+        window.appState.sortMode = updated.defaultQueueSorting || 'active-first';
+        try {
+          localStorage.setItem('waterfall_sort_mode', window.appState.sortMode);
+        } catch (_) {}
+      }
       applyThemeAccent(themeAccent);
       updateLimiterStatusLabel(updated);
       updatePinTopButton(Boolean(updated.alwaysOnTop));
@@ -4108,6 +4515,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.waterfallDesktop && window.waterfallDesktop.setAlwaysOnTop) {
         window.waterfallDesktop.setAlwaysOnTop(Boolean(updated.alwaysOnTop));
       }
+      updateSortControlsUI();
+      updateBadges();
+      renderDownloads();
       modalSettings.classList.remove('open');
     } catch (err) {
       alert('Failed to save settings: ' + err.message);
@@ -4441,7 +4851,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initialize table resizers & initial filter tabs bar visibility
+  // Initialize table resizers, column sorting & initial filter tabs bar visibility
   initTableColumnResizing();
+  initTableColumnSorting();
+  updateSortControlsUI();
   updateFilterTabsBarVisibility(Boolean(window.appState.config && window.appState.config.showTopFilterBar));
 });

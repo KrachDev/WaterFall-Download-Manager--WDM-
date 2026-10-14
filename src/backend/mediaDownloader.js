@@ -53,8 +53,8 @@ function getNodeJsPath() {
 }
 
 function isMediaUrl(url) {
-  if (!url) return false;
-  return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|soundcloud\.com|vimeo\.com|tiktok\.com|twitch\.tv|twitter\.com|x\.com)\/.+/i.test(url);
+  if (!url || typeof url !== 'string') return false;
+  return /(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?(?:youtube\.com|youtu\.be|googlevideo\.com|soundcloud\.com|vimeo\.com|tiktok\.com|twitch\.tv|twitter\.com|x\.com)(?:\/|$)/i.test(url);
 }
 
 function probeMedia(url) {

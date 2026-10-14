@@ -16,8 +16,9 @@ const extractionQueue = require('./extractionQueue');
 const queueManager = require('./queueManager');
 const { parseMultipartInfo, findRootArchivePart, isVideoFilename } = require('./multipartMatcher');
 const mediaPrefetcher = require('./mediaPrefetcher');
+const { getStorageFilePath, safeReadJson, safeWriteJsonSync } = require('./storagePaths');
 
-const STATE_FILE = path.join(__dirname, '..', '..', 'downloads.json');
+const STATE_FILE = getStorageFilePath('downloads.json');
 
 function normalizeFileTitle(str) {
   if (!str || typeof str !== 'string') return '';
@@ -74,6 +75,18 @@ function getUrlResourceKey(rawUrl) {
     }
   } catch (_) {}
   return '';
+}
+
+function extractCanonicalYoutubeUrl(url, sourceUrl) {
+  const testUrl = (u) => {
+    if (!u || typeof u !== 'string') return null;
+    if (u.includes('youtube.com') || u.includes('youtu.be')) {
+      const m = u.match(/(?:watch\?.*v=|youtu\.be\/|shorts\/|embed\/)([a-zA-Z0-9_-]{11})/i);
+      if (m && m[1]) return `https://www.youtube.com/watch?v=${m[1]}`;
+    }
+    return null;
+  };
+  return testUrl(url) || testUrl(sourceUrl) || null;
 }
 
 function makeUniqueFilename(folder, filename) {
@@ -281,6 +294,8 @@ class DownloadManager extends EventEmitter {
     this.groupWaitingTimers = new Map(); // groupKey -> setTimeout timer
 
     this._saveTimeout = null;
+    this._hasLoaded = false;
+    this._explicitlyEmptied = false;
     this.loadState();
     this.startSpeedMonitor();
     this.setupExtractionListener();
@@ -338,57 +353,56 @@ class DownloadManager extends EventEmitter {
 
   loadState() {
     try {
-      if (fs.existsSync(STATE_FILE)) {
-        const raw = fs.readFileSync(STATE_FILE, 'utf-8');
-        const list = JSON.parse(raw);
-        if (Array.isArray(list)) {
-          for (let i = 0; i < list.length; i++) {
-            const t = list[i];
-            if (t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying') {
-              t.status = 'paused';
-              t.retrying = false;
-              t.retryInSec = 0;
-              t.speed = 0;
-              t.eta = 0;
-            }
-
-            if (!t.priority) t.priority = 'normal';
-            if (t.queueOrder === undefined) t.queueOrder = i;
-
-            // Multipart detection enrichment if missing
-            if (!t.multipart) {
-              t.multipart = parseMultipartInfo(t.name, t.packageName);
-            }
-
-            // Check if file is already complete on disk
-            if (t.savePath && fs.existsSync(t.savePath)) {
-              try {
-                const sz = fs.statSync(t.savePath).size;
-                if (t.totalBytes > 0 && sz >= t.totalBytes) {
-                  t.status = 'completed';
-                  t.downloadedBytes = t.totalBytes;
-                  t.speed = 0;
-                  t.eta = 0;
-                } else if (t.status === 'completed' && t.totalBytes === 0 && sz > 0) {
-                  t.totalBytes = sz;
-                  t.downloadedBytes = sz;
-                } else if (t.isMedia && sz > 1024) {
-                  t.status = 'completed';
-                  t.totalBytes = sz;
-                  t.downloadedBytes = sz;
-                  t.speed = 0;
-                  t.eta = 0;
-                }
-              } catch (_) {}
-            }
-
-            this.tasks.set(t.id, t);
-            this.queueOrder.push(t.id);
+      const list = safeReadJson(STATE_FILE, []);
+      if (Array.isArray(list) && list.length > 0) {
+        for (let i = 0; i < list.length; i++) {
+          const t = list[i];
+          if (t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying') {
+            t.status = 'paused';
+            t.retrying = false;
+            t.retryInSec = 0;
+            t.speed = 0;
+            t.eta = 0;
           }
+
+          if (!t.priority) t.priority = 'normal';
+          if (t.queueOrder === undefined) t.queueOrder = i;
+
+          // Multipart detection enrichment if missing
+          if (!t.multipart) {
+            t.multipart = parseMultipartInfo(t.name, t.packageName);
+          }
+
+          // Check if file is already complete on disk
+          if (t.savePath && fs.existsSync(t.savePath)) {
+            try {
+              const sz = fs.statSync(t.savePath).size;
+              if (t.totalBytes > 0 && sz >= t.totalBytes) {
+                t.status = 'completed';
+                t.downloadedBytes = t.totalBytes;
+                t.speed = 0;
+                t.eta = 0;
+              } else if (t.status === 'completed' && t.totalBytes === 0 && sz > 0) {
+                t.totalBytes = sz;
+                t.downloadedBytes = sz;
+              } else if (t.isMedia && sz > 1024) {
+                t.status = 'completed';
+                t.totalBytes = sz;
+                t.downloadedBytes = sz;
+                t.speed = 0;
+                t.eta = 0;
+              }
+            } catch (_) {}
+          }
+
+          this.tasks.set(t.id, t);
+          this.queueOrder.push(t.id);
         }
       }
+      this._hasLoaded = true;
+      console.log(`[Waterfall Storage] Loaded ${this.tasks.size} download tasks from storage (${STATE_FILE})`);
     } catch (e) {
-      console.warn('Failed to load downloads state:', e.message);
+      console.warn('[Waterfall Storage] Failed to load downloads state:', e.message);
     }
   }
 
@@ -398,8 +412,13 @@ class DownloadManager extends EventEmitter {
       this._saveTimeout = null;
     }
 
-    const doSave = (sync = false) => {
+    const doSave = () => {
       try {
+        // Prevent saving if initial state has not loaded and task map is empty
+        if (!this._hasLoaded && this.tasks.size === 0) {
+          return;
+        }
+
         const orderMap = new Map();
         this.queueOrder.forEach((id, idx) => orderMap.set(id, idx));
 
@@ -410,33 +429,16 @@ class DownloadManager extends EventEmitter {
           queueOrder: orderMap.has(t.id) ? orderMap.get(t.id) : (t.queueOrder || 0)
         }));
 
-        const data = JSON.stringify(list, null, 2);
-        const tmpFile = `${STATE_FILE}.tmp`;
-
-        if (sync) {
-          fs.writeFileSync(tmpFile, data, 'utf-8');
-          if (fs.existsSync(tmpFile)) {
-            try { fs.renameSync(tmpFile, STATE_FILE); } catch (_) {
-              fs.writeFileSync(STATE_FILE, data, 'utf-8');
-            }
-          }
-        } else {
-          fs.promises.writeFile(tmpFile, data, 'utf-8')
-            .then(() => fs.promises.rename(tmpFile, STATE_FILE))
-            .catch(err => {
-              // Direct fallback if rename momentarily locked
-              fs.promises.writeFile(STATE_FILE, data, 'utf-8').catch(() => {});
-            });
-        }
+        safeWriteJsonSync(STATE_FILE, list, { allowEmpty: this._explicitlyEmptied });
       } catch (e) {
-        console.warn('Failed to save downloads state:', e.message);
+        console.warn('[Waterfall Storage] Failed to save downloads state:', e.message);
       }
     };
 
     if (immediate) {
-      doSave(true);
+      doSave();
     } else {
-      this._saveTimeout = setTimeout(() => doSave(false), 250);
+      this._saveTimeout = setTimeout(() => doSave(), 150);
     }
   }
 
@@ -535,8 +537,31 @@ class DownloadManager extends EventEmitter {
   createTask(options) {
     const config = getConfig();
     const id = crypto.randomUUID();
-    const isMedia = options.isMedia || isMediaUrl(options.url);
-    const mediaOptions = options.mediaOptions || (isMedia ? { mediaType: 'audio', audioFormat: 'mp3', audioQuality: '0' } : null);
+
+    // Canonicalize YouTube / googlevideo URLs
+    let taskUrl = (options.url || '').trim();
+    const ytCanonical = extractCanonicalYoutubeUrl(taskUrl, options.source);
+    if (ytCanonical) {
+      taskUrl = ytCanonical;
+      options.isMedia = true;
+    } else if (taskUrl.includes('googlevideo.com') || taskUrl.startsWith('blob:') || taskUrl.includes('/videoplayback')) {
+      if (options.source && isMediaUrl(options.source)) {
+        taskUrl = options.source;
+        options.isMedia = true;
+      }
+    }
+    options.url = taskUrl;
+
+    const isMedia = Boolean(options.isMedia || isMediaUrl(taskUrl));
+    let mediaOptions = options.mediaOptions;
+    if (!mediaOptions && isMedia) {
+      const isAudioHint = options.filename && /\.(mp3|m4a|flac|wav|ogg|opus)$/i.test(options.filename);
+      if (isAudioHint) {
+        mediaOptions = { mediaType: 'audio', audioFormat: 'mp3', audioQuality: '0' };
+      } else {
+        mediaOptions = { mediaType: 'video', videoQuality: config.defaultVideoQuality || '1080' };
+      }
+    }
 
     let filename = resolveBestFilename({
       explicitFilename: options.filename,
@@ -1266,6 +1291,10 @@ class DownloadManager extends EventEmitter {
     if (task.id) this.tasks.delete(task.id);
     this.queueOrder = this.queueOrder.filter(qid => qid !== targetKey && qid !== task.id && String(qid) !== String(id));
 
+    if (this.tasks.size === 0) {
+      this._explicitlyEmptied = true;
+    }
+
     this.saveState(true);
     this.emit('taskDeleted', targetKey);
     if (task.id && task.id !== targetKey) {
@@ -1287,6 +1316,9 @@ class DownloadManager extends EventEmitter {
       const idx = this.queueOrder.indexOf(id);
       if (idx !== -1) this.queueOrder.splice(idx, 1);
       this.emit('taskDeleted', id);
+    }
+    if (this.tasks.size === 0) {
+      this._explicitlyEmptied = true;
     }
     this.saveState(true);
   }

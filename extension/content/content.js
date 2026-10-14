@@ -339,20 +339,40 @@
     const host = window.location.hostname.toLowerCase();
     const isYouTube = host.includes('youtube.com') || host.includes('youtu.be');
 
-    // On YouTube, the primary option is the full YouTube video stream via yt-dlp (full HD + merged audio)
+    // On YouTube: Provide clean merged Full HD video and MP3 audio presets via yt-dlp
     if (isYouTube) {
       seenUrls.add(window.location.href);
       list.push({
-        title: mediaTitle,
+        title: `${mediaTitle} (1080p Full HD)`,
         url: window.location.href,
         filename: `${mediaTitle}.mp4`,
         isMedia: true,
-        type: 'YouTube Video (Merged HD)',
+        mediaOptions: { mediaType: 'video', videoQuality: '1080' },
+        type: 'YouTube Video (1080p Full HD)',
+        size: '1080p'
+      });
+      list.push({
+        title: `${mediaTitle} (720p HD)`,
+        url: window.location.href,
+        filename: `${mediaTitle}.mp4`,
+        isMedia: true,
+        mediaOptions: { mediaType: 'video', videoQuality: '720' },
+        type: 'YouTube Video (720p HD)',
+        size: '720p'
+      });
+      list.push({
+        title: `${mediaTitle} (Best / 4K)`,
+        url: window.location.href,
+        filename: `${mediaTitle}.mp4`,
+        isMedia: true,
+        mediaOptions: { mediaType: 'video', videoQuality: 'best' },
+        type: 'YouTube Video (Best Available)',
         size: 'Best Quality'
       });
+      return list; // On YouTube, skip all raw googlevideo chunks
     }
 
-    // 1. Direct src
+    // 1. Direct src (Non-YouTube sites)
     if (activeVideoElement && activeVideoElement.src && !activeVideoElement.src.startsWith('blob:')) {
       seenUrls.add(activeVideoElement.src);
       const ext = activeVideoElement.src.includes('.webm') ? 'webm' : 'mp4';
@@ -369,7 +389,7 @@
     if (activeVideoElement) {
       const sources = activeVideoElement.querySelectorAll('source');
       sources.forEach((s, idx) => {
-        if (s.src && !seenUrls.has(s.src)) {
+        if (s.src && !seenUrls.has(s.src) && !s.src.startsWith('blob:')) {
           seenUrls.add(s.src);
           const ext = s.type && s.type.includes('webm') ? 'webm' : 'mp4';
           const subTitle = sources.length > 1 ? `${mediaTitle} (Quality #${idx + 1})` : mediaTitle;
@@ -386,10 +406,6 @@
 
     // 3. Network sniffed items
     sniffedMediaList.forEach((m, idx) => {
-      // Avoid duplicate raw googlevideo chunk on YouTube since the main YouTube stream is already provided
-      if (isYouTube && m.url.includes('googlevideo.com')) {
-        return;
-      }
       if (!seenUrls.has(m.url)) {
         seenUrls.add(m.url);
         const ext = m.contentType && m.contentType.includes('webm') ? 'webm' : 'mp4';
@@ -460,7 +476,7 @@
           filename: stream.filename,
           packageName: stream.title,
           isMedia: !!stream.isMedia,
-          mediaOptions: stream.isMedia ? { mediaType: 'video', videoQuality: '1080' } : null
+          mediaOptions: stream.mediaOptions || (stream.isMedia ? { mediaType: 'video', videoQuality: '1080' } : null)
         });
         closePanelCompletely();
       });

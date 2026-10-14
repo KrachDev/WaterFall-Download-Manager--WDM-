@@ -409,7 +409,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             urls: [stream.url],
             filename: cleanFilename,
             packageName: streamTitle,
-            source: activeTab ? activeTab.url : ''
+            source: activeTab ? activeTab.url : '',
+            isMedia: Boolean(stream.isMedia || stream.isYouTube),
+            mediaOptions: stream.mediaOptions || (stream.isMedia || stream.isYouTube ? { mediaType: 'video', videoQuality: '1080' } : undefined)
           }
         });
         showToast(`⚡ Dispatched "${cleanFilename}" to Waterfall!`);

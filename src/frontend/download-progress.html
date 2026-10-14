@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterfall — Download Progress</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    :root {
+      --bg-dlg: #0a0f1d;
+      --bg-dlg-card: #101728;
+      --bg-dlg-sub: #080c18;
+      --border-dlg: #1f2a40;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-dlg);
+      color: #f1f5f9;
+      font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dialog-content {
+      flex: 1;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    /* File Header Card */
+    .file-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg-dlg-card);
+      border: 1px solid var(--border-dlg);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    .file-icon-box {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: var(--accent-cyan, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .file-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-name {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+
+    .file-url {
+      font-size: 0.72rem;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Progress Area */
+    .progress-section {
+      background: var(--bg-dlg-card);
+      border: 1px solid var(--border-dlg);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .status-text {
+      font-weight: 600;
+      color: var(--accent-cyan, #38bdf8);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-cyan, #38bdf8);
+      box-shadow: 0 0 8px var(--accent-cyan, #38bdf8);
+      animation: pulse-dot 1.5s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .percent-badge {
+      font-size: 0.95rem;
+      font-weight: 800;
+      font-family: var(--font-mono, monospace);
+      color: #f8fafc;
+    }
+
+    .bar-wrapper {
+      height: 12px;
+      background: #090d16;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #1a2336;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0284c7 0%, #38bdf8 60%, #10b981 100%);
+      border-radius: 5px;
+      transition: width 0.15s ease-out;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    /* IDM Segment Visualizer Bar */
+    .segment-bar {
+      height: 6px;
+      background: #090d16;
+      border-radius: 3px;
+      overflow: hidden;
+      display: flex;
+      gap: 2px;
+      padding: 1px;
+    }
+
+    .segment-chunk {
+      flex: 1;
+      height: 100%;
+      background: #1b263b;
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .segment-chunk-fill {
+      height: 100%;
+      background: #10b981;
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 14px;
+      background: var(--bg-dlg-card);
+      border: 1px solid var(--border-dlg);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.76rem;
+    }
+
+    .stat-label {
+      color: #64748b;
+    }
+
+    .stat-val {
+      font-weight: 600;
+      color: #e2e8f0;
+      font-family: var(--font-mono, monospace);
+    }
+
+    .stat-val.rate {
+      color: #38bdf8;
+      font-weight: 700;
+    }
+
+    .stat-val.resumable-yes {
+      color: #10b981;
+    }
+
+    .stat-val.resumable-no {
+      color: #f59e0b;
+    }
+
+    /* Controls Footer */
+    .dialog-footer {
+      height: 48px;
+      background: var(--bg-dlg-sub);
+      border-top: 1px solid var(--border-dlg);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+    }
+
+    .footer-left {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-dlg {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+
+    .btn-dlg-secondary {
+      background: #1b2438;
+      border-color: #2b3954;
+      color: #cbd5e1;
+    }
+
+    .btn-dlg-secondary:hover {
+      background: #25334d;
+      color: #fff;
+    }
+
+    .btn-dlg-danger {
+      background: rgba(220, 38, 38, 0.15);
+      border-color: rgba(220, 38, 38, 0.35);
+      color: #f87171;
+    }
+
+    .btn-dlg-danger:hover {
+      background: #dc2626;
+      color: #fff;
+    }
+
+    .btn-dlg-primary {
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+    }
+
+    .btn-dlg-primary:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-dlg-success {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-dlg-success:hover {
+      filter: brightness(1.1);
+    }
+
+    /* Finish Window View */
+    #finish-view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 12px;
+      padding: 10px 10px;
+      height: 100%;
+    }
+
+    .finish-icon-wrap {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.15);
+      border: 2px solid #10b981;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #10b981;
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.35);
+      animation: finish-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes finish-pop {
+      0% { transform: scale(0.6); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .finish-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+      margin: 0;
+    }
+
+    .finish-filename {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-cyan, #38bdf8);
+      max-width: 440px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .finish-stats-card {
+      width: 100%;
+      background: var(--bg-dlg-card);
+      border: 1px solid var(--border-dlg);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-align: left;
+    }
+
+    .finish-path-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #cbd5e1;
+      word-break: break-all;
+    }
+
+    .finish-actions {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      justify-content: center;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- VIEW 1: Active Download Progress -->
+  <div id="progress-view" class="dialog-content">
+    <!-- File Info -->
+    <div class="file-card">
+      <div id="file-icon" class="file-icon-box">📦</div>
+      <div class="file-meta">
+        <div id="dlg-file-name" class="file-name">Checking file...</div>
+        <div id="dlg-file-url" class="file-url">Connecting to server...</div>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-section">
+      <div class="progress-header">
+        <div class="status-text">
+          <span id="status-dot" class="status-dot"></span>
+          <span id="dlg-status">Downloading...</span>
+        </div>
+        <div id="dlg-percent" class="percent-badge">0.0%</div>
+      </div>
+
+      <div class="bar-wrapper">
+        <div id="dlg-bar-fill" class="bar-fill"></div>
+      </div>
+
+      <!-- Segment threads visualizer (IDM style) -->
+      <div id="dlg-segments-bar" class="segment-bar">
+        <!-- 8 default chunks -->
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+      </div>
+    </div>
+
+    <!-- Stats Table -->
+    <div class="stats-grid">
+      <div class="stat-row">
+        <span class="stat-label">File Size:</span>
+        <span id="dlg-size" class="stat-val">--</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Transfer Rate:</span>
+        <span id="dlg-speed" class="stat-val rate">0.0 KB/s</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Downloaded:</span>
+        <span id="dlg-downloaded" class="stat-val">0 B</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Time Left (ETA):</span>
+        <span id="dlg-eta" class="stat-val">--:--:--</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Resume Support:</span>
+        <span id="dlg-resumable" class="stat-val resumable-yes">Yes</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Connections:</span>
+        <span id="dlg-threads" class="stat-val">8 Segments</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: Download Complete (Finish Window) -->
+  <div id="finish-view" class="dialog-content">
+    <div class="finish-icon-wrap">
+      <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+      </svg>
+    </div>
+    <h2 class="finish-title">Download Complete!</h2>
+    <div id="finish-file-name" class="finish-filename">filename.zip</div>
+
+    <div class="finish-stats-card">
+      <div><strong>Size:</strong> <span id="finish-file-size">--</span></div>
+      <div><strong>Avg Speed:</strong> <span id="finish-avg-speed">--</span></div>
+      <div class="finish-path-row">
+        <strong>Save Path:</strong>
+        <span id="finish-save-path">C:\Users\...\Downloads</span>
+      </div>
+    </div>
+
+    <div class="finish-actions">
+      <button id="btn-finish-open" class="btn-dlg btn-dlg-success">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
+        Open File
+      </button>
+      <button id="btn-finish-folder" class="btn-dlg btn-dlg-primary">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>
+        Open Folder
+      </button>
+      <button id="btn-finish-close" class="btn-dlg btn-dlg-secondary">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom Footer Controls for Active Download View -->
+  <div id="dlg-footer-controls" class="dialog-footer">
+    <div class="footer-left">
+      <button id="btn-pause-resume" class="btn-dlg btn-dlg-secondary">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"></path></svg>
+        Pause
+      </button>
+      <button id="btn-cancel" class="btn-dlg btn-dlg-danger">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        Cancel
+      </button>
+    </div>
+    <button id="btn-hide-bg" class="btn-dlg btn-dlg-secondary" title="Keep downloading in background">
+      Hide (Background)
+    </button>
+  </div>
+
+  <script src="js/download-progress.js"></script>
+</body>
+</html>

@@ -103,6 +103,15 @@ app.get('/api/downloads', (req, res) => {
   res.json(downloadManager.getAllTasks());
 });
 
+app.post('/api/save', (req, res) => {
+  try {
+    downloadManager.saveState(true);
+    res.json({ success: true, count: downloadManager.getAllTasks().length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 let latestPendingConfirm = null;
 
 app.get('/api/downloads/pending-confirm', (req, res) => {
@@ -638,6 +647,21 @@ app.get('/crossdomain.xml', (req, res) => {
   res.type('text/xml').send('<?xml version="1.0"?><cross-domain-policy><allow-access-from domain="*" /></cross-domain-policy>');
 });
 
+function syncWindowsStartupRegistry(startWithWindows, startWithWindow) {
+  if (process.platform !== 'win32') return;
+  try {
+    const candidateExe = path.resolve(__dirname, 'dist', 'Waterfall-win32-x64', 'Waterfall.exe');
+    const targetExe = fs.existsSync(candidateExe) ? candidateExe : process.execPath;
+    const argStr = (startWithWindow !== true) ? ' --hidden' : '';
+    if (startWithWindows) {
+      const regValue = `"${targetExe}"${argStr}`;
+      execFile('reg', ['add', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'Waterfall', '/t', 'REG_SZ', '/d', regValue, '/f'], { windowsHide: true }, () => {});
+    } else {
+      execFile('reg', ['delete', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'Waterfall', '/f'], { windowsHide: true }, () => {});
+    }
+  } catch (_) {}
+}
+
 // Settings
 app.get('/api/settings', (req, res) => {
   res.json(getConfig());
@@ -645,6 +669,7 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
   const updated = saveConfig(req.body);
+  syncWindowsStartupRegistry(updated.startWithWindows !== false, updated.startWithWindow === true);
   broadcast({ type: 'configUpdated', config: updated });
   res.json(updated);
 });
@@ -652,6 +677,7 @@ app.post('/api/settings', (req, res) => {
 app.post('/api/settings/reset', (req, res) => {
   const { DEFAULT_CONFIG } = require('./src/backend/config');
   const reset = saveConfig(DEFAULT_CONFIG);
+  syncWindowsStartupRegistry(reset.startWithWindows !== false, reset.startWithWindow === true);
   broadcast({ type: 'configUpdated', config: reset });
   res.json(reset);
 });
@@ -777,6 +803,7 @@ app.get('/api/app-icon', (req, res) => {
 
 const config = getConfig();
 const PORT = process.env.PORT || config.listenPort || 4567;
+syncWindowsStartupRegistry(config.startWithWindows !== false, config.startWithWindow === true);
 
 function startServer(port = PORT) {
   return new Promise((resolve, reject) => {

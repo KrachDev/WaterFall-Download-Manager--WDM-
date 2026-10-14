@@ -10,6 +10,9 @@ echo   WATERFALL - IDM + JDownloader Modern Hybrid Engine
 echo ========================================================
 echo Launching Native Desktop App (Electron Engine)...
 
+:: Gracefully request active Waterfall instance to synchronously flush download history to disk
+curl -s -m 1 -X POST http://localhost:4567/api/save >nul 2>nul
+
 :: Clear any stale/hung electron processes and port 4567 processes from previous runs
 taskkill /F /IM electron.exe >nul 2>nul
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :4567 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>nul

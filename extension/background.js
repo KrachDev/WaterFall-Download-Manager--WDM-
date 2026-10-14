@@ -145,8 +145,20 @@ async function checkHydraStatus(hostOverride) {
 }
 
 function isMediaUrl(url) {
-  if (!url) return false;
-  return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|soundcloud\.com|vimeo\.com|tiktok\.com|twitch\.tv|twitter\.com|x\.com)\/.+/i.test(url);
+  if (!url || typeof url !== 'string') return false;
+  return /(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?(?:youtube\.com|youtu\.be|googlevideo\.com|soundcloud\.com|vimeo\.com|tiktok\.com|twitch\.tv|twitter\.com|x\.com)(?:\/|$)/i.test(url);
+}
+
+function extractCanonicalYoutubeUrl(url, sourceUrl) {
+  const testUrl = (u) => {
+    if (!u || typeof u !== 'string') return null;
+    if (u.includes('youtube.com') || u.includes('youtu.be')) {
+      const m = u.match(/(?:watch\?.*v=|youtu\.be\/|shorts\/|embed\/)([a-zA-Z0-9_-]{11})/i);
+      if (m && m[1]) return `https://www.youtube.com/watch?v=${m[1]}`;
+    }
+    return null;
+  };
+  return testUrl(url) || testUrl(sourceUrl) || null;
 }
 
 /**
@@ -168,12 +180,21 @@ async function sendToHydra({ urls, packageName, source, autostartOverride, isMed
 
   let cleanFilename = (filename || '').trim();
   let targetUrl = cleanUrls[0];
-  const isMediaDetection = !!(isMedia || isMediaUrl(targetUrl) || (source && isMediaUrl(source)));
 
-  // If source is a YouTube/media page and captured stream is raw googlevideo or blob, use source URL for full HD
-  if (source && isMediaUrl(source) && (targetUrl.includes('googlevideo.com') || targetUrl.startsWith('blob:') || targetUrl.includes('/videoplayback'))) {
+  // Special Treatment for YouTube: Canonicalize to clean watch URL so yt-dlp receives working link
+  const ytCanonical = extractCanonicalYoutubeUrl(targetUrl, source);
+  if (ytCanonical) {
+    targetUrl = ytCanonical;
+    isMedia = true;
+    if (!mediaOptions) {
+      mediaOptions = { mediaType: 'video', videoQuality: '1080' };
+    }
+  } else if (source && isMediaUrl(source) && (targetUrl.includes('googlevideo.com') || targetUrl.startsWith('blob:') || targetUrl.includes('/videoplayback'))) {
     targetUrl = source;
+    isMedia = true;
   }
+
+  const isMediaDetection = !!(isMedia || isMediaUrl(targetUrl) || (source && isMediaUrl(source)));
 
   // If filename is not supplied or generic, infer from packageName if meaningful
   const isGeneric = !cleanFilename || /^file[_\-\d]/i.test(cleanFilename) || /^stream/i.test(cleanFilename) || /^videoplayback/i.test(cleanFilename);
@@ -340,22 +361,29 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const pageUrl = (tab && tab.url) || '';
 
   if (info.menuItemId === 'hydra-download-link' && info.linkUrl) {
+    const ytCanonical = extractCanonicalYoutubeUrl(info.linkUrl, pageUrl);
     await sendToHydra({
-      urls: [info.linkUrl],
+      urls: [ytCanonical || info.linkUrl],
       packageName: pageTitle,
-      source: pageUrl
+      source: pageUrl,
+      isMedia: Boolean(ytCanonical),
+      mediaOptions: ytCanonical ? { mediaType: 'video', videoQuality: '1080' } : undefined
     });
   } else if (info.menuItemId === 'hydra-download-media' && info.srcUrl) {
+    const ytCanonical = extractCanonicalYoutubeUrl(info.srcUrl, pageUrl);
     await sendToHydra({
-      urls: [info.srcUrl],
+      urls: [ytCanonical || info.srcUrl],
       packageName: pageTitle,
-      source: pageUrl
+      source: pageUrl,
+      isMedia: Boolean(ytCanonical),
+      mediaOptions: ytCanonical ? { mediaType: 'video', videoQuality: '1080' } : undefined
     });
   } else if (info.menuItemId === 'hydra-convert-mp3') {
     const targetUrl = info.linkUrl || info.srcUrl || info.pageUrl;
-    if (targetUrl) {
+    const ytCanonical = extractCanonicalYoutubeUrl(targetUrl, pageUrl);
+    if (targetUrl || ytCanonical) {
       await sendToHydra({
-        urls: [targetUrl],
+        urls: [ytCanonical || targetUrl],
         packageName: pageTitle,
         source: pageUrl,
         isMedia: true,
@@ -378,10 +406,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       notifyFailure('No valid URLs found in selection.');
     }
   } else if (info.menuItemId === 'hydra-download-page' && info.pageUrl) {
+    const ytCanonical = extractCanonicalYoutubeUrl(info.pageUrl, pageUrl);
     await sendToHydra({
-      urls: [info.pageUrl],
+      urls: [ytCanonical || info.pageUrl],
       packageName: pageTitle,
-      source: pageUrl
+      source: pageUrl,
+      isMedia: Boolean(ytCanonical),
+      mediaOptions: ytCanonical ? { mediaType: 'video', videoQuality: '1080' } : undefined
     });
   } else if (info.menuItemId === 'hydra-download-all' && tab && tab.id) {
     try {
@@ -443,6 +474,36 @@ chrome.webRequest.onResponseStarted.addListener(
 
     const mediaExtensions = /\.(mp4|mkv|webm|avi|mov|flv|m4v|ts|m3u8|mpd|mp3|m4a|flac|wav|ogg|opus)(\?|$)/i;
     const isMediaExtension = mediaExtensions.test(url);
+
+    // Special treatment for YouTube: Never store raw googlevideo chunks; store canonical YouTube stream instead
+    if (url.includes('googlevideo.com') || url.includes('/videoplayback')) {
+      chrome.tabs.get(details.tabId, (tab) => {
+        if (chrome.runtime.lastError || !tab || !tab.url) return;
+        const canonicalYt = extractCanonicalYoutubeUrl(tab.url);
+        if (canonicalYt) {
+          let list = tabMediaMap.get(details.tabId) || [];
+          if (!list.some(m => m.isYouTube && m.url === canonicalYt)) {
+            const cleanTitle = (tab.title || 'YouTube Video')
+              .replace(/\s*[-–|•]\s*YouTube\s*$/i, '')
+              .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+              .trim();
+            list.unshift({
+              url: canonicalYt,
+              title: cleanTitle,
+              filename: `${cleanTitle}.mp4`,
+              isMedia: true,
+              isYouTube: true,
+              contentType: 'video/mp4',
+              formattedSize: '1080p Full HD (yt-dlp)',
+              timestamp: Date.now()
+            });
+            tabMediaMap.set(details.tabId, list);
+            chrome.tabs.sendMessage(details.tabId, { action: 'MEDIA_DETECTED' }).catch(() => {});
+          }
+        }
+      });
+      return;
+    }
 
     if (isMediaContentType || isMediaExtension) {
       if (contentLength > 0 && contentLength < 50000 && !url.includes('.m3u8')) return;

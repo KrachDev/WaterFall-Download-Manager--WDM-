@@ -1,12 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { getStorageFilePath, safeReadJson, safeWriteJsonSync } = require('./storagePaths');
 
-const CONFIG_FILE = path.join(__dirname, '..', '..', 'config.json');
+const CONFIG_FILE = getStorageFilePath('config.json');
 
 const DEFAULT_CONFIG = {
   // Storage & Directory Architecture
-  downloadDir: path.join(__dirname, '..', '..', 'downloads'),
+  downloadDir: (fs.existsSync(path.resolve(__dirname, '..', '..', 'downloads')) && !__dirname.includes('app.asar'))
+    ? path.resolve(__dirname, '..', '..', 'downloads')
+    : path.join(os.homedir(), 'Downloads', 'Waterfall'),
   tempDir: path.join(os.tmpdir(), 'Waterfall', 'temp'),
   useOsMediaFolders: true,
   createPackageSubfolders: false,
@@ -60,7 +63,7 @@ const DEFAULT_CONFIG = {
   showTopFilterBar: false, // Show top filter tabs bar in main menu - OFF by default
   autoDownloadWithoutConfirmation: false, // Auto-download files immediately without confirmation (OFF by default)
   showDownloadConfirmation: true, // IDM-style confirmation dialog before starting (ON by default)
-  forceTopOnDownload: true, // Force window to top when a new download is prompted/intercepted
+  forceTopOnDownload: false, // Do not force main app window to top on download (OFF by default)
   alwaysOnTop: false, // Keep Waterfall pinned on top of other windows (OFF by default)
   mediaStreamPreviewEnabled: true, // Watch as you download live streaming preview
   soundChimeEnabled: true,
@@ -68,6 +71,12 @@ const DEFAULT_CONFIG = {
   nativeOsNotifications: true,
   inAppCompletionToast: true,
   highFramerateTick: true,
+  hideFinishedInAllDownloads: false, // Hide completed downloads in 'All Downloads' view
+  defaultQueueSorting: 'active-first', // 'active-first' | 'date-desc' | 'date-asc' | 'name-asc' | 'size-desc'
+  startWithWindows: true, // Automatically launch Waterfall on Windows startup (ON by default)
+  startWithWindow: false, // Open main window immediately on launch (OFF by default for silent startup)
+  showDownloadProgressDialog: true, // IDM-style download progress dialog window (ON by default)
+  showDownloadCompleteDialog: true, // IDM-style download complete finish window (ON by default)
   themeAccent: 'cyan' // 'cyan' | 'purple' | 'emerald' | 'amber' | 'crimson'
 };
 
@@ -75,8 +84,8 @@ let currentConfig = { ...DEFAULT_CONFIG };
 
 function loadConfig() {
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    const data = safeReadJson(CONFIG_FILE, null);
+    if (data && typeof data === 'object') {
       currentConfig = { ...DEFAULT_CONFIG, ...data };
     } else {
       saveConfig(DEFAULT_CONFIG);
@@ -91,7 +100,7 @@ function loadConfig() {
 function saveConfig(newConfig) {
   try {
     currentConfig = { ...currentConfig, ...newConfig };
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2), 'utf-8');
+    safeWriteJsonSync(CONFIG_FILE, currentConfig);
   } catch (err) {
     console.error('Failed to save config:', err.message);
   }
