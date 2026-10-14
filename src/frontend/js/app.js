@@ -254,6 +254,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function formatTaskDate(timestamp) {
+    if (!timestamp) return '--';
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return '--';
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+
+    const hours = d.getHours();
+    const mins = d.getMinutes();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    const h12 = hours % 12 || 12;
+    const mStr = mins < 10 ? '0' + mins : mins;
+    const timeStr = `${h12}:${mStr} ${ampm}`;
+
+    if (isToday) {
+      return `Today, ${timeStr}`;
+    }
+    if (isYesterday) {
+      return `Yesterday, ${timeStr}`;
+    }
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const day = d.getDate();
+    const year = d.getFullYear();
+    const currentYear = now.getFullYear();
+
+    if (year === currentYear) {
+      return `${month} ${day}, ${timeStr}`;
+    }
+    return `${month} ${day}, ${year}`;
+  }
+
+  function formatTaskDateFull(timestamp) {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString([], {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
+
   function getTypeBadge(task) {
     if (task.isMedia || (task.hoster && task.hoster.includes('YouTube'))) {
       return { cls: 'yt', text: task.category === 'Audio' ? 'MP3' : 'VID' };
@@ -683,7 +735,13 @@ document.addEventListener('DOMContentLoaded', () => {
                   ${cachedAppInfo && cachedAppInfo.appName ? `Opens with ${cachedAppInfo.appName}` : ''}
                 </span>
               </div>
-              <div class="file-subtext">${t.packageName ? `[${t.packageName}] • ` : ''}${t.savePath || ''}</div>
+              <div class="file-subtext">
+                <span class="file-entry-date" title="Added: ${formatTaskDateFull(t.addedAt || t.completedAt)}">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px; opacity: 0.8;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>${formatTaskDate(t.addedAt || t.completedAt)}
+                </span>
+                <span class="subtext-sep">•</span>
+                ${t.packageName ? `[${t.packageName}] • ` : ''}${t.savePath || ''}
+              </div>
             </div>
           </div>
         </td>
@@ -701,10 +759,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ${isDl ? formatSpeed(t.speed) : '--'}
           </span>
         </td>
-        <td title="${isDl ? formatETADuration(t.eta) : ''}">
-          <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.72rem; white-space: nowrap;">
-            ${isDl ? formatETA(t.eta) : (isDone ? 'Completed' : '--')}
-          </span>
+        <td title="${isDl ? `${formatETADuration(t.eta)} (Added: ${formatTaskDateFull(t.addedAt)})` : (isDone ? `Completed: ${formatTaskDateFull(t.completedAt || t.addedAt)}` : `Added: ${formatTaskDateFull(t.addedAt)}`)}">
+          <div class="date-finish-cell">
+            ${isDl ? `
+              <span class="date-finish-eta">${formatETA(t.eta)}</span>
+              <span class="date-finish-sub">Added: ${formatTaskDate(t.addedAt)}</span>
+            ` : (isDone ? `
+              <span class="date-finish-done">✓ ${formatTaskDate(t.completedAt || t.addedAt)}</span>
+              ${t.completedAt && t.addedAt && Math.abs(t.completedAt - t.addedAt) > 60000 ? `<span class="date-finish-sub">Added: ${formatTaskDate(t.addedAt)}</span>` : ''}
+            ` : `
+              <span class="date-finish-added">Added: ${formatTaskDate(t.addedAt)}</span>
+              <span class="date-finish-sub">${t.status === 'error' ? 'Failed' : (t.status === 'queued' ? 'Queued' : 'Paused')}</span>
+            `)}
+          </div>
         </td>
         <td><span class="hoster-chip">${t.hoster || 'Direct'}</span></td>
         <td style="text-align: right;">
@@ -766,9 +833,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let anyPasswordReq = false;
     let isAllSelected = true;
 
+    let earliestAddedAt = 0;
+    let latestCompletedAt = 0;
     for (const t of item.tasks) {
       totalBytes += (t.totalBytes || 0);
       downloadedBytes += (t.downloadedBytes || 0);
+      const a = t.addedAt || t.createdAt || 0;
+      if (a > 0 && (earliestAddedAt === 0 || a < earliestAddedAt)) earliestAddedAt = a;
+      if (t.completedAt && t.completedAt > latestCompletedAt) latestCompletedAt = t.completedAt;
       if (t.status === 'downloading') {
         anyDl = true;
         totalSpeed += (t.speed || 0);
@@ -848,7 +920,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="group-parts-badge">${groupBadgeText}</span>
                 ${groupExtractBadge}
               </div>
-              <div class="file-subtext">${groupSubtext}</div>
+              <div class="file-subtext">
+                <span class="file-entry-date" title="Added: ${formatTaskDateFull(earliestAddedAt)}">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px; opacity: 0.8;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>${formatTaskDate(earliestAddedAt)}
+                </span>
+                <span class="subtext-sep">•</span>
+                ${groupSubtext}
+              </div>
             </div>
           </div>
         </td>
@@ -886,10 +964,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ${anyDl ? formatSpeed(totalSpeed) : '--'}
           </span>
         </td>
-        <td title="${anyDl ? formatETADuration(maxEta) : ''}">
-          <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.72rem; white-space: nowrap;">
-            ${anyDl ? formatETA(maxEta) : (allDone ? 'Completed' : '--')}
-          </span>
+        <td title="${anyDl ? `${formatETADuration(maxEta)} (Added: ${formatTaskDateFull(earliestAddedAt)})` : (allDone ? `Completed: ${formatTaskDateFull(latestCompletedAt || earliestAddedAt)}` : `Added: ${formatTaskDateFull(earliestAddedAt)}`)}">
+          <div class="date-finish-cell">
+            ${anyDl ? `
+              <span class="date-finish-eta">${formatETA(maxEta)}</span>
+              <span class="date-finish-sub">Added: ${formatTaskDate(earliestAddedAt)}</span>
+            ` : (allDone ? `
+              <span class="date-finish-done">✓ ${formatTaskDate(latestCompletedAt || earliestAddedAt)}</span>
+              ${latestCompletedAt && earliestAddedAt && Math.abs(latestCompletedAt - earliestAddedAt) > 60000 ? `<span class="date-finish-sub">Added: ${formatTaskDate(earliestAddedAt)}</span>` : ''}
+            ` : `
+              <span class="date-finish-added">Added: ${formatTaskDate(earliestAddedAt)}</span>
+              <span class="date-finish-sub">${groupStatus}</span>
+            `)}
+          </div>
         </td>
         <td><span class="hoster-chip">${item.isPlaylist ? 'YouTube Playlist' : (rootTask.hoster || 'Package')}</span></td>
         <td style="text-align: right;">
@@ -1308,7 +1395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fill: row.querySelector('.meter-fill'),
         stat: row.querySelector('.meter-stat'),
         speedSpan: row.children[5]?.querySelector('span'),
-        etaSpan: row.children[6]?.querySelector('span'),
+        etaSpan: row.children[6]?.querySelector('.date-finish-eta') || row.children[6]?.querySelector('span'),
         etaTd: row.children[6],
         statusTag: row.children[3]?.querySelector('.state-tag')
       });
@@ -1322,7 +1409,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fill: gRow.querySelector('.meter-fill'),
         stat: gRow.querySelector('.meter-stat'),
         speedSpan: gRow.children[5]?.querySelector('span'),
-        etaSpan: gRow.children[6]?.querySelector('span'),
+        etaSpan: gRow.children[6]?.querySelector('.date-finish-eta') || gRow.children[6]?.querySelector('span'),
         etaTd: gRow.children[6],
         statusTag: gRow.children[3]?.querySelector('.state-tag'),
         countBadge: gRow.querySelector('.group-parts-badge')
@@ -4746,14 +4833,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   const DEFAULT_COL_WIDTHS = {
     select: 36,
-    name: 280,
+    name: 270,
     size: 95,
     status: 105,
     progress: 175,
     speed: 95,
-    finish: 125,
-    hoster: 85,
-    actions: 155
+    finish: 165,
+    hoster: 90,
+    actions: 145
   };
 
   const MIN_COL_WIDTHS = {
@@ -4763,7 +4850,7 @@ document.addEventListener('DOMContentLoaded', () => {
     status: 80,
     progress: 110,
     speed: 70,
-    finish: 85,
+    finish: 95,
     hoster: 65,
     actions: 110
   };

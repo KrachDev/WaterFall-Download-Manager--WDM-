@@ -202,15 +202,15 @@ body {
 }
 
 .brand-icon {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(56, 189, 248, 0.45);
   background: radial-gradient(circle at 50% 30%, #0d2138 0%, #060b17 100%);
   position: relative;
   transition: all 0.2s ease;
@@ -218,9 +218,9 @@ body {
 }
 
 .brand-icon:hover {
-  transform: translateY(-1px) scale(1.04);
-  box-shadow: 0 0 22px rgba(56, 189, 248, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 0 26px rgba(56, 189, 248, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  border-color: rgba(56, 189, 248, 0.7);
 }
 
 .brand-logo-img {
@@ -1167,6 +1167,72 @@ body.resizing-columns * {
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
+}
+
+/* Date & Finish Cell Formatting */
+.date-finish-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.date-finish-done {
+  color: #34d399;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.date-finish-eta {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.date-finish-added {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.date-finish-sub {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  white-space: nowrap;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-entry-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  padding: 0 5px;
+  border-radius: 3px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.subtext-sep {
+  color: var(--text-muted);
+  margin: 0 4px;
+  opacity: 0.5;
 }
 
 /* Progress bar inside table cell */
