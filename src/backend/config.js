@@ -77,6 +77,7 @@ const DEFAULT_CONFIG = {
   startWithWindow: false, // Open main window immediately on launch (OFF by default for silent startup)
   showDownloadProgressDialog: true, // IDM-style download progress dialog window (ON by default)
   showDownloadCompleteDialog: true, // IDM-style download complete finish window (ON by default)
+  closeAction: 'ask', // 'ask' | 'tray' | 'exit' - Action when clicking window exit 'X' button
   themeAccent: 'cyan' // 'cyan' | 'purple' | 'emerald' | 'amber' | 'crimson'
 };
 

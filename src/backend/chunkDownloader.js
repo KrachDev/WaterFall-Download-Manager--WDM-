@@ -31,6 +31,14 @@ class ChunkDownloader extends EventEmitter {
     this.lastTickBytes = 0;
   }
 
+  setSpeedLimit(bytesPerSec) {
+    this.options.speedLimitBytesPerSec = bytesPerSec;
+    if (this.task) {
+      this.task.speedLimitBytesPerSec = bytesPerSec;
+      this.task.speedLimitEnabled = bytesPerSec > 0;
+    }
+  }
+
   saveMetaFile() {
     if (this.engineMode === 'legacyTemp') return;
     try {
@@ -490,10 +498,14 @@ class ChunkDownloader extends EventEmitter {
             // Sync overall downloaded bytes accurately
             this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + (s.downloadedBytes || 0), 0);
 
-            // Bandwidth / Speed Limiter Throttling
-            if (speedLimitPerSec > 0) {
+            // Bandwidth / Speed Limiter Throttling (dynamic real-time check)
+            const activeLimit = (this.task && this.task.speedLimitEnabled && this.task.speedLimitBytesPerSec > 0)
+              ? this.task.speedLimitBytesPerSec
+              : (this.options.speedLimitBytesPerSec || 0);
+
+            if (activeLimit > 0) {
               const numSegs = Math.max(1, this.task.segments ? this.task.segments.length : 1);
-              const segCap = Math.max(8192, Math.floor(speedLimitPerSec / numSegs));
+              const segCap = Math.max(8192, Math.floor(activeLimit / numSegs));
               const sleepMs = (chunkBuf.length / segCap) * 1000;
               if (sleepMs > 5) {
                 await new Promise(r => setTimeout(r, Math.min(150, Math.floor(sleepMs))));

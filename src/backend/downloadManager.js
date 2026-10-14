@@ -3,7 +3,7 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const ChunkDownloader = require('./chunkDownloader');
 const { MediaDownloader, isMediaUrl, isGenericTitle, probeMedia } = require('./mediaDownloader');
 const { getConfig, saveConfig } = require('./config');
@@ -466,6 +466,22 @@ class DownloadManager extends EventEmitter {
             task.eta = 0;
           }
 
+          // Trigger custom script when target percentage is reached
+          const triggerTarget = (task.triggerAtPercent !== undefined && task.triggerAtPercent !== 100)
+            ? task.triggerAtPercent
+            : (task.customScript && task.customScript.triggerAtPercent ? Number(task.customScript.triggerAtPercent) : 0);
+
+          if (triggerTarget > 0 && triggerTarget < 100 && !task._triggerAtPercentFired) {
+            const currentPct = (task.totalBytes > 0) ? (task.downloadedBytes / task.totalBytes) * 100 : 0;
+            if (currentPct >= triggerTarget) {
+              task._triggerAtPercentFired = true;
+              if (task.customScript && task.customScript.enabled) {
+                const config = getConfig();
+                executePostDownloadScript(task, config).catch(() => {});
+              }
+            }
+          }
+
           this.lastBytesCheck.set(id, task.downloadedBytes);
         } else {
           task.speed = 0;
@@ -712,7 +728,12 @@ class DownloadManager extends EventEmitter {
       deleteAfterExtract: options.deleteAfterExtract !== undefined ? Boolean(options.deleteAfterExtract) : (config.deleteArchiveAfterExtract === true),
       extractStatus: 'none', // 'none' | 'extract_queued' | 'extracting' | 'extracted' | 'extract_failed' | 'extract_password_required' | 'waiting_all_parts'
       extractedPath: null,
-      extractError: null
+      extractError: null,
+      // Speed Limiter & Post-Actions
+      speedLimitEnabled: Boolean(options.speedLimitEnabled),
+      speedLimitBytesPerSec: options.speedLimitBytesPerSec ? Math.max(0, parseInt(options.speedLimitBytesPerSec, 10)) : 0,
+      onCompleteAction: options.onCompleteAction || 'none', // 'none' | 'closeDialog' | 'openFile' | 'openFolder' | 'sleep' | 'shutdown'
+      triggerAtPercent: options.triggerAtPercent ? Number(options.triggerAtPercent) : null
     };
 
     this.tasks.set(id, task);
@@ -843,9 +864,9 @@ class DownloadManager extends EventEmitter {
       return;
     }
 
-    const speedLimitBytesPerSec = (config.speedLimitEnabled && config.speedLimitBytesPerSec > 0)
-      ? config.speedLimitBytesPerSec
-      : 0;
+    const speedLimitBytesPerSec = (task.speedLimitEnabled && task.speedLimitBytesPerSec > 0)
+      ? task.speedLimitBytesPerSec
+      : ((config.speedLimitEnabled && config.speedLimitBytesPerSec > 0) ? config.speedLimitBytesPerSec : 0);
 
     const engineMode = task.downloadEngineMode || config.downloadEngineMode || 'inPlace';
     const isSingleStream = Boolean(task.singleStream || engineMode === 'singleStream');
@@ -997,8 +1018,23 @@ class DownloadManager extends EventEmitter {
       }
     }
 
-    // Trigger custom post-download script if enabled (non-blocking)
-    if (config.postDownloadScriptEnabled) {
+    // Execute on-completion actions (e.g. shutdown, sleep, openFile, openFolder)
+    if (t.onCompleteAction === 'shutdown') {
+      exec('shutdown /s /t 60 /c "Waterfall download finished. Shutting down system in 60 seconds."');
+    } else if (t.onCompleteAction === 'sleep') {
+      exec('rundll32.exe powrprof.dll,SetSuspendState 0,1,0');
+    } else if (t.onCompleteAction === 'openFile' && t.savePath && fs.existsSync(t.savePath)) {
+      try {
+        exec(`start "" "${t.savePath}"`, { shell: 'cmd.exe' });
+      } catch (_) {}
+    } else if (t.onCompleteAction === 'openFolder' && t.savePath) {
+      try {
+        execFile('explorer.exe', [`/select,${t.savePath}`]);
+      } catch (_) {}
+    }
+
+    // Trigger custom post-download script if enabled (globally or per-task)
+    if (config.postDownloadScriptEnabled || (t.customScript && t.customScript.enabled)) {
       executePostDownloadScript(t, config).then(res => {
         if (res && !res.success && res.error) {
           console.warn(`[Waterfall] Post-download script warning for ${t.name}:`, res.stderr || res.error);
@@ -1382,6 +1418,45 @@ class DownloadManager extends EventEmitter {
       return { success: true, job };
     }
     return { success: false, error: 'Extraction job not found' };
+  }
+
+  updateTaskOptions(taskId, options = {}) {
+    const task = this.tasks.get(taskId);
+    if (!task) return null;
+
+    if (options.speedLimitEnabled !== undefined) {
+      task.speedLimitEnabled = Boolean(options.speedLimitEnabled);
+    }
+    if (options.speedLimitBytesPerSec !== undefined) {
+      task.speedLimitBytesPerSec = Math.max(0, parseInt(options.speedLimitBytesPerSec, 10) || 0);
+    }
+    const downloader = this.activeDownloaders.get(taskId);
+    if (downloader && typeof downloader.setSpeedLimit === 'function') {
+      downloader.setSpeedLimit(task.speedLimitEnabled ? task.speedLimitBytesPerSec : 0);
+    }
+
+    if (options.onCompleteAction !== undefined) {
+      task.onCompleteAction = options.onCompleteAction;
+    }
+    if (options.triggerAtPercent !== undefined) {
+      task.triggerAtPercent = options.triggerAtPercent ? Number(options.triggerAtPercent) : null;
+    }
+    if (options.customScript !== undefined) {
+      task.customScript = options.customScript;
+    }
+    if (options.autoExtract !== undefined) {
+      task.autoExtract = Boolean(options.autoExtract);
+    }
+    if (options.archivePassword !== undefined) {
+      task.archivePassword = String(options.archivePassword || '').trim();
+    }
+    if (options.deleteAfterExtract !== undefined) {
+      task.deleteAfterExtract = Boolean(options.deleteAfterExtract);
+    }
+
+    this.saveState();
+    this.emit('taskUpdated', task);
+    return task;
   }
 
   // Queue Priority and Reordering
@@ -1792,6 +1867,77 @@ class DownloadManager extends EventEmitter {
       multipart,
       existingMatch
     };
+  }
+
+  updateTaskOptions(id, options = {}) {
+    const task = this.tasks.get(id);
+    if (!task) return null;
+
+    if (options.speedLimitBytesPerSec !== undefined) {
+      task.speedLimitBytesPerSec = parseInt(options.speedLimitBytesPerSec, 10) || 0;
+      task.speedLimitEnabled = Boolean(task.speedLimitBytesPerSec > 0 || options.speedLimitEnabled);
+    }
+    if (options.speedLimitEnabled !== undefined) {
+      task.speedLimitEnabled = Boolean(options.speedLimitEnabled);
+    }
+
+    // Apply speed limit dynamically to active downloader if running
+    const downloader = this.activeDownloaders.get(id);
+    if (downloader && typeof downloader.setSpeedLimit === 'function') {
+      const activeCap = task.speedLimitEnabled ? (task.speedLimitBytesPerSec || 0) : 0;
+      downloader.setSpeedLimit(activeCap);
+    }
+
+    if (options.onCompleteAction !== undefined) {
+      task.onCompleteAction = options.onCompleteAction;
+    }
+
+    if (options.triggerAtPercent !== undefined) {
+      task.triggerAtPercent = parseInt(options.triggerAtPercent, 10);
+      if (task.customScript) {
+        task.customScript.triggerAtPercent = task.triggerAtPercent;
+      }
+    }
+
+    if (options.customScript !== undefined && typeof options.customScript === 'object') {
+      task.customScript = { ...(task.customScript || {}), ...options.customScript };
+    }
+
+    if (options.runScriptOnComplete !== undefined) {
+      if (!task.customScript) task.customScript = {};
+      task.customScript.enabled = Boolean(options.runScriptOnComplete);
+    }
+
+    if (options.scriptType !== undefined) {
+      if (!task.customScript) task.customScript = {};
+      task.customScript.type = options.scriptType;
+    }
+
+    if (options.scriptPath !== undefined) {
+      if (!task.customScript) task.customScript = {};
+      task.customScript.path = options.scriptPath;
+    }
+
+    if (options.scriptArgs !== undefined) {
+      if (!task.customScript) task.customScript = {};
+      task.customScript.args = options.scriptArgs;
+    }
+
+    if (options.autoExtract !== undefined) {
+      task.autoExtract = Boolean(options.autoExtract);
+    }
+
+    if (options.extractPassword !== undefined) {
+      task.archivePassword = options.extractPassword;
+    }
+
+    if (options.deleteArchiveAfterExtraction !== undefined) {
+      task.deleteAfterExtract = Boolean(options.deleteArchiveAfterExtraction);
+    }
+
+    this.saveState();
+    this.emit('taskUpdated', task);
+    return task;
   }
 
   getTask(id) {

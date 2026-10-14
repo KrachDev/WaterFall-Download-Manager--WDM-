@@ -360,6 +360,25 @@ app.post('/api/downloads/:id/set-password', (req, res) => {
   res.json(result);
 });
 
+// Update live task options (Speed limit, post actions, scripts, extraction)
+app.post('/api/downloads/:id/options', (req, res) => {
+  const updatedTask = downloadManager.updateTaskOptions(req.params.id, req.body || {});
+  if (!updatedTask) return res.status(404).json({ error: 'Task not found' });
+  broadcast({ type: 'taskUpdated', task: updatedTask });
+  res.json({ success: true, task: updatedTask });
+});
+
+app.post('/api/downloads/:id/speed-limit', (req, res) => {
+  const { speedLimitBytesPerSec } = req.body;
+  const updatedTask = downloadManager.updateTaskOptions(req.params.id, {
+    speedLimitEnabled: Boolean(speedLimitBytesPerSec > 0),
+    speedLimitBytesPerSec: parseInt(speedLimitBytesPerSec, 10) || 0
+  });
+  if (!updatedTask) return res.status(404).json({ error: 'Task not found' });
+  broadcast({ type: 'taskUpdated', task: updatedTask });
+  res.json({ success: true, task: updatedTask });
+});
+
 app.get('/api/extractions', (req, res) => {
   const extractionQueue = require('./src/backend/extractionQueue');
   res.json(extractionQueue.getAllJobs());

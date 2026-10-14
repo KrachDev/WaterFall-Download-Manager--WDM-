@@ -93,6 +93,109 @@
         Delete
       </button>
 
+      <!-- Topbar Queue Sorting (Same split & rich dropdown treatment as Add Download) -->
+      <div class="add-download-dropdown-wrap sort-dropdown-wrap" id="topbar-sort-wrap">
+        <button class="tool-btn sort-btn sort-main-btn" id="btn-topbar-sort" title="Queue Sorting (Change order of downloads)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="11" y2="14"></line><line x1="21" y1="18" x2="15" y2="18"></line></svg>
+          <span id="topbar-sort-label">Sort Queue</span>
+        </button>
+        <button class="tool-btn add-chevron-btn sort-chevron-btn" id="btn-topbar-sort-chevron" title="Sorting options">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="add-download-dropdown-menu sort-dropdown-menu" id="topbar-sort-menu">
+          <div class="add-dropdown-item sort-option selected" data-sort="active-first">
+            <div class="add-item-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Active First (Recommended)</span>
+              <span class="add-item-sub">Downloading & assembling tasks stay at top</span>
+            </div>
+            <span class="sort-check">✓</span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="date-desc">
+            <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Date Added (Newest First)</span>
+              <span class="add-item-sub">Most recently added downloads first</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="date-asc">
+            <div class="add-item-icon-box" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 8 14"></polyline></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Date Added (Oldest First)</span>
+              <span class="add-item-sub">Original queue creation order</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="name-asc">
+            <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="8" y2="18"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Name (A → Z)</span>
+              <span class="add-item-sub">Alphabetical ascending order</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="name-desc">
+            <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="8" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Name (Z → A)</span>
+              <span class="add-item-sub">Alphabetical reverse order</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="size-desc">
+            <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Size (Largest First)</span>
+              <span class="add-item-sub">Heaviest files at top</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="size-asc">
+            <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Size (Smallest First)</span>
+              <span class="add-item-sub">Lightest files at top</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="progress-desc">
+            <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Progress (Highest First)</span>
+              <span class="add-item-sub">Closest to 100% completion</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="speed-desc">
+            <div class="add-item-icon-box" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Speed (Fastest First)</span>
+              <span class="add-item-sub">Highest active transfer rate</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+        </div>
+      </div>
+
       <div class="toolbar-sep"></div>
 
       <button class="tool-btn" id="btn-settings" title="Options & Directory Settings">
@@ -274,19 +377,99 @@
             <button class="tool-btn sort-btn" id="btn-sort-menu" title="Queue Sorting Options">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="11" y2="14"></line><line x1="21" y1="18" x2="15" y2="18"></line></svg>
               <span id="sort-status-label">Sort: Active First</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="sort-chevron-icon"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </button>
-            <div class="sort-dropdown-menu" id="sort-dropdown-menu">
-              <div class="sort-option selected" data-sort="active-first">⚡ Active First (Downloading at Top)</div>
-              <div class="sort-option" data-sort="date-desc">🕒 Date Added (Newest First)</div>
-              <div class="sort-option" data-sort="date-asc">🕒 Date Added (Oldest First)</div>
-              <div class="sort-option" data-sort="name-asc">🔤 Name (A → Z)</div>
-              <div class="sort-option" data-sort="name-desc">🔤 Name (Z → A)</div>
-              <div class="sort-option" data-sort="size-desc">📦 Size (Largest First)</div>
-              <div class="sort-option" data-sort="size-asc">📦 Size (Smallest First)</div>
-              <div class="sort-option" data-sort="progress-desc">📊 Progress (Highest First)</div>
-              <div class="sort-option" data-sort="progress-asc">📊 Progress (Lowest First)</div>
-              <div class="sort-option" data-sort="speed-desc">🚀 Speed (Fastest First)</div>
-              <div class="sort-option" data-sort="hoster-asc">🌐 Hoster (A → Z)</div>
+            <div class="add-download-dropdown-menu sort-dropdown-menu" id="sort-dropdown-menu">
+              <div class="add-dropdown-item sort-option selected" data-sort="active-first">
+                <div class="add-item-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Active First (Recommended)</span>
+                  <span class="add-item-sub">Downloading & assembling stay at top</span>
+                </div>
+                <span class="sort-check">✓</span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="date-desc">
+                <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Date Added (Newest First)</span>
+                  <span class="add-item-sub">Most recently added downloads first</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="date-asc">
+                <div class="add-item-icon-box" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 8 14"></polyline></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Date Added (Oldest First)</span>
+                  <span class="add-item-sub">Original queue creation order</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="name-asc">
+                <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="8" y2="18"></line></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Name (A → Z)</span>
+                  <span class="add-item-sub">Alphabetical ascending order</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="name-desc">
+                <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="8" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Name (Z → A)</span>
+                  <span class="add-item-sub">Alphabetical reverse order</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="size-desc">
+                <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Size (Largest First)</span>
+                  <span class="add-item-sub">Heaviest files at top</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="size-asc">
+                <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Size (Smallest First)</span>
+                  <span class="add-item-sub">Lightest files at top</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="progress-desc">
+                <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Progress (Highest First)</span>
+                  <span class="add-item-sub">Closest to 100% completion</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="speed-desc">
+                <div class="add-item-icon-box" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Speed (Fastest First)</span>
+                  <span class="add-item-sub">Highest active transfer rate</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
             </div>
           </div>
 
@@ -1684,6 +1867,18 @@
                   <div class="toggle-desc">Displays a dedicated completion window with quick actions to Open File or Open Folder when a download finishes (ON by default).</div>
                 </div>
                 <input type="checkbox" id="cfg-show-download-complete" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">When Clicking the Window Exit (X) Button</div>
+                  <div class="toggle-desc">Choose whether to ask each time, minimize to the system tray, or exit completely.</div>
+                </div>
+                <select id="cfg-close-action" class="text-input" style="width: 250px;">
+                  <option value="ask" selected>❓ Ask Each Time (Tray / Full Exit / Cancel)</option>
+                  <option value="tray">📥 Minimize to System Tray</option>
+                  <option value="exit">❌ Full Exit (Quit Application)</option>
+                </select>
               </div>
 
               <div class="settings-toggle-card">

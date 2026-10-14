@@ -8,10 +8,11 @@
   <link rel="stylesheet" href="css/style.css">
   <style>
     :root {
-      --bg-dlg: #0a0f1d;
-      --bg-dlg-card: #101728;
-      --bg-dlg-sub: #080c18;
-      --border-dlg: #1f2a40;
+      --bg-dlg: #090e1a;
+      --bg-dlg-card: #0f172a;
+      --bg-dlg-sub: #080c16;
+      --border-dlg: #1e293b;
+      --accent-cyan: #38bdf8;
     }
 
     * {
@@ -32,37 +33,27 @@
       flex-direction: column;
     }
 
-    .dialog-content {
-      flex: 1;
-      padding: 16px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      overflow-y: auto;
-    }
-
-    /* File Header Card */
-    .file-card {
+    /* Top File Summary Banner */
+    .dlg-file-banner {
+      padding: 10px 16px;
+      background: var(--bg-dlg-sub);
+      border-bottom: 1px solid var(--border-dlg);
       display: flex;
       align-items: center;
       gap: 12px;
-      background: var(--bg-dlg-card);
-      border: 1px solid var(--border-dlg);
-      border-radius: 8px;
-      padding: 10px 14px;
     }
 
     .file-icon-box {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 8px;
       background: rgba(56, 189, 248, 0.12);
       border: 1px solid rgba(56, 189, 248, 0.25);
-      color: var(--accent-cyan, #38bdf8);
+      color: var(--accent-cyan);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.1rem;
+      font-size: 1.15rem;
       flex-shrink: 0;
     }
 
@@ -72,7 +63,7 @@
     }
 
     .file-name {
-      font-size: 0.92rem;
+      font-size: 0.9rem;
       font-weight: 700;
       color: #ffffff;
       white-space: nowrap;
@@ -87,9 +78,74 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-family: var(--font-mono, monospace);
     }
 
-    /* Progress Area */
+    /* Tabs Bar */
+    .dlg-tabs-bar {
+      display: flex;
+      background: #070b14;
+      border-bottom: 1px solid var(--border-dlg);
+      padding: 0 12px;
+      gap: 4px;
+    }
+
+    .dlg-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 0.78rem;
+      padding: 9px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .dlg-tab-btn:hover {
+      color: #f1f5f9;
+    }
+
+    .dlg-tab-btn.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+    }
+
+    .tab-badge {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--accent-cyan);
+      font-size: 0.65rem;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+
+    /* Tab Content Area */
+    .dialog-content {
+      flex: 1;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #24324d #090e1a;
+    }
+
+    .tab-pane {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+    }
+
+    .tab-pane.active {
+      display: flex;
+    }
+
+    /* Progress Tab Elements */
     .progress-section {
       background: var(--bg-dlg-card);
       border: 1px solid var(--border-dlg);
@@ -109,7 +165,7 @@
 
     .status-text {
       font-weight: 600;
-      color: var(--accent-cyan, #38bdf8);
+      color: var(--accent-cyan);
       display: flex;
       align-items: center;
       gap: 6px;
@@ -119,84 +175,82 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--accent-cyan, #38bdf8);
-      box-shadow: 0 0 8px var(--accent-cyan, #38bdf8);
-      animation: pulse-dot 1.5s infinite;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 1.5s infinite;
     }
 
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
 
     .percent-badge {
-      font-size: 0.95rem;
-      font-weight: 800;
       font-family: var(--font-mono, monospace);
+      font-weight: 700;
       color: #f8fafc;
+      font-size: 0.95rem;
     }
 
     .bar-wrapper {
-      height: 12px;
-      background: #090d16;
-      border-radius: 6px;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
       overflow: hidden;
-      border: 1px solid #1a2336;
       position: relative;
     }
 
     .bar-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #0284c7 0%, #38bdf8 60%, #10b981 100%);
-      border-radius: 5px;
-      transition: width 0.15s ease-out;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+      background: linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #00f2fe 100%);
+      border-radius: 4px;
+      transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
     }
 
-    /* IDM Segment Visualizer Bar */
+    /* Segment Bar */
     .segment-bar {
-      height: 6px;
-      background: #090d16;
-      border-radius: 3px;
-      overflow: hidden;
       display: flex;
-      gap: 2px;
-      padding: 1px;
+      gap: 3px;
+      height: 6px;
+      margin-top: 4px;
     }
 
     .segment-chunk {
       flex: 1;
       height: 100%;
-      background: #1b263b;
+      background: rgba(255, 255, 255, 0.05);
       border-radius: 2px;
-      position: relative;
       overflow: hidden;
     }
 
     .segment-chunk-fill {
       height: 100%;
-      background: #10b981;
       width: 0%;
+      background: #38bdf8;
+      border-radius: 2px;
       transition: width 0.2s ease;
     }
 
     /* Stats Grid */
     .stats-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 14px;
       background: var(--bg-dlg-card);
       border: 1px solid var(--border-dlg);
       border-radius: 8px;
       padding: 10px 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      font-size: 0.78rem;
     }
 
     .stat-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.76rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding-bottom: 4px;
     }
 
     .stat-label {
@@ -210,19 +264,130 @@
     }
 
     .stat-val.rate {
-      color: #38bdf8;
+      color: var(--accent-cyan);
       font-weight: 700;
     }
 
-    .stat-val.resumable-yes {
-      color: #10b981;
+    .stat-val.resumable-yes { color: #10b981; }
+    .stat-val.resumable-no { color: #f59e0b; }
+
+    /* Media Stream Preview Card */
+    .stream-preview-card {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(15, 23, 42, 0.8));
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.76rem;
     }
 
-    .stat-val.resumable-no {
-      color: #f59e0b;
+    /* Form Controls for Options and Limiter */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
     }
 
-    /* Controls Footer */
+    .form-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .input-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+
+    .text-input {
+      background: #0b1120;
+      border: 1px solid var(--border-dlg);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: #f8fafc;
+      font-size: 0.8rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+      width: 100%;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .toggle-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-dlg-card);
+      border: 1px solid var(--border-dlg);
+      border-radius: 6px;
+      padding: 10px 14px;
+    }
+
+    .toggle-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .toggle-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .toggle-desc {
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+
+    .preset-chips-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .preset-chip {
+      background: #111a2e;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      color: #94a3b8;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .preset-chip:hover {
+      background: #1a2744;
+      color: #fff;
+      border-color: var(--accent-cyan);
+    }
+
+    .preset-chip.active {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+    }
+
+    .helper-chip {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px dashed rgba(56, 189, 248, 0.3);
+      border-radius: 4px;
+      color: var(--accent-cyan);
+      padding: 2px 6px;
+      font-size: 0.68rem;
+      cursor: pointer;
+      font-family: var(--font-mono, monospace);
+    }
+
+    /* Footer */
     .dialog-footer {
       height: 48px;
       background: var(--bg-dlg-sub);
@@ -242,7 +407,7 @@
     .btn-dlg {
       padding: 6px 14px;
       border-radius: 6px;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
@@ -302,7 +467,7 @@
       justify-content: center;
       text-align: center;
       gap: 12px;
-      padding: 10px 10px;
+      padding: 14px;
       height: 100%;
     }
 
@@ -317,12 +482,6 @@
       justify-content: center;
       color: #10b981;
       box-shadow: 0 0 24px rgba(16, 185, 129, 0.35);
-      animation: finish-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    @keyframes finish-pop {
-      0% { transform: scale(0.6); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
     }
 
     .finish-title {
@@ -336,7 +495,7 @@
     .finish-filename {
       font-size: 0.85rem;
       font-weight: 600;
-      color: var(--accent-cyan, #38bdf8);
+      color: var(--accent-cyan);
       max-width: 440px;
       white-space: nowrap;
       overflow: hidden;
@@ -376,110 +535,296 @@
 </head>
 <body>
 
-  <!-- VIEW 1: Active Download Progress -->
-  <div id="progress-view" class="dialog-content">
-    <!-- File Info -->
-    <div class="file-card">
-      <div id="file-icon" class="file-icon-box">📦</div>
-      <div class="file-meta">
-        <div id="dlg-file-name" class="file-name">Checking file...</div>
-        <div id="dlg-file-url" class="file-url">Connecting to server...</div>
-      </div>
+  <!-- Persistent Compact File Header Banner -->
+  <header class="dlg-file-banner">
+    <div id="file-icon" class="file-icon-box">📦</div>
+    <div class="file-meta">
+      <div id="dlg-file-name" class="file-name">Checking file...</div>
+      <div id="dlg-file-url" class="file-url">Connecting to server...</div>
     </div>
+    <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-copy-url" style="padding: 4px 8px; font-size: 0.72rem;" title="Copy Download URL">
+      📋 Copy URL
+    </button>
+  </header>
 
-    <!-- Progress Bar -->
-    <div class="progress-section">
-      <div class="progress-header">
-        <div class="status-text">
-          <span id="status-dot" class="status-dot"></span>
-          <span id="dlg-status">Downloading...</span>
+  <!-- Interactive Dialog Navigation Tabs -->
+  <nav class="dlg-tabs-bar" id="dlg-tabs-bar">
+    <button type="button" class="dlg-tab-btn active" data-tab="tab-progress">
+      <span>📊 Progress</span>
+    </button>
+    <button type="button" class="dlg-tab-btn" data-tab="tab-limiter">
+      <span>⚡ Speed Limiter</span>
+      <span id="tab-limiter-badge" class="tab-badge" style="display: none;">ON</span>
+    </button>
+    <button type="button" class="dlg-tab-btn" data-tab="tab-options">
+      <span>⚙️ Options & Script</span>
+    </button>
+    <button type="button" class="dlg-tab-btn" data-tab="tab-extract">
+      <span>📦 Extraction</span>
+    </button>
+  </nav>
+
+  <!-- Main Scrollable Dialog Body -->
+  <main class="dialog-content">
+
+    <!-- TAB 1: Live Progress & Telemetry -->
+    <div class="tab-pane active" id="tab-progress">
+      
+      <!-- Progress Bar Section -->
+      <div class="progress-section">
+        <div class="progress-header">
+          <div class="status-text">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="dlg-status">Downloading...</span>
+          </div>
+          <div id="dlg-percent" class="percent-badge">0.0%</div>
         </div>
-        <div id="dlg-percent" class="percent-badge">0.0%</div>
+
+        <div class="bar-wrapper">
+          <div id="dlg-bar-fill" class="bar-fill"></div>
+        </div>
+
+        <!-- Segment threads visualizer (IDM style) -->
+        <div id="dlg-segments-bar" class="segment-bar">
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+          <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+        </div>
       </div>
 
-      <div class="bar-wrapper">
-        <div id="dlg-bar-fill" class="bar-fill"></div>
+      <!-- Live Stream Preview Action Banner -->
+      <div class="stream-preview-card" id="stream-preview-box">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span>▶</span>
+          <span style="font-weight: 600; color: #fff;">Watch / Preview Stream</span>
+          <span style="color: #94a3b8; font-size: 0.7rem;">(HTTP 206 Live Playback)</span>
+        </div>
+        <button type="button" class="btn-dlg btn-dlg-primary" id="btn-stream-now" style="padding: 4px 10px; font-size: 0.72rem;">
+          Open Player
+        </button>
       </div>
 
-      <!-- Segment threads visualizer (IDM style) -->
-      <div id="dlg-segments-bar" class="segment-bar">
-        <!-- 8 default chunks -->
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
-        <div class="segment-chunk"><div class="segment-chunk-fill"></div></div>
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-row">
+          <span class="stat-label">File Size:</span>
+          <span id="dlg-size" class="stat-val">--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Transfer Rate:</span>
+          <span id="dlg-speed" class="stat-val rate">0.0 KB/s</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Downloaded:</span>
+          <span id="dlg-downloaded" class="stat-val">0 B</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Time Left (ETA):</span>
+          <span id="dlg-eta" class="stat-val">--:--:--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Resume Support:</span>
+          <span id="dlg-resumable" class="stat-val resumable-yes">Yes</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Connections:</span>
+          <span id="dlg-threads" class="stat-val">8 Segments</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 2: Speed Limiter -->
+    <div class="tab-pane" id="tab-limiter">
+      <div class="toggle-card">
+        <div class="toggle-info">
+          <div class="toggle-title">Enable Speed Limiter for this Download</div>
+          <div class="toggle-desc">Throttle socket bandwidth in real-time to save network capacity for other tasks.</div>
+        </div>
+        <input type="checkbox" id="limiter-enable" class="toggle-checkbox">
+      </div>
+
+      <div class="form-group" id="limiter-controls-box" style="background: var(--bg-dlg-card); border: 1px solid var(--border-dlg); border-radius: 8px; padding: 12px; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <label class="input-label" for="limiter-slider">Maximum Transfer Speed Cap:</label>
+          <span id="limiter-status-label" style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-cyan); font-size: 0.85rem;">Unlimited</span>
+        </div>
+
+        <input type="range" id="limiter-slider" min="64" max="51200" step="64" value="2048" style="width: 100%; accent-color: var(--accent-cyan); cursor: pointer;">
+
+        <div class="form-row">
+          <input type="number" id="limiter-input-val" class="text-input" value="2" min="1" max="1000" style="width: 100px; font-weight: 700; font-family: var(--font-mono);">
+          <select id="limiter-unit-val" class="text-input" style="width: 100px; font-weight: 600;">
+            <option value="KB">KB/s</option>
+            <option value="MB" selected>MB/s</option>
+          </select>
+          <button type="button" class="btn-dlg btn-dlg-primary" id="btn-apply-limiter" style="white-space: nowrap; margin-left: auto;">
+            ⚡ Apply Cap
+          </button>
+        </div>
+
+        <div class="input-label" style="margin-top: 4px;">Speed Preset Shortcuts:</div>
+        <div class="preset-chips-row">
+          <button type="button" class="preset-chip" data-kb="256">256 KB/s</button>
+          <button type="button" class="preset-chip" data-kb="512">512 KB/s</button>
+          <button type="button" class="preset-chip" data-kb="1024">1 MB/s</button>
+          <button type="button" class="preset-chip active" data-kb="2048">2 MB/s</button>
+          <button type="button" class="preset-chip" data-kb="5120">5 MB/s</button>
+          <button type="button" class="preset-chip" data-kb="10240">10 MB/s</button>
+          <button type="button" class="preset-chip" data-kb="25600">25 MB/s</button>
+          <button type="button" class="preset-chip" data-kb="0">Unlimited</button>
+        </div>
       </div>
     </div>
 
-    <!-- Stats Table -->
-    <div class="stats-grid">
-      <div class="stat-row">
-        <span class="stat-label">File Size:</span>
-        <span id="dlg-size" class="stat-val">--</span>
+    <!-- TAB 3: On Completion & Script -->
+    <div class="tab-pane" id="tab-options">
+      <div class="form-group">
+        <label class="input-label" for="opt-complete-action">Action When Download Finishes:</label>
+        <select id="opt-complete-action" class="text-input" style="font-weight: 600;">
+          <option value="none" selected>Do nothing (Keep progress window open)</option>
+          <option value="closeDialog">Automatically close this progress window</option>
+          <option value="openFile">Open downloaded file immediately</option>
+          <option value="openFolder">Show downloaded file in Windows Explorer</option>
+          <option value="sleep">Put PC to Sleep / Standby</option>
+          <option value="shutdown">Shut down computer (60s timer)</option>
+        </select>
       </div>
-      <div class="stat-row">
-        <span class="stat-label">Transfer Rate:</span>
-        <span id="dlg-speed" class="stat-val rate">0.0 KB/s</span>
+
+      <div class="form-group">
+        <label class="input-label" for="opt-trigger-percent">When to Trigger Execution / Action:</label>
+        <select id="opt-trigger-percent" class="text-input" style="font-weight: 600;">
+          <option value="100" selected>At 100% (When download is fully completed)</option>
+          <option value="90">When reached 90%</option>
+          <option value="75">When reached 75%</option>
+          <option value="50">When reached 50%</option>
+          <option value="25">When reached 25%</option>
+        </select>
       </div>
-      <div class="stat-row">
-        <span class="stat-label">Downloaded:</span>
-        <span id="dlg-downloaded" class="stat-val">0 B</span>
+
+      <div class="toggle-card">
+        <div class="toggle-info">
+          <div class="toggle-title">Run Custom Post-Download Script</div>
+          <div class="toggle-desc">Execute an automated script or shell command for this file.</div>
+        </div>
+        <input type="checkbox" id="opt-enable-script" class="toggle-checkbox">
       </div>
-      <div class="stat-row">
-        <span class="stat-label">Time Left (ETA):</span>
-        <span id="dlg-eta" class="stat-val">--:--:--</span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Resume Support:</span>
-        <span id="dlg-resumable" class="stat-val resumable-yes">Yes</span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Connections:</span>
-        <span id="dlg-threads" class="stat-val">8 Segments</span>
+
+      <div id="opt-script-box" style="display: none; background: var(--bg-dlg-card); border: 1px solid var(--border-dlg); border-radius: 8px; padding: 12px; flex-direction: column; gap: 8px;">
+        <div class="form-row">
+          <div class="form-group" style="width: 140px;">
+            <label class="input-label" for="opt-script-type">Script Type:</label>
+            <select id="opt-script-type" class="text-input" style="font-weight: 600;">
+              <option value="powershell" selected>PowerShell (.ps1)</option>
+              <option value="batch">Windows Batch (.bat)</option>
+              <option value="python">Python (.py)</option>
+              <option value="node">Node.js (.js)</option>
+              <option value="custom">Custom Command</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="input-label" for="opt-script-path">Script File Path / Executable:</label>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="opt-script-path" class="text-input" placeholder="C:\path\to\script.ps1">
+              <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-browse-script" style="white-space: nowrap;">
+                Browse...
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label class="input-label" for="opt-script-args">Script Arguments Template:</label>
+            <div style="display: flex; gap: 4px;">
+              <span class="helper-chip" data-pill="%FILE%">%FILE%</span>
+              <span class="helper-chip" data-pill="%DIR%">%DIR%</span>
+              <span class="helper-chip" data-pill="%NAME%">%NAME%</span>
+              <span class="helper-chip" data-pill="%SIZE%">%SIZE%</span>
+            </div>
+          </div>
+          <input type="text" id="opt-script-args" class="text-input" value="&quot;%FILE%&quot;" style="font-family: var(--font-mono); font-size: 0.76rem;">
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- VIEW 2: Download Complete (Finish Window) -->
-  <div id="finish-view" class="dialog-content">
-    <div class="finish-icon-wrap">
-      <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-      </svg>
-    </div>
-    <h2 class="finish-title">Download Complete!</h2>
-    <div id="finish-file-name" class="finish-filename">filename.zip</div>
+    <!-- TAB 4: Archive Extraction -->
+    <div class="tab-pane" id="tab-extract">
+      <div class="toggle-card">
+        <div class="toggle-info">
+          <div class="toggle-title">Auto-Extract Archive Upon Completion</div>
+          <div class="toggle-desc">Automatically decompress 7z, RAR, ZIP, and multipart archives into folder.</div>
+        </div>
+        <input type="checkbox" id="opt-enable-extract" class="toggle-checkbox" checked>
+      </div>
 
-    <div class="finish-stats-card">
-      <div><strong>Size:</strong> <span id="finish-file-size">--</span></div>
-      <div><strong>Avg Speed:</strong> <span id="finish-avg-speed">--</span></div>
-      <div class="finish-path-row">
-        <strong>Save Path:</strong>
-        <span id="finish-save-path">C:\Users\...\Downloads</span>
+      <div class="form-group" style="background: var(--bg-dlg-card); border: 1px solid var(--border-dlg); border-radius: 8px; padding: 12px; gap: 10px;">
+        <label class="input-label" for="opt-extract-password">Archive Decryption Password (if protected):</label>
+        <div style="display: flex; gap: 6px; position: relative;">
+          <input type="password" id="opt-extract-password" class="text-input" placeholder="Enter archive password..." style="padding-right: 36px;">
+          <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-extract-toggle-pwd" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 3px 8px; font-size: 0.72rem;" title="Show/Hide Password">
+            👁️
+          </button>
+        </div>
+
+        <div class="toggle-card" style="padding: 8px 10px; background: rgba(0,0,0,0.2);">
+          <div class="toggle-info">
+            <div class="toggle-title" style="font-size: 0.75rem;">Delete Archive Files After Extraction</div>
+            <div class="toggle-desc">Saves disk space by removing the .zip / .rar container once extracted.</div>
+          </div>
+          <input type="checkbox" id="opt-delete-archive" class="toggle-checkbox">
+        </div>
+
+        <div style="font-size: 0.72rem; color: #64748b; display: flex; align-items: center; gap: 6px;">
+          <span>📂 Destination Folder:</span>
+          <span id="opt-extract-dir-label" style="color: #cbd5e1; font-family: var(--font-mono);">Same as download directory</span>
+        </div>
       </div>
     </div>
 
-    <div class="finish-actions">
-      <button id="btn-finish-open" class="btn-dlg btn-dlg-success">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
-        Open File
-      </button>
-      <button id="btn-finish-folder" class="btn-dlg btn-dlg-primary">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>
-        Open Folder
-      </button>
-      <button id="btn-finish-close" class="btn-dlg btn-dlg-secondary">
-        Close
-      </button>
-    </div>
-  </div>
+    <!-- VIEW 2: Download Complete (Finish Window View) -->
+    <div id="finish-view">
+      <div class="finish-icon-wrap">
+        <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+        </svg>
+      </div>
+      <h2 class="finish-title">Download Complete!</h2>
+      <div id="finish-file-name" class="finish-filename">filename.zip</div>
 
-  <!-- Bottom Footer Controls for Active Download View -->
-  <div id="dlg-footer-controls" class="dialog-footer">
+      <div class="finish-stats-card">
+        <div><strong>Size:</strong> <span id="finish-file-size">--</span></div>
+        <div><strong>Avg Speed:</strong> <span id="finish-avg-speed">--</span></div>
+        <div class="finish-path-row">
+          <strong>Save Path:</strong>
+          <span id="finish-save-path">C:\Users\...\Downloads</span>
+        </div>
+      </div>
+
+      <div class="finish-actions">
+        <button id="btn-finish-open" class="btn-dlg btn-dlg-success">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
+          Open File
+        </button>
+        <button id="btn-finish-folder" class="btn-dlg btn-dlg-primary">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>
+          Open Folder
+        </button>
+        <button id="btn-finish-close" class="btn-dlg btn-dlg-secondary">
+          Close
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom Footer Controls -->
+  <footer id="dlg-footer-controls" class="dialog-footer">
     <div class="footer-left">
       <button id="btn-pause-resume" class="btn-dlg btn-dlg-secondary">
         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"></path></svg>
@@ -490,10 +835,16 @@
         Cancel
       </button>
     </div>
-    <button id="btn-hide-bg" class="btn-dlg btn-dlg-secondary" title="Keep downloading in background">
-      Hide (Background)
-    </button>
-  </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <span id="save-status-msg" style="font-size: 0.72rem; color: #10b981; font-weight: 600; display: none;">Saved ✓</span>
+      <button id="btn-save-options" class="btn-dlg btn-dlg-primary" title="Apply all speed limiter and post-download options">
+        💾 Save Options
+      </button>
+      <button id="btn-hide-bg" class="btn-dlg btn-dlg-secondary" title="Keep downloading in background">
+        Hide
+      </button>
+    </div>
+  </footer>
 
   <script src="js/download-progress.js"></script>
 </body>

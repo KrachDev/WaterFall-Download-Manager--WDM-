@@ -179,10 +179,10 @@ function openProgressWindow(task) {
   }
 
   const pWin = new BrowserWindow({
-    width: 530,
-    height: 360,
-    minWidth: 500,
-    minHeight: 340,
+    width: 620,
+    height: 540,
+    minWidth: 540,
+    minHeight: 460,
     resizable: true,
     backgroundColor: '#0a0f1d',
     title: `Waterfall — ${task.name || task.filename || 'Downloading'}`,
@@ -222,6 +222,15 @@ function openProgressWindow(task) {
     }
   });
 
+  // Safety fallback: ensure window shows and delivers data even if ready-to-show is delayed
+  setTimeout(() => {
+    if (pWin && !pWin.isDestroyed() && !pWin.isVisible()) {
+      pWin.show();
+      pWin.focus();
+      deliverTask();
+    }
+  }, 600);
+
   pWin.on('closed', () => {
     progressWindows.delete(taskId);
   });
@@ -246,6 +255,31 @@ function getAppConfig() {
     }
   } catch (_) {}
   return {};
+}
+
+function updateAppConfig(patch) {
+  try {
+    const configPath = path.join(__dirname, 'config.json');
+    let cfg = {};
+    if (fs.existsSync(configPath)) {
+      cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+    const updated = { ...cfg, ...patch };
+    fs.writeFileSync(configPath, JSON.stringify(updated, null, 2), 'utf8');
+    try {
+      const req = http.request(`${APP_URL}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 600
+      }, () => {});
+      req.on('error', () => {});
+      req.write(JSON.stringify(patch));
+      req.end();
+    } catch (_) {}
+    return updated;
+  } catch (err) {
+    console.warn('[Waterfall Electron] updateAppConfig warning:', err.message);
+  }
 }
 
 global.electronBrowserSolver = async function(targetUrl) {
@@ -842,34 +876,84 @@ function createWindow() {
   }
   loadApp();
 
-  mainWindow.on('close', (e) => {
+  mainWindow.on('close', async (e) => {
     saveWindowState();
-    if (!app.isQuitting) {
-      let hasActive = false;
-      try {
-        if (downloadManager) {
-          const tasks = downloadManager.getAllTasks();
-          hasActive = tasks.some(t => t.status === 'downloading' || t.status === 'assembling');
-        }
-      } catch (err) {}
+    if (app.isQuitting) {
+      return;
+    }
 
-      // If active downloads are running and tray exists, minimize to tray
-      if (hasActive && tray) {
-        e.preventDefault();
-        mainWindow.hide();
-        try {
+    const cfg = getAppConfig();
+    const closeAction = cfg.closeAction || 'ask';
+
+    if (closeAction === 'tray') {
+      e.preventDefault();
+      mainWindow.hide();
+      return;
+    }
+
+    if (closeAction === 'exit') {
+      flushBackendSaveState();
+      app.isQuitting = true;
+      app.quit();
+      return;
+    }
+
+    // Default 'ask': Intercept close and show dialog
+    e.preventDefault();
+
+    let hasActive = false;
+    try {
+      if (downloadManager) {
+        const tasks = downloadManager.getAllTasks();
+        hasActive = tasks.some(t => t.status === 'downloading' || t.status === 'assembling');
+      }
+    } catch (_) {}
+
+    const icoPath = path.join(__dirname, 'assets', 'icon.ico');
+    const pngPath = path.join(__dirname, 'assets', 'icon.png');
+    const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
+
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: ['Tray (Minimize to Tray)', 'Full Exit (Close Waterfall)', 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      title: 'Exit Waterfall',
+      message: 'Choose how to exit Waterfall:',
+      detail: hasActive
+        ? 'Active downloads are currently running! If you choose Full Exit, downloads will stop. You can minimize to Tray to let them finish in the background.'
+        : 'Do you want to minimize Waterfall to the system tray or close it completely?',
+      checkboxLabel: 'Remember my choice',
+      checkboxChecked: false,
+      noLink: true,
+      icon: windowIcon
+    });
+
+    if (result.response === 0) {
+      // Tray
+      if (result.checkboxChecked) {
+        updateAppConfig({ closeAction: 'tray' });
+      }
+      mainWindow.hide();
+      try {
+        if (tray) {
           tray.displayBalloon({
             title: 'Waterfall Running in Background',
-            content: 'Active downloads are continuing in the background.',
+            content: 'Waterfall is minimized to the system tray. Click the tray icon to restore.',
             iconType: 'info'
           });
-        } catch (err) {}
-      } else {
-        // Otherwise quit cleanly so no orphaned background processes remain
-        flushBackendSaveState();
-        app.isQuitting = true;
-        app.quit();
+        }
+      } catch (_) {}
+    } else if (result.response === 1) {
+      // Full Exit
+      if (result.checkboxChecked) {
+        updateAppConfig({ closeAction: 'exit' });
       }
+      flushBackendSaveState();
+      app.isQuitting = true;
+      app.quit();
+    } else {
+      // Cancel: stay open, do nothing
     }
   });
 }
@@ -986,6 +1070,16 @@ ipcMain.on('close-progress-window', (event, taskId) => {
   }
 });
 
+ipcMain.handle('get-progress-data', (event, taskId) => {
+  if (downloadManager && taskId) {
+    try {
+      const t = downloadManager.getTask(taskId);
+      if (t) return t;
+    } catch (_) {}
+  }
+  return null;
+});
+
 ipcMain.on('open-external', (event, url) => {
   if (url) shell.openExternal(url);
 });
@@ -1042,6 +1136,28 @@ ipcMain.handle('select-folder', async (event, defaultPath) => {
     return null;
   } catch (err) {
     console.warn('[Waterfall Electron] select-folder dialog failed:', err.message);
+    return null;
+  }
+});
+
+ipcMain.handle('select-file', async (event, options = {}) => {
+  try {
+    const ownerWin = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    const res = await dialog.showOpenDialog(ownerWin, {
+      title: options.title || 'Select Script File',
+      defaultPath: (options.defaultPath && fs.existsSync(options.defaultPath)) ? options.defaultPath : undefined,
+      filters: options.filters || [
+        { name: 'Scripts & Executables', extensions: ['ps1', 'bat', 'cmd', 'py', 'js', 'exe', 'sh'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
+    if (!res.canceled && res.filePaths && res.filePaths.length > 0) {
+      return res.filePaths[0];
+    }
+    return null;
+  } catch (err) {
+    console.warn('[Waterfall Electron] select-file dialog failed:', err.message);
     return null;
   }
 });

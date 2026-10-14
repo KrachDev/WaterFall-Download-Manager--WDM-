@@ -127,6 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSortMenu = document.getElementById('btn-sort-menu');
   const sortDropdownMenu = document.getElementById('sort-dropdown-menu');
   const sortStatusLabel = document.getElementById('sort-status-label');
+  const btnTopbarSort = document.getElementById('btn-topbar-sort');
+  const btnTopbarSortChevron = document.getElementById('btn-topbar-sort-chevron');
+  const topbarSortMenu = document.getElementById('topbar-sort-menu');
+  const topbarSortLabel = document.getElementById('topbar-sort-label');
   const emptyFinishedHint = document.getElementById('empty-finished-hint');
   const emptyBtnShowFinished = document.getElementById('empty-btn-show-finished');
   const emptyBtnViewFinishedTab = document.getElementById('empty-btn-view-finished-tab');
@@ -291,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnAddDropdownToggle && addDownloadDropdownMenu) {
     btnAddDropdownToggle.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (typeof closeAllSortMenus === 'function') closeAllSortMenus();
       addDownloadDropdownMenu.classList.toggle('show');
     });
   }
@@ -1085,7 +1090,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSortControlsUI() {
-    if (!sortStatusLabel) return;
+    let text = '';
     if (window.appState.sortCol) {
       const colLabels = {
         name: 'Name',
@@ -1098,7 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       const colName = colLabels[window.appState.sortCol] || window.appState.sortCol;
       const arrow = window.appState.sortDir === 'asc' ? '▲' : '▼';
-      sortStatusLabel.textContent = `Sort: ${colName} ${arrow}`;
+      text = `Sort: ${colName} ${arrow}`;
     } else {
       const modeLabels = {
         'active-first': '⚡ Active First',
@@ -1113,18 +1118,24 @@ document.addEventListener('DOMContentLoaded', () => {
         'speed-desc': '🚀 Speed (Fastest)',
         'hoster-asc': '🌐 Hoster (A → Z)'
       };
-      sortStatusLabel.textContent = `Sort: ${modeLabels[window.appState.sortMode] || 'Active First'}`;
+      text = `Sort: ${modeLabels[window.appState.sortMode] || 'Active First'}`;
     }
 
-    if (sortDropdownMenu) {
-      sortDropdownMenu.querySelectorAll('.sort-option').forEach(opt => {
+    if (sortStatusLabel) sortStatusLabel.textContent = text;
+    if (topbarSortLabel) topbarSortLabel.textContent = text;
+
+    document.querySelectorAll('.sort-dropdown-menu').forEach(menu => {
+      menu.querySelectorAll('.sort-option').forEach(opt => {
+        const checkEl = opt.querySelector('.sort-check');
         if (!window.appState.sortCol && opt.dataset.sort === window.appState.sortMode) {
           opt.classList.add('selected');
+          if (checkEl) checkEl.textContent = '✓';
         } else {
           opt.classList.remove('selected');
+          if (checkEl) checkEl.textContent = '';
         }
       });
-    }
+    });
 
     // Update table header arrows
     document.querySelectorAll('.downloads-table th.sortable-th').forEach(th => {
@@ -2929,40 +2940,56 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Queue Sorting Menu Button & Options
-  if (btnSortMenu && sortDropdownMenu) {
-    btnSortMenu.addEventListener('click', (e) => {
+  // Queue Sorting Menu Buttons & Options (Supporting both Content Toolbar & Topbar)
+  function closeAllSortMenus() {
+    document.querySelectorAll('.sort-dropdown-menu').forEach(m => m.classList.remove('show'));
+    document.querySelectorAll('.sort-btn, .sort-dropdown-wrap').forEach(b => b.classList.remove('open'));
+    if (addDownloadDropdownMenu) addDownloadDropdownMenu.classList.remove('show');
+  }
+
+  function setupSortMenuTrigger(btn, menu) {
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      sortDropdownMenu.classList.toggle('show');
-      btnSortMenu.classList.toggle('open');
-    });
-
-    sortDropdownMenu.querySelectorAll('.sort-option').forEach(opt => {
-      opt.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const mode = opt.dataset.sort;
-        window.appState.sortMode = mode;
-        window.appState.sortCol = null;
-        window.appState.sortDir = null;
-        try {
-          localStorage.setItem('waterfall_sort_mode', mode);
-          localStorage.removeItem('waterfall_sort_col');
-          localStorage.removeItem('waterfall_sort_dir');
-        } catch (_) {}
-
-        sortDropdownMenu.classList.remove('show');
-        btnSortMenu.classList.remove('open');
-        updateSortControlsUI();
-        renderDownloads();
-      });
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.sort-dropdown-wrap')) {
-        sortDropdownMenu.classList.remove('show');
-        btnSortMenu.classList.remove('open');
+      const isOpen = menu.classList.contains('show');
+      closeAllSortMenus();
+      if (!isOpen) {
+        menu.classList.add('show');
+        btn.classList.add('open');
+        const wrap = btn.closest('.sort-dropdown-wrap');
+        if (wrap) wrap.classList.add('open');
       }
     });
   }
+
+  setupSortMenuTrigger(btnSortMenu, sortDropdownMenu);
+  setupSortMenuTrigger(btnTopbarSort, topbarSortMenu);
+  setupSortMenuTrigger(btnTopbarSortChevron, topbarSortMenu);
+
+  document.querySelectorAll('.sort-dropdown-menu .sort-option').forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const mode = opt.dataset.sort;
+      window.appState.sortMode = mode;
+      window.appState.sortCol = null;
+      window.appState.sortDir = null;
+      try {
+        localStorage.setItem('waterfall_sort_mode', mode);
+        localStorage.removeItem('waterfall_sort_col');
+        localStorage.removeItem('waterfall_sort_dir');
+      } catch (_) {}
+
+      closeAllSortMenus();
+      updateSortControlsUI();
+      renderDownloads();
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.sort-dropdown-wrap')) {
+      closeAllSortMenus();
+    }
+  });
 
   // Empty State Action Buttons for Hidden Finished Downloads
   if (emptyBtnShowFinished) {
@@ -4371,6 +4398,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('cfg-start-with-window')) document.getElementById('cfg-start-with-window').checked = !!cfg.startWithWindow;
     if (document.getElementById('cfg-show-download-progress')) document.getElementById('cfg-show-download-progress').checked = cfg.showDownloadProgressDialog !== false;
     if (document.getElementById('cfg-show-download-complete')) document.getElementById('cfg-show-download-complete').checked = cfg.showDownloadCompleteDialog !== false;
+    if (document.getElementById('cfg-close-action')) document.getElementById('cfg-close-action').value = cfg.closeAction || 'ask';
     if (document.getElementById('cfg-auto-download-no-confirm')) document.getElementById('cfg-auto-download-no-confirm').checked = !!cfg.autoDownloadWithoutConfirmation;
     if (document.getElementById('cfg-force-top-download')) document.getElementById('cfg-force-top-download').checked = !!cfg.forceTopOnDownload;
     if (document.getElementById('cfg-always-on-top')) document.getElementById('cfg-always-on-top').checked = !!cfg.alwaysOnTop;
@@ -4480,6 +4508,7 @@ document.addEventListener('DOMContentLoaded', () => {
       startWithWindow: Boolean(document.getElementById('cfg-start-with-window')?.checked),
       showDownloadProgressDialog: document.getElementById('cfg-show-download-progress')?.checked !== false,
       showDownloadCompleteDialog: document.getElementById('cfg-show-download-complete')?.checked !== false,
+      closeAction: document.getElementById('cfg-close-action')?.value || 'ask',
       autoDownloadWithoutConfirmation: document.getElementById('cfg-auto-download-no-confirm')?.checked || false,
       forceTopOnDownload: Boolean(document.getElementById('cfg-force-top-download')?.checked),
       alwaysOnTop: document.getElementById('cfg-always-on-top')?.checked || false,

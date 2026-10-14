@@ -9,6 +9,7 @@ const desktopApi = {
   openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
   openFolder: (filePath) => ipcRenderer.invoke('open-folder', filePath),
   selectFolder: (defaultPath) => ipcRenderer.invoke('select-folder', defaultPath),
+  selectFile: (options) => ipcRenderer.invoke('select-file', options),
   focusWindow: () => ipcRenderer.send('window-focus'),
   forceTop: (keepPinned) => ipcRenderer.send('window-force-top', keepPinned),
   setAlwaysOnTop: (flag) => ipcRenderer.send('window-set-always-on-top', flag),
@@ -23,6 +24,7 @@ const desktopApi = {
   openProgressWindow: (task) => ipcRenderer.send('open-progress-window', task),
   closeProgressWindow: (taskId) => ipcRenderer.send('close-progress-window', taskId),
   onProgressData: (cb) => { ipcRenderer.on('set-progress-data', (e, data) => cb(data)); },
+  getProgressData: (taskId) => ipcRenderer.invoke('get-progress-data', taskId),
   onProgressTick: (cb) => { ipcRenderer.on('download-progress-tick', (e, data) => cb(data)); },
   onTaskCompleted: (cb) => { ipcRenderer.on('task-completed', (e, task) => cb(task)); }
 };
