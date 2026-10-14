@@ -140,11 +140,12 @@ function probeMedia(url) {
 function isGenericTitle(str) {
   if (!str || typeof str !== 'string') return true;
   const s = str.trim().toLowerCase();
-  if (!s || s === 'media' || s === 'download' || s === 'media download' || s === 'stream' || s === 'video' || s === 'audio') return true;
+  if (!s || s === 'media' || s === 'download' || s === 'media download' || s === 'stream' || s === 'video' || s === 'audio' || s === 'untitled track' || s === 'untitled' || s === 'track') return true;
   if (/^file[_\-\d]/i.test(s)) return true;
   if (/^stream[_\-\s#\d]/i.test(s)) return true;
   if (/^videoplayback/i.test(s)) return true;
   if (/^video_\d+/i.test(s)) return true;
+  if (/^track[_\-\s#\d]/i.test(s)) return true;
   return false;
 }
 
@@ -233,7 +234,10 @@ class MediaDownloader {
     }
 
     // Output template
-    const templatePath = path.join(outputDir, `${sanitizedTitle}.%(ext)s`);
+    const escapedTemplateTitle = (sanitizedTitle === '%(title)s')
+      ? '%(title)s'
+      : sanitizedTitle.replace(/%/g, '%%');
+    const templatePath = path.join(outputDir, `${escapedTemplateTitle}.%(ext)s`);
     args.push('-o', templatePath, this.task.url);
 
     this.task.status = 'downloading';

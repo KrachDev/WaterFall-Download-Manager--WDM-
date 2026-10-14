@@ -126,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ytPlaylistCount = document.getElementById('yt-playlist-count');
   const ytPlaylistItems = document.getElementById('yt-playlist-items');
   const ytPlaylistFormatSelector = document.getElementById('yt-playlist-format-selector');
+  const ytPlaylistToggleAll = document.getElementById('yt-playlist-toggle-all');
 
   // Modals
   const modalAddUrl = document.getElementById('modal-add-url');
@@ -318,6 +319,36 @@ document.addEventListener('DOMContentLoaded', () => {
   if (addModalTabGrabber) {
     addModalTabGrabber.addEventListener('click', () => {
       if (modalAddUrl) modalAddUrl.classList.remove('open');
+      switchView('grabber');
+    });
+  }
+
+  // Empty State Quick Action Buttons
+  const emptyBtnAddUrl = document.getElementById('empty-btn-add-url');
+  const emptyBtnYt = document.getElementById('empty-btn-yt');
+  const emptyBtnGrabber = document.getElementById('empty-btn-grabber');
+
+  if (emptyBtnAddUrl) {
+    emptyBtnAddUrl.addEventListener('click', () => {
+      if (modalAddUrl) {
+        const inputUrl = document.getElementById('input-url');
+        if (inputUrl) { inputUrl.value = ''; setTimeout(() => inputUrl.focus(), 60); }
+        modalAddUrl.classList.add('open');
+      }
+    });
+  }
+
+  if (emptyBtnYt) {
+    emptyBtnYt.addEventListener('click', () => {
+      if (modalYouTubeConverter) {
+        modalYouTubeConverter.classList.add('open');
+        if (ytInputUrl) ytInputUrl.focus();
+      }
+    });
+  }
+
+  if (emptyBtnGrabber) {
+    emptyBtnGrabber.addEventListener('click', () => {
       switchView('grabber');
     });
   }
@@ -2174,7 +2205,12 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
         });
 
-        if (ytPlaylistItems) ytPlaylistItems.innerHTML = tracksHtml;
+        if (ytPlaylistItems) {
+          ytPlaylistItems.innerHTML = tracksHtml;
+          ytPlaylistItems.querySelectorAll('.yt-track-cb').forEach(cb => {
+            cb.addEventListener('change', updatePlaylistSelectedCount);
+          });
+        }
         if (ytPlaylistCard) ytPlaylistCard.style.display = 'flex';
         ytBtnDownload.textContent = `Download All Tracks (${data.totalTracks})`;
         ytBtnDownload.disabled = false;
@@ -2196,6 +2232,32 @@ document.addEventListener('DOMContentLoaded', () => {
       ytBtnInspect.disabled = false;
       ytBtnInspect.textContent = 'Inspect';
     }
+  }
+
+  function updatePlaylistSelectedCount() {
+    if (!ytPlaylistItems || !ytBtnDownload) return;
+    const all = ytPlaylistItems.querySelectorAll('.yt-track-cb');
+    const checked = ytPlaylistItems.querySelectorAll('.yt-track-cb:checked');
+    if (checked.length === all.length) {
+      ytBtnDownload.textContent = `Download All Tracks (${all.length})`;
+    } else {
+      ytBtnDownload.textContent = `Download Selected Tracks (${checked.length})`;
+    }
+    ytBtnDownload.disabled = (checked.length === 0);
+    if (ytPlaylistCount) {
+      ytPlaylistCount.textContent = `${checked.length} of ${all.length} Selected`;
+    }
+  }
+
+  if (ytPlaylistToggleAll) {
+    ytPlaylistToggleAll.addEventListener('click', () => {
+      if (!ytPlaylistItems) return;
+      const all = ytPlaylistItems.querySelectorAll('.yt-track-cb');
+      const checked = ytPlaylistItems.querySelectorAll('.yt-track-cb:checked');
+      const shouldCheck = (checked.length < all.length);
+      all.forEach(cb => cb.checked = shouldCheck);
+      updatePlaylistSelectedCount();
+    });
   }
 
   ytBtnInspect.addEventListener('click', inspectYouTubeUrl);
@@ -2232,7 +2294,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const url = ytInputUrl.value.trim();
     if (!url || !currentYtMeta) return;
 
-    const autoStart = ytCheckAutoStart.checked;
+    const autoStart = ytCheckAutoStart ? ytCheckAutoStart.checked : true;
 
     if (currentYtMeta.isPlaylist) {
       // Gather checked tracks from playlist
@@ -2251,18 +2313,44 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       ytBtnDownload.disabled = true;
-      ytBtnDownload.textContent = 'Adding Playlist...';
+      ytBtnDownload.textContent = `Adding ${selectedEntries.length} Tracks...`;
 
-      await fetch('/api/media/batch-add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entries: selectedEntries,
-          format: selectedPlaylistFormat,
-          packageName: currentYtMeta.title || 'YouTube Playlist',
-          autoStart
-        })
-      });
+      try {
+        const res = await fetch('/api/media/batch-add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entries: selectedEntries,
+            format: selectedPlaylistFormat,
+            packageName: currentYtMeta.title || 'YouTube Playlist',
+            autoStart
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        const batchResult = await res.json();
+
+        // Refresh downloads immediately
+        try {
+          const r = await fetch('/api/downloads');
+          if (r.ok) {
+            window.appState.tasks = await r.json();
+            renderDownloads();
+          }
+        } catch (_) {}
+
+        if (batchResult.count === 0 && batchResult.duplicates > 0) {
+          alert(`Selected tracks are already completed or queued in your downloads.`);
+        }
+      } catch (err) {
+        alert('Could not add YouTube playlist: ' + err.message);
+        ytBtnDownload.disabled = false;
+        updatePlaylistSelectedCount();
+        return;
+      }
     } else {
       // Single track download
       const mediaOptions = {
@@ -2275,18 +2363,33 @@ document.addEventListener('DOMContentLoaded', () => {
       const ext = (selectedYtFormat.type === 'audio') ? selectedYtFormat.format : 'mp4';
       const filename = `${currentYtMeta.title}.${ext}`;
 
-      await fetch('/api/downloads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          filename,
-          isMedia: true,
-          mediaOptions,
-          autoStart,
-          packageName: ''
-        })
-      });
+      try {
+        const res = await fetch('/api/downloads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            filename,
+            isMedia: true,
+            mediaOptions,
+            autoStart,
+            packageName: ''
+          })
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+
+        try {
+          const r = await fetch('/api/downloads');
+          if (r.ok) {
+            window.appState.tasks = await r.json();
+            renderDownloads();
+          }
+        } catch (_) {}
+      } catch (err) {
+        alert('Could not add YouTube download: ' + err.message);
+        return;
+      }
     }
 
     modalYouTubeConverter.classList.remove('open');

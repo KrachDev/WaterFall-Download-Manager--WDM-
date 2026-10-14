@@ -81,12 +81,13 @@ async function runTests() {
     
     // Save metadata
     downloader.saveMetaFile();
-    console.log('Saved state metadata. Checking file exists:', fs.existsSync(metaFile));
-    if (!fs.existsSync(metaFile)) {
-      throw new Error('.part.meta.json file was not created');
+    const actualMetaFile = downloader.metaFilePath;
+    console.log('Saved state metadata. Checking file exists at', actualMetaFile, ':', fs.existsSync(actualMetaFile));
+    if (!fs.existsSync(actualMetaFile)) {
+      throw new Error('.meta.json file was not created');
     }
 
-    const savedMeta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+    const savedMeta = JSON.parse(fs.readFileSync(actualMetaFile, 'utf8'));
     console.log('Meta contents verified:', {
       id: savedMeta.id,
       totalBytes: savedMeta.totalBytes,

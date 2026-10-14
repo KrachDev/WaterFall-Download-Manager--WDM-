@@ -52,9 +52,23 @@ function getUrlResourceKey(rawUrl) {
     const gdriveMatch = u.pathname.match(/\/d\/([^\/]+)/) || (u.search || '').match(/id=([^&]+)/);
     if (u.hostname.includes('drive.google.com') && gdriveMatch) return `gdrive:${gdriveMatch[1]}`;
 
+    // YouTube / YouTube Music
+    if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
+      const vid = u.searchParams.get('v')
+        || (u.hostname.includes('youtu.be') ? u.pathname.replace(/^\/+/, '').split('/')[0].split('?')[0] : null)
+        || (u.pathname.match(/\/(?:shorts|embed|v)\/([a-zA-Z0-9_-]+)/) || [])[1];
+      if (vid) return `youtube:${vid}`;
+      const listId = u.searchParams.get('list');
+      if (listId) return `youtube:playlist:${listId}`;
+    }
+
     // Generic clean resource path
     const cleanPath = path.basename(u.pathname).toLowerCase();
-    if (cleanPath && cleanPath !== 'download' && cleanPath !== 'download.php' && cleanPath.length > 3) {
+    const genericPaths = new Set([
+      'download', 'download.php', 'watch', 'view', 'video', 'play',
+      'stream', 'media', 'index', 'index.php', 'get', 'file', 'content', 'load', 'blob'
+    ]);
+    if (cleanPath && !genericPaths.has(cleanPath) && cleanPath.length > 3) {
       return `${u.hostname}:${cleanPath}`;
     }
   } catch (_) {}
@@ -99,7 +113,7 @@ function findExistingMatchingTask(tasks, options = {}, filename = '', savePath =
       const isPathMatch = Boolean(
         savePath && t.savePath && path.resolve(savePath).toLowerCase() === path.resolve(t.savePath).toLowerCase()
       );
-      const isNameMatch = Boolean(normName && tNorm && normName === tNorm);
+      const isNameMatch = Boolean(normName && tNorm && normName === tNorm && !isGenericTitle(normName));
 
       if (isUrlMatch || isKeyMatch || isPathMatch || isNameMatch) {
         return { targetTask: t, isCompletedOnDisk: true };
@@ -652,14 +666,55 @@ class DownloadManager extends EventEmitter {
 
     this.tasks.set(id, task);
     this.queueOrder.push(id);
-    this.saveState();
-    this.emit('taskCreated', task);
+    if (!options.skipSaveState) {
+      this.saveState();
+    }
+    if (!options.skipEmitCreated) {
+      this.emit('taskCreated', task);
+    }
 
-    if (options.autoStart) {
+    if (options.autoStart && !options.skipProcessQueue) {
       this.processQueue();
     }
 
     return task;
+  }
+
+  createBatchTasks(taskList = [], globalOptions = {}) {
+    const createdTasks = [];
+    let duplicateCount = 0;
+
+    for (const itemOptions of taskList) {
+      const mergedOptions = { ...globalOptions, ...itemOptions };
+      const task = this.createTask({
+        ...mergedOptions,
+        skipSaveState: true,
+        skipProcessQueue: true,
+        skipEmitCreated: true
+      });
+
+      if (task) {
+        if (task.isDuplicate) {
+          duplicateCount++;
+        } else {
+          createdTasks.push(task);
+          this.emit('taskCreated', task);
+        }
+      }
+    }
+
+    if (createdTasks.length > 0) {
+      this.saveState(true);
+      if (globalOptions.autoStart !== false) {
+        this.processQueue();
+      }
+    }
+
+    return {
+      created: createdTasks,
+      duplicateCount,
+      count: createdTasks.length
+    };
   }
 
   startDownload(id) {

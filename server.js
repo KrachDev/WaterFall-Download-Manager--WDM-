@@ -461,45 +461,49 @@ app.post('/api/power/cancel', (req, res) => {
 
 // Batch add YouTube Playlist / Album entries
 app.post('/api/media/batch-add', (req, res) => {
-  const { entries, format, packageName, autoStart = true } = req.body;
+  const { entries, format, packageName, autoStart = true, allowDuplicate = false } = req.body;
   if (!Array.isArray(entries) || entries.length === 0) {
     return res.status(400).json({ error: 'entries array required' });
   }
 
-  const isAudio = !format.startsWith('mp4');
+  const selectedFormat = (format && typeof format === 'string') ? format : 'mp3-320';
+  const isAudio = !selectedFormat.startsWith('mp4');
   let mediaType = isAudio ? 'audio' : 'video';
   let audioFormat = 'mp3';
   let audioQuality = '0';
   let videoQuality = '1080';
 
-  if (format === 'mp3-320') { audioFormat = 'mp3'; audioQuality = '0'; }
-  else if (format === 'mp3-192') { audioFormat = 'mp3'; audioQuality = '192k'; }
-  else if (format === 'm4a-best') { audioFormat = 'm4a'; audioQuality = 'best'; }
-  else if (format === 'flac-lossless') { audioFormat = 'flac'; audioQuality = '0'; }
-  else if (format === 'wav-lossless') { audioFormat = 'wav'; audioQuality = '0'; }
-  else if (format === 'mp4-1080') { videoQuality = '1080'; }
-  else if (format === 'mp4-720') { videoQuality = '720'; }
+  if (selectedFormat === 'mp3-320') { audioFormat = 'mp3'; audioQuality = '0'; }
+  else if (selectedFormat === 'mp3-192') { audioFormat = 'mp3'; audioQuality = '192k'; }
+  else if (selectedFormat === 'm4a-best') { audioFormat = 'm4a'; audioQuality = 'best'; }
+  else if (selectedFormat === 'flac-lossless') { audioFormat = 'flac'; audioQuality = '0'; }
+  else if (selectedFormat === 'wav-lossless') { audioFormat = 'wav'; audioQuality = '0'; }
+  else if (selectedFormat === 'mp4-1080') { videoQuality = '1080'; }
+  else if (selectedFormat === 'mp4-720') { videoQuality = '720'; }
 
-  const createdTasks = [];
-  for (const entry of entries) {
-    const task = downloadManager.createTask({
-      url: entry.url,
-      filename: `${entry.title}.${isAudio ? audioFormat : 'mp4'}`,
-      isMedia: true,
-      packageName: packageName || 'YouTube Playlist',
-      mediaOptions: {
-        mediaType,
-        audioFormat,
-        audioQuality,
-        videoQuality
-      },
-      autoStart
-    });
-    createdTasks.push(task);
-  }
+  const taskList = entries.map(entry => ({
+    url: entry.url,
+    filename: `${entry.title || 'Untitled Track'}.${isAudio ? audioFormat : 'mp4'}`,
+    isMedia: true,
+    packageName: packageName || 'YouTube Playlist',
+    mediaOptions: {
+      mediaType,
+      audioFormat,
+      audioQuality,
+      videoQuality
+    },
+    autoStart,
+    allowDuplicate
+  }));
+
+  const result = downloadManager.createBatchTasks(taskList, { autoStart });
 
   broadcast({ type: 'batchUpdated' });
-  res.json({ count: createdTasks.length, tasks: createdTasks });
+  res.json({
+    count: result.count,
+    tasks: result.created,
+    duplicates: result.duplicateCount
+  });
 });
 
 app.post('/api/downloads/pause-all', (req, res) => {

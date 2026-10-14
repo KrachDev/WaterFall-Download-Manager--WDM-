@@ -16,12 +16,15 @@
   <!-- Top IDM Tactile Command Toolbar -->
   <header class="app-header">
     <div class="brand-wrapper">
-      <div class="brand-icon">
-        <img src="assets/logo.png" alt="Waterfall Logo" style="width: 26px; height: 26px; object-fit: contain; border-radius: var(--radius-xs);">
+      <div class="brand-icon" title="Waterfall High-Speed Download Accelerator">
+        <img src="assets/logo.png" alt="Waterfall Logo" class="brand-logo-img">
       </div>
-      <div>
-        <div class="brand-title">WATERFALL</div>
-        <div class="brand-sub">IDM & JDOWNLOADER SUITE</div>
+      <div class="brand-text-block">
+        <div class="brand-title-row">
+          <span class="brand-title">WATERFALL</span>
+          <span class="brand-tag">PRO</span>
+        </div>
+        <div class="brand-sub">HIGH-SPEED DOWNLOAD ACCELERATOR</div>
       </div>
     </div>    <!-- Quick Action Command Buttons -->
     <div class="idm-toolbar">
@@ -396,9 +399,25 @@
 
         <!-- Empty View -->
         <div class="empty-view" id="empty-downloads-state" style="display: none;">
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          <div style="font-weight: 600; font-size: 0.9rem;">Queue is Empty</div>
-          <div style="font-size: 0.78rem; color: var(--text-muted); max-width: 300px;">Click "+ Add URL", "YouTube / MP3", or switch to LinkGrabber to crawl links.</div>
+          <div class="empty-logo-glow">
+            <img src="assets/logo.png" alt="Waterfall Logo" class="empty-logo-img">
+          </div>
+          <div class="empty-title">Queue is Ready for Downloads</div>
+          <div class="empty-desc">Add direct URLs, download YouTube playlists and audio streams, or crawl links with multi-socket acceleration.</div>
+          <div class="empty-quick-actions">
+            <button class="tool-btn primary" id="empty-btn-add-url">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>Add Download URL</span>
+            </button>
+            <button class="tool-btn" id="empty-btn-yt">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color: #ef4444;"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+              <span>YouTube Converter</span>
+            </button>
+            <button class="tool-btn" id="empty-btn-grabber">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+              <span>Batch LinkGrabber</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -834,7 +853,10 @@
         <div id="yt-playlist-card" style="display: none; flex-direction: column; gap: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 0.85rem; font-weight: 700; color: #fff;" id="yt-playlist-title">Playlist Title</div>
-            <div style="font-size: 0.75rem; color: var(--accent-amber);" id="yt-playlist-count">0 Tracks</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" class="tool-btn" id="yt-playlist-toggle-all" style="padding: 2px 8px; font-size: 0.72rem;">Toggle All</button>
+              <div style="font-size: 0.75rem; color: var(--accent-amber);" id="yt-playlist-count">0 Tracks</div>
+            </div>
           </div>
           <div class="yt-playlist-container" id="yt-playlist-items">
             <!-- Dynamically populated track list -->
