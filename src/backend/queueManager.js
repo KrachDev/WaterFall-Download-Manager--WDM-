@@ -64,7 +64,7 @@ class QueueManager extends EventEmitter {
     if (this.isPaused) return [];
 
     const config = getConfig();
-    const maxActive = Math.max(1, config.maxConcurrentDownloads || 3);
+    const maxActive = Math.max(3, config.maxConcurrentDownloads || 4);
     const maxPerHost = Math.max(1, config.maxConcurrentPerHost || 2);
 
     let currentActive = 0;
@@ -93,8 +93,12 @@ class QueueManager extends EventEmitter {
       const host = this.getHostKey(task.directUrl || task.url);
       const hostCurrent = activeHostsCount.get(host) || 0;
 
+      // Allow higher concurrency for media / YouTube streams (up to 4) to speed up playlist downloads
+      const isMedia = task.isMedia || /youtube|googlevideo/i.test(host);
+      const effectiveMaxHost = isMedia ? Math.max(maxPerHost, 4) : maxPerHost;
+
       // Skip if this host already reached its limit (allows other hosts in queue to download!)
-      if (hostCurrent >= maxPerHost) {
+      if (hostCurrent >= effectiveMaxHost) {
         continue;
       }
 
@@ -117,6 +121,18 @@ class QueueManager extends EventEmitter {
 
     // Clear any existing retry timer for this task
     this.clearRetryTimer(task.id);
+
+    // Detect permanent non-retryable errors (e.g. video unavailable/removed or age restriction)
+    const isPermanent = /video unavailable|this video is not available|private video|confirm your age|inappropriate for some users|account has been terminated/i.test(errorMsg);
+    if (isPermanent) {
+      task.status = 'error';
+      task.error = /confirm your age|inappropriate for some users/i.test(errorMsg)
+        ? 'Sign in required on YouTube (Age-restricted video)'
+        : (errorMsg.includes('unavailable') ? 'Video unavailable on YouTube' : errorMsg);
+      task.retrying = false;
+      task.retryInSec = 0;
+      return false;
+    }
 
     if (currentRetries >= maxRetries) {
       task.status = 'error';

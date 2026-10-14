@@ -481,11 +481,22 @@ app.post('/api/media/batch-add', (req, res) => {
   else if (selectedFormat === 'mp4-1080') { videoQuality = '1080'; }
   else if (selectedFormat === 'mp4-720') { videoQuality = '720'; }
 
-  const taskList = entries.map(entry => ({
+  const playlistTitle = (packageName && packageName.trim()) || 'YouTube Playlist';
+  const playlistId = 'pl_' + playlistTitle.replace(/[^\w]/g, '_') + '_' + Date.now();
+
+  const taskList = entries.map((entry, idx) => ({
     url: entry.url,
     filename: `${entry.title || 'Untitled Track'}.${isAudio ? audioFormat : 'mp4'}`,
     isMedia: true,
-    packageName: packageName || 'YouTube Playlist',
+    isPlaylist: true,
+    packageName: playlistTitle,
+    playlistId,
+    playlistGroup: {
+      id: playlistId,
+      name: playlistTitle,
+      totalTracks: entries.length,
+      index: idx + 1
+    },
     mediaOptions: {
       mediaType,
       audioFormat,
@@ -496,13 +507,19 @@ app.post('/api/media/batch-add', (req, res) => {
     allowDuplicate
   }));
 
-  const result = downloadManager.createBatchTasks(taskList, { autoStart });
+  const result = downloadManager.createBatchTasks(taskList, {
+    autoStart,
+    packageName: playlistTitle,
+    isPlaylist: true,
+    playlistId
+  });
 
   broadcast({ type: 'batchUpdated' });
   res.json({
     count: result.count,
     tasks: result.created,
-    duplicates: result.duplicateCount
+    duplicates: result.duplicateCount,
+    playlistId
   });
 });
 

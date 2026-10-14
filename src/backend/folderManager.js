@@ -101,10 +101,11 @@ function resolveDestinationPath(filename, options = {}) {
   const baseLibraryFolder = osFolders[fileType.library] || osFolders.downloads;
   let targetFolder = path.join(baseLibraryFolder, fileType.subfolderName);
 
-  // If a package name is supplied (e.g. from JDownloader LinkGrabber), nest inside the package
-  // Media downloads (YouTube / video streams) save directly to library folder like IDM
-  if (options.packageName && options.packageName.trim().length > 0 && !options.isMedia) {
-    const safePackage = options.packageName.trim().replace(/[<>:"/\\|?*]/g, '_');
+  // If a package name or playlist name is supplied, nest inside the playlist folder
+  const pkg = options.packageName ? options.packageName.trim() : '';
+  const isGenericPkg = !pkg || pkg.toLowerCase() === 'youtube downloads' || pkg.toLowerCase() === 'media downloads' || pkg.toLowerCase() === 'download';
+  if (pkg && (!isGenericPkg || options.isPlaylist)) {
+    const safePackage = pkg.replace(/[<>:"/\\|?*]/g, '_');
     targetFolder = path.join(targetFolder, safePackage);
   }
 

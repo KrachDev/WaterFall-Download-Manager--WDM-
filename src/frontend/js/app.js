@@ -464,12 +464,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getGroupedDownloads(tasks) {
-    const groups = new Map();
+    const multipartGroups = new Map();
+    const playlistGroups = new Map();
+
     for (const t of tasks) {
       if (t.multipart && t.multipart.groupKey && !isTaskVideo(t)) {
         const gk = t.multipart.groupKey;
-        if (!groups.has(gk)) groups.set(gk, []);
-        groups.get(gk).push(t);
+        if (!multipartGroups.has(gk)) multipartGroups.set(gk, []);
+        multipartGroups.get(gk).push(t);
+      } else if (t.playlistId || t.playlistGroup?.id || (t.isMedia && t.packageName && t.packageName !== 'YouTube Downloads' && t.packageName.trim().length > 0)) {
+        const pk = t.playlistId || t.playlistGroup?.id || ('pl_' + t.packageName.trim().toLowerCase());
+        if (!playlistGroups.has(pk)) playlistGroups.set(pk, []);
+        playlistGroups.get(pk).push(t);
       }
     }
 
@@ -477,9 +483,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const handledGroups = new Set();
 
     for (const t of tasks) {
+      // 1. Multipart archive groups
       if (t.multipart && t.multipart.groupKey && !isTaskVideo(t)) {
         const gk = t.multipart.groupKey;
-        const gTasks = groups.get(gk);
+        const gTasks = multipartGroups.get(gk);
         if (gTasks && (gTasks.length > 1 || (t.multipart.totalParts && t.multipart.totalParts > 1))) {
           if (!handledGroups.has(gk)) {
             handledGroups.add(gk);
@@ -487,18 +494,41 @@ document.addEventListener('DOMContentLoaded', () => {
             const maxAddedAt = Math.max(...gTasks.map(gt => gt.addedAt || gt.createdAt || 0));
             items.push({
               type: 'group',
+              isPlaylist: false,
               groupKey: gk,
               groupName: t.multipart.groupName || gk,
               tasks: gTasks,
               addedAt: maxAddedAt
             });
           }
-        } else {
-          items.push({ type: 'single', task: t, addedAt: t.addedAt || t.createdAt || 0 });
+          continue;
         }
-      } else {
-        items.push({ type: 'single', task: t, addedAt: t.addedAt || t.createdAt || 0 });
       }
+
+      // 2. YouTube / Media Playlist groups
+      const pk = t.playlistId || t.playlistGroup?.id || (t.isMedia && t.packageName && t.packageName !== 'YouTube Downloads' && t.packageName.trim().length > 0 ? ('pl_' + t.packageName.trim().toLowerCase()) : null);
+      if (pk) {
+        const pTasks = playlistGroups.get(pk);
+        if (pTasks && pTasks.length > 1) {
+          if (!handledGroups.has(pk)) {
+            handledGroups.add(pk);
+            pTasks.sort((a, b) => (a.playlistGroup?.index || 0) - (b.playlistGroup?.index || 0));
+            const maxAddedAt = Math.max(...pTasks.map(pt => pt.addedAt || pt.createdAt || 0));
+            const playlistTitle = t.playlistGroup?.name || t.packageName || 'YouTube Playlist';
+            items.push({
+              type: 'group',
+              isPlaylist: true,
+              groupKey: pk,
+              groupName: playlistTitle,
+              tasks: pTasks,
+              addedAt: maxAddedAt
+            });
+          }
+          continue;
+        }
+      }
+
+      items.push({ type: 'single', task: t, addedAt: t.addedAt || t.createdAt || 0 });
     }
 
     // Always sort newest first (most recent timestamp at the top)
@@ -563,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
       : (t.priority === 'low' ? `<span class="priority-tag priority-low" title="Low Queue Priority">Low</span>` : '');
 
     const childBranchPrefix = isChild
-      ? `<span class="child-indent-branch">↳</span><span class="group-parts-badge" style="margin-right: 4px;">Part ${t.multipart?.partNumber || '?'}</span>`
+      ? `<span class="child-indent-branch">↳</span><span class="group-parts-badge" style="margin-right: 4px;">${t.playlistGroup?.index ? `Track ${t.playlistGroup.index}` : (t.multipart?.partNumber ? `Part ${t.multipart.partNumber}` : 'Item')}</span>`
       : '';
 
     let progressCellHtml = '';
@@ -596,7 +626,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="meter-track">
           <div class="meter-fill paused" style="width: ${percent}%;"></div>
         </div>
-        <div class="meter-stat">${percent}% • Paused (${formatBytes(t.downloadedBytes)})</div>
+        <div class="meter-stat">${percent}% • ${t.status === 'queued' ? (t.streamPreResolved ? '⚡ Stream Ready (Queued)' : 'Queued') : 'Paused'} (${formatBytes(t.downloadedBytes)})</div>
       `;
     } else {
       progressCellHtml = `
@@ -619,6 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="file-title" style="flex: 1; min-width: 0;" title="${t.name}" onclick="window.segmentVisualizer.open('${t.id}')">${t.name}</span>
                 ${priorityTag}
                 ${extractionBadge}
+                ${t.streamPreResolved && t.status === 'queued' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Media stream URL pre-fetched in background. Starts instantly!">⚡ Pre-cached</span>' : ''}
                 ${t.singleStream ? '<span class="badge-single-stream" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Whole File Mode (Single Stream - 1 Socket, No Chunks)">📦 Whole File</span>' : (t.downloadEngineMode === 'inPlace' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="In-Place Direct Writing (Zero Lag, Instant Completion)">⚡ Direct</span>' : '')}
                 <span class="row-app-handler-label" id="row-app-label-${t.id}" style="${cachedAppInfo && cachedAppInfo.appName ? 'display:inline-block;' : 'display:none;'}" title="Default Handler">
                   ${cachedAppInfo && cachedAppInfo.appName ? `Opens with ${cachedAppInfo.appName}` : ''}
@@ -631,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td><span style="font-family: var(--font-mono); font-weight: 600;">${formatBytes(t.totalBytes)}</span></td>
         <td>
           <span class="state-tag ${t.status}">
-            ${t.status}
+            ${t.streamPreResolved && t.status === 'queued' ? '⚡ ready' : t.status}
           </span>
         </td>
         <td class="progress-col">
@@ -735,7 +766,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let groupExtractBadge = '';
     const rootTask = item.tasks.find(t => t.multipart?.partNumber === 1) || item.tasks[0];
-    if (allExtracted) {
+    const preResolvedCount = item.tasks.filter(t => t.streamPreResolved || t.status === 'completed').length;
+
+    if (item.isPlaylist) {
+      if (allDone) {
+        groupExtractBadge = `<span class="badge-extracted" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.35);">✔ All Tracks Downloaded</span>`;
+      } else if (anyDl) {
+        groupExtractBadge = `<span class="badge-waiting-parts" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.35);">⚡ Downloading (${completedCount}/${item.tasks.length})</span>`;
+      } else if (preResolvedCount > 0) {
+        groupExtractBadge = `<span class="badge-waiting-parts" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.35);">⚡ ${preResolvedCount}/${item.tasks.length} Stream Ready</span>`;
+      }
+    } else if (allExtracted) {
       groupExtractBadge = `<span class="badge-extracted" data-path="${(rootTask.extractedPath || '').replace(/"/g, '&quot;')}" title="Extracted to folder (Click to open)">📦 Extracted</span>`;
     } else if (anyExtracting) {
       groupExtractBadge = `<span class="badge-extracting" title="Extracting package in background...">📦 Extracting...</span>`;
@@ -749,26 +790,37 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    const groupIconHtml = item.isPlaylist
+      ? `<div class="file-app-icon-wrap" style="width: 32px; height: 32px; background: rgba(239, 68, 68, 0.15); color: #ef4444; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 700; font-size: 0.72rem; border: 1px solid rgba(239, 68, 68, 0.35);">
+           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+         </div>`
+      : `<div class="file-app-icon-wrap" style="width: 32px; height: 32px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 700; font-size: 0.72rem;">PKG</div>`;
+
+    const groupTitlePrefix = item.isPlaylist ? '🎵' : '📦';
+    const groupBadgeText = item.isPlaylist ? `${completedCount}/${item.tasks.length} tracks` : `${completedCount}/${item.tasks.length} parts`;
+    const playlistFolder = rootTask.savePath ? rootTask.savePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/') : '';
+    const groupSubtext = item.isPlaylist
+      ? `YouTube Playlist • ${item.tasks.length} tracks • Folder: ${playlistFolder}`
+      : `Multipart Package • ${item.tasks.length} files • ${playlistFolder}`;
+
     const parentRowHtml = `
-      <tr data-group-key="${item.groupKey}" class="group-parent-row ${isAllSelected ? 'row-selected' : ''}">
+      <tr data-group-key="${item.groupKey}" class="group-parent-row ${item.isPlaylist ? 'playlist-group-row' : ''} ${isAllSelected ? 'row-selected' : ''}">
         <td><input type="checkbox" class="group-checkbox" data-group="${item.groupKey}" ${isAllSelected ? 'checked' : ''}></td>
         <td>
           <div class="file-block">
-            <div class="file-app-icon-wrap" style="width: 32px; height: 32px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 700; font-size: 0.72rem;">
-              PKG
-            </div>
+            ${groupIconHtml}
             <div class="file-details">
               <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                <button type="button" class="group-expand-toggle ${isExpanded ? 'expanded' : ''}" data-group="${item.groupKey}" title="${isExpanded ? 'Collapse Parts' : 'Expand Parts'}">
+                <button type="button" class="group-expand-toggle ${isExpanded ? 'expanded' : ''}" data-group="${item.groupKey}" title="${isExpanded ? 'Collapse' : 'Expand'}">
                   ▶
                 </button>
-                <span class="file-title" style="flex: 1; min-width: 0; font-weight: 700; color: #e6edf3;" title="Inspect package micro-manager" onclick="window.segmentVisualizer && window.segmentVisualizer.openGroup ? window.segmentVisualizer.openGroup('${item.groupKey}') : null">
-                  📦 ${item.groupName}
+                <span class="file-title" style="flex: 1; min-width: 0; font-weight: 700; color: #e6edf3;" title="${item.groupName}">
+                  ${groupTitlePrefix} ${item.groupName}
                 </span>
-                <span class="group-parts-badge">${completedCount}/${item.tasks.length} parts</span>
+                <span class="group-parts-badge">${groupBadgeText}</span>
                 ${groupExtractBadge}
               </div>
-              <div class="file-subtext">Multipart Package • ${item.tasks.length} files • ${rootTask.savePath ? rootTask.savePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/') : ''}</div>
+              <div class="file-subtext">${groupSubtext}</div>
             </div>
           </div>
         </td>
@@ -811,29 +863,31 @@ document.addEventListener('DOMContentLoaded', () => {
             ${anyDl ? formatETA(maxEta) : (allDone ? 'Completed' : '--')}
           </span>
         </td>
-        <td><span class="hoster-chip">${rootTask.hoster || 'Package'}</span></td>
+        <td><span class="hoster-chip">${item.isPlaylist ? 'YouTube Playlist' : (rootTask.hoster || 'Package')}</span></td>
         <td style="text-align: right;">
           <div class="row-actions">
             ${anyDl
-              ? `<button class="icon-btn btn-group-pause" data-group="${item.groupKey}" title="Pause all parts in package">
+              ? `<button class="icon-btn btn-group-pause" data-group="${item.groupKey}" title="Pause all downloads in ${item.isPlaylist ? 'playlist' : 'package'}">
                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
                  </button>`
               : (!allDone
-                ? `<button class="icon-btn btn-group-resume" data-group="${item.groupKey}" title="Resume all parts in package">
+                ? `<button class="icon-btn btn-group-resume" data-group="${item.groupKey}" title="Resume all downloads in ${item.isPlaylist ? 'playlist' : 'package'}">
                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                    </button>`
                 : '')
             }
-            <button class="icon-btn btn-group-force" data-group="${item.groupKey}" style="color: #e3b341;" title="⚡ Force Download & Extract Now (Bypasses missing parts or forces immediate extraction)">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-            </button>
-            <button class="icon-btn btn-group-inspect" data-group="${item.groupKey}" title="Open Multipart Micro-Manager Inspector">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-            </button>
-            <button class="icon-btn btn-group-folder" data-path="${(rootTask.savePath || '').replace(/"/g, '&quot;')}" title="Open Containing Folder">
+            ${item.isPlaylist ? '' : `
+              <button class="icon-btn btn-group-force" data-group="${item.groupKey}" style="color: #e3b341;" title="⚡ Force Download & Extract Now">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              </button>
+              <button class="icon-btn btn-group-inspect" data-group="${item.groupKey}" title="Open Multipart Micro-Manager Inspector">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              </button>
+            `}
+            <button class="icon-btn btn-group-folder" data-path="${(rootTask.savePath || '').replace(/"/g, '&quot;')}" title="Open Playlist Folder">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
             </button>
-            <button class="icon-btn btn-group-del" data-group="${item.groupKey}" title="Delete All Parts in Package">
+            <button class="icon-btn btn-group-del" data-group="${item.groupKey}" title="Delete All in ${item.isPlaylist ? 'Playlist' : 'Package'}">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
             </button>
           </div>
@@ -1003,11 +1057,21 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     });
 
-    // Multipart group parent checkbox (selects all tasks in group)
+    function getGroupSiblings(gk) {
+      if (!gk) return [];
+      return window.appState.tasks.filter(t => 
+        (t.multipart && t.multipart.groupKey === gk) ||
+        (t.playlistId === gk) ||
+        (t.playlistGroup && t.playlistGroup.id === gk) ||
+        ('pl_' + (t.packageName || '').trim().toLowerCase() === gk)
+      );
+    }
+
+    // Multipart & Playlist group parent checkbox (selects all tasks in group)
     tableBody.querySelectorAll('.group-checkbox').forEach(cb => {
       cb.onchange = (e) => {
         const gk = cb.dataset.group;
-        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        const siblings = getGroupSiblings(gk);
         for (const s of siblings) {
           if (cb.checked) {
             selectedTaskIds.add(s.id);
@@ -1058,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.onclick = (e) => {
         e.stopPropagation();
         const gk = btn.dataset.group;
-        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        const siblings = getGroupSiblings(gk);
         fetch('/api/downloads/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1071,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.onclick = (e) => {
         e.stopPropagation();
         const gk = btn.dataset.group;
-        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        const siblings = getGroupSiblings(gk);
         fetch('/api/downloads/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1116,7 +1180,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.onclick = (e) => {
         e.stopPropagation();
         const gk = btn.dataset.group;
-        const siblings = window.appState.tasks.filter(t => t.multipart && t.multipart.groupKey === gk);
+        const siblings = getGroupSiblings(gk);
         if (siblings.length > 0) openDeleteConfirmModal(siblings);
       };
     });

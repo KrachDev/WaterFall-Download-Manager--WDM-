@@ -38,6 +38,20 @@ function getFfmpegLocation() {
   return null;
 }
 
+function getNodeJsPath() {
+  const candidates = [
+    'C:\\Program Files\\nodejs\\node.exe',
+    'C:\\Program Files (x86)\\nodejs\\node.exe',
+    process.env.APPDATA ? path.join(process.env.APPDATA, 'npm', 'node.exe') : null,
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Programs', 'nodejs', 'node.exe') : null
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
 function isMediaUrl(url) {
   if (!url) return false;
   return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|soundcloud\.com|vimeo\.com|tiktok\.com|twitch\.tv|twitter\.com|x\.com)\/.+/i.test(url);
@@ -50,9 +64,18 @@ function probeMedia(url) {
       ? ['--dump-single-json', '--flat-playlist', '--no-warnings', url]
       : ['--dump-json', '--no-playlist', '--no-warnings', url];
 
+    if (/youtu\.?be/i.test(url)) {
+      args.unshift('--extractor-args', 'youtube:player_client=android,web');
+    }
+
     const ffmpegLoc = getFfmpegLocation();
     if (ffmpegLoc) {
       args.unshift('--ffmpeg-location', ffmpegLoc);
+    }
+
+    const nodePath = getNodeJsPath();
+    if (nodePath) {
+      args.unshift('--js-runtimes', `node:${nodePath}`);
     }
 
     const ytDlpExe = getYtDlpPath();
@@ -233,6 +256,20 @@ class MediaDownloader {
       args.push('--merge-output-format', 'mp4');
     }
 
+    // Parallel download acceleration & socket buffer optimization
+    args.push('--concurrent-fragments', '4', '--buffer-size', '1024K', '--http-chunk-size', '10M');
+
+    // Check if background prefetcher already resolved and cached the stream info
+    const cacheFile = path.join(os.tmpdir(), 'Waterfall', 'media_cache', `${this.task.id}.info.json`);
+    let hasPreResolvedCache = false;
+    try {
+      hasPreResolvedCache = fs.existsSync(cacheFile) && fs.statSync(cacheFile).size > 100;
+    } catch (_) {}
+
+    if (hasPreResolvedCache) {
+      args.push('--load-info-json', cacheFile);
+    }
+
     // Output template
     const escapedTemplateTitle = (sanitizedTitle === '%(title)s')
       ? '%(title)s'
@@ -249,9 +286,13 @@ class MediaDownloader {
       args.unshift('--ffmpeg-location', ffmpegLoc);
     }
 
-    const nodePath = 'C:\\Program Files\\nodejs\\node.exe';
-    if (fs.existsSync(nodePath)) {
+    const nodePath = getNodeJsPath();
+    if (nodePath) {
       args.unshift('--js-runtimes', `node:${nodePath}`);
+    }
+
+    if (/youtu\.?be/i.test(this.task.url)) {
+      args.unshift('--extractor-args', 'youtube:player_client=android,web');
     }
 
     const existingFiles = new Set(fs.existsSync(outputDir) ? fs.readdirSync(outputDir) : []);
@@ -324,8 +365,21 @@ class MediaDownloader {
         this.task.eta = 0;
         onComplete(this.task);
       } else {
+        if (hasPreResolvedCache) {
+          try { if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile); } catch (_) {}
+        }
+
+        let formattedError = lastErrorMsg || `yt-dlp exited with error code ${code}`;
+        if (/confirm your age|inappropriate for some users/i.test(formattedError)) {
+          formattedError = 'Sign in required on YouTube (Age-restricted video)';
+        } else if (/video unavailable|this video is not available/i.test(formattedError)) {
+          formattedError = 'Video unavailable on YouTube';
+        } else if (/private video/i.test(formattedError)) {
+          formattedError = 'Video is private on YouTube';
+        }
+
         this.task.status = 'error';
-        this.task.error = lastErrorMsg || `yt-dlp exited with error code ${code}`;
+        this.task.error = formattedError;
 
         // Clean up empty directory if nothing was downloaded into it
         try {
@@ -414,5 +468,8 @@ module.exports = {
   isMediaUrl,
   probeMedia,
   MediaDownloader,
-  isGenericTitle
+  isGenericTitle,
+  getYtDlpPath,
+  getFfmpegLocation,
+  getNodeJsPath
 };

@@ -2722,6 +2722,15 @@ body,
   background: rgba(56, 189, 248, 0.06);
 }
 
+.group-parent-row.playlist-group-row {
+  border-left: 3px solid #ff4d66;
+  background: rgba(255, 0, 51, 0.04);
+}
+
+.group-parent-row.playlist-group-row:hover {
+  background: rgba(255, 0, 51, 0.08);
+}
+
 .group-expand-toggle {
   background: transparent;
   border: none;

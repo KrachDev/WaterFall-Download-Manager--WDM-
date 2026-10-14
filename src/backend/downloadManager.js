@@ -15,6 +15,7 @@ const { resolveBestFilename, sanitizeFilename } = require('./namingEngine');
 const extractionQueue = require('./extractionQueue');
 const queueManager = require('./queueManager');
 const { parseMultipartInfo, findRootArchivePart, isVideoFilename } = require('./multipartMatcher');
+const mediaPrefetcher = require('./mediaPrefetcher');
 
 const STATE_FILE = path.join(__dirname, '..', '..', 'downloads.json');
 
@@ -285,6 +286,14 @@ class DownloadManager extends EventEmitter {
     this.setupExtractionListener();
     this.powerActionOnComplete = 'none';
 
+    // Hook media prefetcher to advance queue when prefetch finishes
+    mediaPrefetcher.onCheckMore = () => {
+      mediaPrefetcher.checkQueue(this.tasks, (t) => {
+        this.saveState();
+        this.emit('taskUpdated', t);
+      });
+    };
+
     // Synchronously flush state on process termination
     process.on('exit', () => this.saveState(true));
     process.on('SIGINT', () => { this.saveState(true); process.exit(0); });
@@ -335,8 +344,10 @@ class DownloadManager extends EventEmitter {
         if (Array.isArray(list)) {
           for (let i = 0; i < list.length; i++) {
             const t = list[i];
-            if (t.status === 'downloading' || t.status === 'assembling') {
+            if (t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying') {
               t.status = 'paused';
+              t.retrying = false;
+              t.retryInSec = 0;
               t.speed = 0;
               t.eta = 0;
             }
@@ -361,6 +372,12 @@ class DownloadManager extends EventEmitter {
                 } else if (t.status === 'completed' && t.totalBytes === 0 && sz > 0) {
                   t.totalBytes = sz;
                   t.downloadedBytes = sz;
+                } else if (t.isMedia && sz > 1024) {
+                  t.status = 'completed';
+                  t.totalBytes = sz;
+                  t.downloadedBytes = sz;
+                  t.speed = 0;
+                  t.eta = 0;
                 }
               } catch (_) {}
             }
@@ -478,6 +495,11 @@ class DownloadManager extends EventEmitter {
     for (const task of toStart) {
       this.startDownload(task.id);
     }
+    // Pre-resolve stream URLs in background for queued tracks
+    mediaPrefetcher.checkQueue(this.tasks, (updatedTask) => {
+      this.saveState();
+      this.emit('taskUpdated', updatedTask);
+    });
     this.checkQueueFinished();
   }
 
@@ -643,6 +665,10 @@ class DownloadManager extends EventEmitter {
       downloadHeaders: options.downloadHeaders || null,
       isMedia,
       mediaOptions,
+      isPlaylist: Boolean(options.isPlaylist),
+      playlistId: options.playlistId || null,
+      playlistGroup: options.playlistGroup || null,
+      streamPreResolved: Boolean(options.streamPreResolved),
       addedAt: Date.now(),
       startedAt: null,
       completedAt: null,
@@ -666,15 +692,22 @@ class DownloadManager extends EventEmitter {
 
     this.tasks.set(id, task);
     this.queueOrder.push(id);
+
     if (!options.skipSaveState) {
       this.saveState();
     }
+
     if (!options.skipEmitCreated) {
       this.emit('taskCreated', task);
     }
 
     if (options.autoStart && !options.skipProcessQueue) {
       this.processQueue();
+    } else {
+      mediaPrefetcher.checkQueue(this.tasks, (t) => {
+        this.saveState();
+        this.emit('taskUpdated', t);
+      });
     }
 
     return task;
@@ -683,9 +716,27 @@ class DownloadManager extends EventEmitter {
   createBatchTasks(taskList = [], globalOptions = {}) {
     const createdTasks = [];
     let duplicateCount = 0;
+    const pkgName = globalOptions.packageName || (taskList[0] && taskList[0].packageName) || 'YouTube Playlist';
+    const isPlaylist = Boolean(globalOptions.isPlaylist || (taskList.length > 1 && taskList.some(t => t.isMedia)));
+    const playlistId = globalOptions.playlistId || ('pl_' + pkgName.replace(/[^\w]/g, '_') + '_' + Date.now());
 
+    let index = 0;
     for (const itemOptions of taskList) {
-      const mergedOptions = { ...globalOptions, ...itemOptions };
+      index++;
+      const mergedOptions = {
+        ...globalOptions,
+        ...itemOptions,
+        packageName: itemOptions.packageName || pkgName,
+        isPlaylist,
+        playlistId,
+        playlistGroup: isPlaylist ? {
+          id: playlistId,
+          name: pkgName,
+          totalTracks: taskList.length,
+          index
+        } : null
+      };
+
       const task = this.createTask({
         ...mergedOptions,
         skipSaveState: true,
@@ -707,13 +758,19 @@ class DownloadManager extends EventEmitter {
       this.saveState(true);
       if (globalOptions.autoStart !== false) {
         this.processQueue();
+      } else {
+        mediaPrefetcher.checkQueue(this.tasks, (t) => {
+          this.saveState();
+          this.emit('taskUpdated', t);
+        });
       }
     }
 
     return {
       created: createdTasks,
       duplicateCount,
-      count: createdTasks.length
+      count: createdTasks.length,
+      playlistId
     };
   }
 
