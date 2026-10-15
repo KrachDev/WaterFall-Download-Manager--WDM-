@@ -5,8 +5,8 @@
   "createPackageSubfolders": true,
   "duplicateAction": "rename",
   "preserveMetadata": true,
-  "maxConcurrentDownloads": 4,
-  "maxConcurrentPerHost": 3,
+  "maxConcurrentDownloads": 1,
+  "maxConcurrentPerHost": 1,
   "segmentsPerFile": 8,
   "downloadEngineMode": "inPlace",
   "bufferSizeBytes": 1048576,
@@ -53,5 +53,6 @@
   "startWithWindow": false,
   "showDownloadProgressDialog": true,
   "showDownloadCompleteDialog": true,
+  "closeAction": "ask",
   "themeAccent": "cyan"
 }

@@ -51,28 +51,59 @@ class FuckingFastResolver {
         timeout: 6000
       });
 
-      if (res && res.status === 200) {
-        const html = res.text();
-        if (!html.includes('Just a moment') && !html.includes('challenges.cloudflare.com')) {
-          // Check for direct download link or scripts
-          const dlMatch = html.match(/<a\s+[^>]*href=["'](https?:\/\/[^"']*fuckingfast\.co\/dl\/[^"']+)["']/i) ||
-                          html.match(/window\.open\(\s*["'](https?:\/\/[^"']*fuckingfast\.co\/dl\/[^"']+)["']/i) ||
-                          html.match(/(?:window\.)?location(?:\.href)?\s*=\s*["'](https?:\/\/[^"']*fuckingfast\.co\/dl\/[^"']+)["']/i);
+      if (res) {
+        if (res.status === 404 || res.status === 410) {
+          return {
+            directUrl: url,
+            filename: `fuckingfast_${fileId}`,
+            size: 0,
+            hoster: 'FuckingFast',
+            status: 'offline'
+          };
+        }
 
-          const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-          let filename = `fuckingfast_${fileId}`;
-          if (titleMatch && titleMatch[1] && !titleMatch[1].toLowerCase().includes('fuckingfast')) {
-            filename = titleMatch[1].trim();
-          }
-
-          if (dlMatch && dlMatch[1]) {
+        if (res.status === 200) {
+          const html = res.text();
+          if (html.includes('File Not Found') || html.includes('File has been deleted') || html.includes('File does not exist')) {
             return {
-              directUrl: dlMatch[1],
-              filename,
+              directUrl: url,
+              filename: `fuckingfast_${fileId}`,
               size: 0,
               hoster: 'FuckingFast',
-              status: 'online'
+              status: 'offline'
             };
+          }
+
+          if (!html.includes('Just a moment') && !html.includes('challenges.cloudflare.com')) {
+            // Check for direct download link or scripts
+            const dlMatch = html.match(/<a\s+[^>]*href=["'](https?:\/\/[^"']*fuckingfast\.co\/dl\/[^"']+)["']/i) ||
+                            html.match(/window\.open\(\s*["'](https?:\/\/[^"']*fuckingfast\.co\/dl\/[^"']+)["']/i) ||
+                            html.match(/(?:window\.)?location(?:\.href)?\s*=\s*["'](https?:\/\/[^"']*fuckingfast\.co\/dl\/[^"']+)["']/i);
+
+            const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+            let filename = `fuckingfast_${fileId}`;
+            if (titleMatch && titleMatch[1] && !titleMatch[1].toLowerCase().includes('fuckingfast')) {
+              filename = titleMatch[1].trim();
+            }
+
+            if (dlMatch && dlMatch[1]) {
+              let size = 0;
+              try {
+                const probeRes = await safeProbe(dlMatch[1], { timeout: 3500 });
+                if (probeRes && probeRes.headers) {
+                  const cl = probeRes.headers.get('content-length');
+                  if (cl) size = parseInt(cl, 10);
+                }
+              } catch (_) {}
+
+              return {
+                directUrl: dlMatch[1],
+                filename,
+                size,
+                hoster: 'FuckingFast',
+                status: 'online'
+              };
+            }
           }
         }
       }
@@ -82,10 +113,21 @@ class FuckingFastResolver {
     try {
       const solved = await cfBrowserSolver.solve(url);
       if (solved && solved.directUrl) {
+        let size = solved.size || 0;
+        if (!size) {
+          try {
+            const probeRes = await safeProbe(solved.directUrl, { timeout: 3500 });
+            if (probeRes && probeRes.headers) {
+              const cl = probeRes.headers.get('content-length');
+              if (cl) size = parseInt(cl, 10);
+            }
+          } catch (_) {}
+        }
+
         return {
           directUrl: solved.directUrl,
           filename: solved.filename || `fuckingfast_${fileId}`,
-          size: solved.size || 0,
+          size,
           hoster: 'FuckingFast',
           status: 'online'
         };

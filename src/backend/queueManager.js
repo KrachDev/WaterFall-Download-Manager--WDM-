@@ -64,8 +64,8 @@ class QueueManager extends EventEmitter {
     if (this.isPaused) return [];
 
     const config = getConfig();
-    const maxActive = Math.max(3, config.maxConcurrentDownloads || 4);
-    const maxPerHost = Math.max(1, config.maxConcurrentPerHost || 2);
+    const maxActive = Math.max(1, parseInt(config.maxConcurrentDownloads, 10) || 4);
+    const maxPerHost = Math.max(1, parseInt(config.maxConcurrentPerHost, 10) || 2);
 
     let currentActive = 0;
     const activeHostsCount = new Map();

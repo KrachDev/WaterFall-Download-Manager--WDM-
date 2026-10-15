@@ -30,8 +30,36 @@ app.use((err, req, res, next) => {
   }
   next(err);
 });
+
+function isLocalRequest(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true; // Direct non-browser request (Electron, desktop app, curl)
+  try {
+    const u = new URL(origin);
+    const host = u.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+    if (u.protocol === 'chrome-extension:' || u.protocol === 'moz-extension:') return true;
+  } catch (_) {}
+  return false;
+}
+
+function requireLocalOrigin(req, res, next) {
+  if (!isLocalRequest(req)) {
+    return res.status(403).json({ error: 'Access denied: local origin required' });
+  }
+  next();
+}
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin && isLocalRequest(req)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (req.path === '/flashgot' || req.path === '/flash/add' || req.path === '/jdcheck.js' || req.path === '/crossdomain.xml') {
+    // FlashGot / Click'n'Load compatibility allows cross-origin link addition from web download pages
+    res.header('Access-Control-Allow-Origin', '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
@@ -210,10 +238,20 @@ app.get('/api/downloads/avg-speed', (req, res) => {
 });
 
 // Native folder browse fallback (for Web UI)
-app.post('/api/browse-folder', (req, res) => {
-  const defaultPath = (req.body && req.body.defaultPath) ? req.body.defaultPath.replace(/\\/g, '\\\\') : '';
-  const psCmd = `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Download Location'; if ('${defaultPath}' -and (Test-Path '${defaultPath}')) { $f.SelectedPath = '${defaultPath}' }; if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.SelectedPath }`;
-  exec(`powershell.exe -NoProfile -Command "${psCmd}"`, { windowsHide: true }, (err, stdout) => {
+app.post('/api/browse-folder', requireLocalOrigin, (req, res) => {
+  const cleanDefault = (req.body && typeof req.body.defaultPath === 'string') ? req.body.defaultPath : '';
+  const psScript = `
+    Add-Type -AssemblyName System.Windows.Forms;
+    $f = New-Object System.Windows.Forms.FolderBrowserDialog;
+    $f.Description = 'Select Download Location';
+    $p = $env:WATERFALL_BROWSE_INIT;
+    if ($p -and (Test-Path -LiteralPath $p)) { $f.SelectedPath = $p };
+    if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.SelectedPath }
+  `;
+  execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], {
+    windowsHide: true,
+    env: { ...process.env, WATERFALL_BROWSE_INIT: cleanDefault }
+  }, (err, stdout) => {
     const folder = (stdout || '').trim();
     if (folder && fs.existsSync(folder)) {
       res.json({ success: true, folder });
@@ -472,7 +510,7 @@ app.get('/api/power', (req, res) => {
   res.json({ action: downloadManager.getPowerAction() });
 });
 
-app.post('/api/power', (req, res) => {
+app.post('/api/power', requireLocalOrigin, (req, res) => {
   const { action } = req.body;
   const ok = downloadManager.setPowerAction(action);
   if (!ok) return res.status(400).json({ error: 'Action must be none, sleep, or shutdown' });
@@ -480,7 +518,7 @@ app.post('/api/power', (req, res) => {
   res.json({ ok: true, action: downloadManager.getPowerAction() });
 });
 
-app.post('/api/power/cancel', (req, res) => {
+app.post('/api/power/cancel', requireLocalOrigin, (req, res) => {
   downloadManager.cancelPowerAction();
   downloadManager.setPowerAction('none');
   broadcast({ type: 'powerUpdated', action: 'none' });
@@ -702,7 +740,7 @@ app.post('/api/settings/reset', (req, res) => {
 });
 
 // Test Run Post-Download Script with simulated context
-app.post('/api/settings/test-script', async (req, res) => {
+app.post('/api/settings/test-script', requireLocalOrigin, async (req, res) => {
   try {
     const result = await testRunScript(req.body);
     res.json(result);
@@ -723,7 +761,7 @@ app.get('/api/crawler/info', async (req, res) => {
   }
 });
 
-app.post('/api/crawler/update', async (req, res) => {
+app.post('/api/crawler/update', requireLocalOrigin, async (req, res) => {
   try {
     const result = await updateCrawlerEngine();
     res.json(result);
@@ -733,21 +771,24 @@ app.post('/api/crawler/update', async (req, res) => {
 });
 
 // Open File with default system application
-app.post('/api/open-file', (req, res) => {
+app.post('/api/open-file', requireLocalOrigin, (req, res) => {
   const { filePath } = req.body;
   if (!filePath) return res.status(400).json({ error: 'filePath is required' });
 
   const resolved = path.resolve(filePath);
   if (fs.existsSync(resolved)) {
-    exec(`start "" "${resolved}"`, { shell: 'cmd.exe' });
-    return res.json({ ok: true });
+    execFile('cmd.exe', ['/c', 'start', '', resolved], { windowsHide: true }, (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ ok: true });
+    });
+    return;
   }
 
   res.status(404).json({ error: 'File not found' });
 });
 
 // Open File / Folder in Windows Explorer
-app.post('/api/open-folder', (req, res) => {
+app.post('/api/open-folder', requireLocalOrigin, (req, res) => {
   const { filePath } = req.body;
   if (!filePath) return res.status(400).json({ error: 'filePath is required' });
 
@@ -772,52 +813,78 @@ app.post('/api/open-folder', (req, res) => {
   res.status(404).json({ error: 'Path not found' });
 });
 
-// Default Application Icon & Metadata Provider
+// Default Application Icon & Metadata Provider (with In-Flight Promise Coalescing)
 const appIconCache = new Map();
-app.get('/api/app-icon', (req, res) => {
+const appIconInFlight = new Map();
+
+function fetchIconData(filePath, ext, cacheKey) {
+  if (cacheKey && appIconCache.has(cacheKey)) {
+    return Promise.resolve(appIconCache.get(cacheKey));
+  }
+  if (cacheKey && appIconInFlight.has(cacheKey)) {
+    return appIconInFlight.get(cacheKey);
+  }
+
+  const promise = new Promise((resolve) => {
+    const psScript = path.join(__dirname, 'src', 'backend', 'get_app_icon.ps1');
+    const args = ['-ExecutionPolicy', 'Bypass', '-File', psScript];
+    if (filePath && fs.existsSync(filePath)) {
+      args.push('-filePath', filePath);
+    }
+    if (ext) {
+      args.push('-extension', ext);
+    }
+
+    execFile('powershell', args, { timeout: 4000 }, (error, stdout) => {
+      if (error || !stdout || !stdout.trim()) {
+        const fallback = {
+          extension: ext,
+          appName: 'Default Application',
+          appExe: null,
+          icon: null
+        };
+        return resolve(fallback);
+      }
+
+      try {
+        const data = JSON.parse(stdout.trim());
+        if (cacheKey && data && data.icon) {
+          appIconCache.set(cacheKey, data);
+        }
+        resolve(data);
+      } catch (e) {
+        resolve({
+          extension: ext,
+          appName: 'Default Application',
+          appExe: null,
+          icon: null
+        });
+      }
+    });
+  }).finally(() => {
+    if (cacheKey) appIconInFlight.delete(cacheKey);
+  });
+
+  if (cacheKey) appIconInFlight.set(cacheKey, promise);
+  return promise;
+}
+
+app.get('/api/app-icon', async (req, res) => {
   const filePath = req.query.path || '';
   const ext = req.query.ext || (filePath ? path.extname(filePath) : '');
   const cacheKey = (ext ? ext.toLowerCase() : filePath.toLowerCase()).trim();
 
-  if (cacheKey && appIconCache.has(cacheKey)) {
-    return res.json(appIconCache.get(cacheKey));
+  try {
+    const data = await fetchIconData(filePath, ext, cacheKey);
+    res.json(data);
+  } catch (_) {
+    res.json({
+      extension: ext,
+      appName: 'Default Application',
+      appExe: null,
+      icon: null
+    });
   }
-
-  const psScript = path.join(__dirname, 'src', 'backend', 'get_app_icon.ps1');
-  const args = ['-ExecutionPolicy', 'Bypass', '-File', psScript];
-  if (filePath && fs.existsSync(filePath)) {
-    args.push('-filePath', filePath);
-  }
-  if (ext) {
-    args.push('-extension', ext);
-  }
-
-  execFile('powershell', args, { timeout: 4000 }, (error, stdout) => {
-    if (error || !stdout || !stdout.trim()) {
-      const fallback = {
-        extension: ext,
-        appName: 'Default Application',
-        appExe: null,
-        icon: null
-      };
-      return res.json(fallback);
-    }
-
-    try {
-      const data = JSON.parse(stdout.trim());
-      if (cacheKey && data.icon) {
-        appIconCache.set(cacheKey, data);
-      }
-      res.json(data);
-    } catch (e) {
-      res.json({
-        extension: ext,
-        appName: 'Default Application',
-        appExe: null,
-        icon: null
-      });
-    }
-  });
 });
 
 const config = getConfig();

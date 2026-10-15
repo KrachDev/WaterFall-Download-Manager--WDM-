@@ -89,6 +89,23 @@ async function runTests() {
   assert.strictEqual(isNormalEncrypted, false, 'Non-password errors should not be flagged as password required');
   console.log('✓ Archive password error detection verified!');
 
+  // ------------------------------------------------------------------------
+  // 5. Strict User Concurrency Limiter (e.g. maxConcurrentDownloads = 1)
+  // ------------------------------------------------------------------------
+  console.log('\n--- 5. Testing Strict Single-Task Concurrency (maxConcurrentDownloads = 1) ---');
+  saveConfig({ maxConcurrentDownloads: 1, maxConcurrentPerHost: 1 });
+  const multiHostTasks = new Map([
+    ['task-h1', { id: 'task-h1', url: 'https://host1.com/a', priority: 'normal', status: 'queued', queueOrder: 0 }],
+    ['task-h2', { id: 'task-h2', url: 'https://host2.com/b', priority: 'normal', status: 'queued', queueOrder: 1 }],
+    ['task-h3', { id: 'task-h3', url: 'https://host3.com/c', priority: 'normal', status: 'queued', queueOrder: 2 }]
+  ]);
+  const scheduledSingle = queueManager.scheduleNext(multiHostTasks, new Map(), ['task-h1', 'task-h2', 'task-h3']);
+  assert.strictEqual(scheduledSingle.length, 1, 'Should schedule exactly 1 task when user sets maxConcurrentDownloads = 1');
+  assert.strictEqual(scheduledSingle[0].id, 'task-h1');
+  console.log('✓ Strict single-task concurrency correctly enforced!');
+
+  saveConfig(origConfig); // Restore original config
+
   console.log('\n============================================================');
   console.log('       ALL 1.0 INTEGRATION TESTS PASSED CLEANLY!            ');
   console.log('============================================================');

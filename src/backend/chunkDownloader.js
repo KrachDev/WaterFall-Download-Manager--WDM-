@@ -431,14 +431,40 @@ class ChunkDownloader extends EventEmitter {
         if (res.status === 200) {
           if (segment.id > 0) {
             this.task.acceptRanges = false;
-            segment.status = 'completed';
+            segment.status = 'cancelled';
             segment.totalBytes = 0;
             segment.downloadedBytes = 0;
             return;
-          } else if (segment.id === 0 && segment.downloadedBytes > 0) {
-            console.log(`[Waterfall] Server sent 200 OK without Range support. Restarting segment 0 from byte 0.`);
-            segment.downloadedBytes = 0;
+          } else if (segment.id === 0) {
+            this.task.acceptRanges = false;
+            this.singleStream = true;
+            segment.startByte = 0;
             segmentWriteCursor = 0;
+            segment.downloadedBytes = 0;
+
+            if (res.headers.has('content-length')) {
+              const cl = parseInt(res.headers.get('content-length'), 10);
+              if (cl > 0) {
+                this.task.totalBytes = cl;
+                segment.totalBytes = cl;
+                segment.endByte = cl - 1;
+              }
+            } else if (this.task.totalBytes > 0) {
+              segment.totalBytes = this.task.totalBytes;
+              segment.endByte = this.task.totalBytes - 1;
+            } else {
+              segment.totalBytes = 0;
+              segment.endByte = 0;
+            }
+
+            console.log(`[Waterfall] Server returned HTTP 200 OK without Range support. Converted segment 0 to complete file stream (totalBytes: ${segment.totalBytes}).`);
+
+            // Abort any peer segments to prevent duplicate downloads
+            for (const ctrl of this.controllers) {
+              if (ctrl !== controller) {
+                try { ctrl.abort(); } catch (_) {}
+              }
+            }
           }
         }
 
@@ -495,8 +521,8 @@ class ChunkDownloader extends EventEmitter {
               segment.downloadedBytes += chunkBuf.length;
             }
 
-            // Sync overall downloaded bytes accurately
-            this.task.downloadedBytes = this.task.segments.reduce((acc, s) => acc + (s.downloadedBytes || 0), 0);
+            // Increment overall downloaded bytes efficiently
+            this.task.downloadedBytes = (this.task.downloadedBytes || 0) + chunkBuf.length;
 
             // Bandwidth / Speed Limiter Throttling (dynamic real-time check)
             const activeLimit = (this.task && this.task.speedLimitEnabled && this.task.speedLimitBytesPerSec > 0)
@@ -590,12 +616,33 @@ class ChunkDownloader extends EventEmitter {
       this.fd = null;
     }
 
-    // Atomic instant rename - zero disk copy!
+    // Atomic instant rename with retry loop for Windows file locks & fallback
     if (fs.existsSync(this.partFilePath)) {
-      if (fs.existsSync(this.targetPath)) {
-        try { fs.unlinkSync(this.targetPath); } catch (_) {}
+      let renamed = false;
+      let lastErr = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        try {
+          if (fs.existsSync(this.targetPath)) {
+            try { fs.unlinkSync(this.targetPath); } catch (_) {}
+          }
+          fs.renameSync(this.partFilePath, this.targetPath);
+          renamed = true;
+          break;
+        } catch (err) {
+          lastErr = err;
+          await new Promise(r => setTimeout(r, 100 * Math.pow(1.4, attempt)));
+        }
       }
-      fs.renameSync(this.partFilePath, this.targetPath);
+
+      if (!renamed && lastErr) {
+        try {
+          fs.copyFileSync(this.partFilePath, this.targetPath);
+          try { fs.unlinkSync(this.partFilePath); } catch (_) {}
+          renamed = true;
+        } catch (copyErr) {
+          throw new Error(`Failed to finalize file on disk: ${lastErr.message || copyErr.message}`);
+        }
+      }
     }
 
     // Clean up sidecar meta file

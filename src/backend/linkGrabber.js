@@ -77,6 +77,24 @@ class LinkGrabber {
       let isOnline = (resolved && resolved.status === 'online');
       let acceptRanges = false;
 
+      // If hoster explicitly determined the file is offline or deleted, return immediately
+      if (resolved && resolved.status === 'offline') {
+        return {
+          originalUrl: url,
+          directUrl: targetUrl,
+          filename: filename || extractFilenameFromHeadersOrUrl(targetUrl, null),
+          size: 0,
+          hoster,
+          isOnline: 'offline',
+          statusCode: 404,
+          acceptRanges: false,
+          downloadHeaders,
+          isMedia: false,
+          mediaOptions: null,
+          category: getCategoryFromFilename(filename || '')
+        };
+      }
+
       // 2. Perform safe probe with insecureHTTPParser (never crashes on bare LF)
       const res = await safeProbe(targetUrl, {
         headers: downloadHeaders || {}

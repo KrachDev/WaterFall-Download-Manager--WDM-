@@ -237,14 +237,24 @@ class HosterManager {
       }
     }
 
-    // Try Universal Extractor Bridge (yt-dlp 1,800+ websites)
-    try {
-      const { probeWithYtDlp } = require('../crawlerEngine');
-      const universalRes = await probeWithYtDlp(url);
-      if (universalRes && universalRes.directUrl) {
-        return universalRes;
+    // Fast-path: If the URL ends with a known binary download extension, skip heavy yt-dlp spawn entirely
+    const isDirectBinary = /\.(zip|rar|7z|tar|gz|bz2|xz|iso|pkg|bin|exe|msi|dmg|apk|deb|rpm|pdf|docx?|xlsx?|epub|cbz|cbr)(\?.*)?$/i.test(url);
+    if (!isDirectBinary) {
+      // Check if URL is recognized media host or extensionless HTML endpoint
+      const { isMediaUrl } = require('../mediaDownloader');
+      const shouldProbeYtDlp = isMediaUrl(url) || !/\.[a-zA-Z0-9]{2,5}(\?.*)?$/i.test(url);
+
+      if (shouldProbeYtDlp) {
+        // Try Universal Extractor Bridge (yt-dlp 1,800+ websites)
+        try {
+          const { probeWithYtDlp } = require('../crawlerEngine');
+          const universalRes = await probeWithYtDlp(url);
+          if (universalRes && universalRes.directUrl) {
+            return universalRes;
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
+    }
 
     const directHoster = this.hosters.find(h => h.id === 'direct');
     if (directHoster) {

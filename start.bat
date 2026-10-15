@@ -10,12 +10,22 @@ echo   WATERFALL - IDM + JDownloader Modern Hybrid Engine
 echo ========================================================
 echo Launching Native Desktop App (Electron Engine)...
 
-:: Gracefully request active Waterfall instance to synchronously flush download history to disk
-curl -s -m 1 -X POST http://localhost:4567/api/save >nul 2>nul
+:: Check if Waterfall instance is already alive and running
+curl -s -m 1 http://localhost:4567/api/settings >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    echo Existing Waterfall instance detected. Focusing window...
+    if exist "%~dp0node_modules\electron\dist\electron.exe" (
+        start "" "%~dp0node_modules\electron\dist\electron.exe" .
+        exit /b
+    )
+)
 
-:: Clear any stale/hung electron processes and port 4567 processes from previous runs
-taskkill /F /IM electron.exe >nul 2>nul
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr :4567 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>nul
+:: If a stale process is lingering on port 4567, request save and terminate ONLY that specific PID
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :4567 ^| findstr LISTENING') do (
+    curl -s -m 1 -X POST http://localhost:4567/api/save >nul 2>nul
+    timeout /t 1 /nobreak >nul 2>nul
+    taskkill /F /PID %%a >nul 2>nul
+)
 
 :: Ensure Electron binary has Waterfall icon stamped
 if not exist "%~dp0.icon_stamped" (

@@ -237,6 +237,17 @@ namespace Hydra
                 trayIcon.Dispose();
             }
 
+            // Gracefully instruct Waterfall daemon to flush downloads.json state to disk before exiting
+            try
+            {
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(appUrl + "/api/save");
+                req.Method = "POST";
+                req.ContentLength = 0;
+                req.Timeout = 1500;
+                using (req.GetResponse()) { }
+            }
+            catch { }
+
             try
             {
                 if (serverProcess != null && !serverProcess.HasExited)

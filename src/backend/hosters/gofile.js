@@ -27,10 +27,18 @@ class GofileResolver {
       if (!wtRes.ok) throw new Error(`Failed to load wt.obf.js: ${wtRes.status}`);
       const wtCode = await wtRes.text();
 
+      const safeConsole = Object.freeze({
+        log: () => {},
+        warn: () => {},
+        error: () => {},
+        info: () => {},
+        debug: () => {}
+      });
+
       const sandbox = {
-        console,
-        navigator: { userAgent: this.USER_AGENT, language: this.LANG },
-        location: { hostname: 'gofile.io', protocol: 'https:' },
+        console: safeConsole,
+        navigator: Object.freeze({ userAgent: this.USER_AGENT, language: this.LANG }),
+        location: Object.freeze({ hostname: 'gofile.io', protocol: 'https:' }),
         window: {},
         globalThis: {}
       };
@@ -39,7 +47,7 @@ class GofileResolver {
       sandbox.self = sandbox;
 
       vm.createContext(sandbox);
-      vm.runInContext(wtCode, sandbox);
+      vm.runInContext(wtCode, sandbox, { timeout: 3000 });
 
       this.sessionCache.wtCode = wtCode;
       this.sessionCache.sandbox = sandbox;

@@ -42,7 +42,8 @@ class CfBrowserSolver {
           webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            sandbox: true
+            sandbox: true,
+            partition: 'cf-solver-partition'
           }
         });
 

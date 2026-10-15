@@ -37,6 +37,16 @@ function playCompletionChime() {
   } catch (_) {}
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const desktop = window.waterfallDesktop || window.hydraDesktop;
 
@@ -103,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const checkSelectAllDownloads = document.getElementById('check-select-all-downloads');
   const selectedTaskIds = new Set();
   const appIconClientCache = new Map();
+  const appIconInFlightPromises = new Map();
   const filterTabsBar = document.getElementById('filter-tabs-bar');
 
   // O(1) DOM Caches & Multipart Grouping State for High-Performance Ticks
@@ -518,19 +529,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // Extraction badge helper
   function renderExtractionBadge(t) {
     if (t.extractStatus === 'extracted') {
-      return `<span class="badge-extracted" data-path="${(t.extractedPath || '').replace(/"/g, '&quot;')}" title="Extracted to folder (Click to open)">📦 Extracted</span>`;
+      return `<span class="badge-extracted" data-path="${escapeHtml(t.extractedPath || '')}" title="Extracted to folder (Click to open)">📦 Extracted</span>`;
     }
     if (t.extractStatus === 'extracting') {
-      return `<span class="badge-extracting" title="Unpacking archive in background...">📦 Extracting (${t.extractProgress || 0}%)...</span>`;
+      return `<span class="badge-extracting" title="Unpacking archive in background...">📦 Extracting (${escapeHtml(t.extractProgress || 0)}%)...</span>`;
     }
     if (t.extractStatus === 'waiting_parts') {
       return `<span class="badge-waiting-parts" title="Waiting for all parts of package to finish before extracting">⏳ Waiting for Parts</span>`;
     }
     if (t.extractStatus === 'password_required') {
-      return `<span class="badge-password-req" data-id="${t.id}" title="Archive is password protected! Click to enter password">🔑 Password Required</span>`;
+      return `<span class="badge-password-req" data-id="${encodeURIComponent(t.id)}" title="Archive is password protected! Click to enter password">🔑 Password Required</span>`;
     }
     if (t.extractStatus === 'error') {
-      return `<span class="state-tag error" style="font-size: 0.65rem; padding: 1px 5px;" title="${t.extractError || 'Decompression failed'}">⚠️ Extract Failed</span>`;
+      return `<span class="state-tag error" style="font-size: 0.65rem; padding: 1px 5px;" title="${escapeHtml(t.extractError || 'Decompression failed')}">⚠️ Extract Failed</span>`;
     }
     return '';
   }
@@ -718,21 +729,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     return `
-      <tr data-id="${t.id}" ${parentGroupKey ? `data-parent-group="${parentGroupKey}"` : ''} class="download-row ${isChild ? 'child-download-row' : ''} ${isSelected ? 'row-selected' : ''}">
-        <td><input type="checkbox" class="task-checkbox" data-id="${t.id}" ${isSelected ? 'checked' : ''}></td>
+      <tr data-id="${encodeURIComponent(t.id)}" ${parentGroupKey ? `data-parent-group="${encodeURIComponent(parentGroupKey)}"` : ''} class="download-row ${isChild ? 'child-download-row' : ''} ${isSelected ? 'row-selected' : ''}">
+        <td><input type="checkbox" class="task-checkbox" data-id="${encodeURIComponent(t.id)}" ${isSelected ? 'checked' : ''}></td>
         <td>
           <div class="file-block">
             ${appIconHtml}
             <div class="file-details">
               <div style="display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden;">
                 ${childBranchPrefix}
-                <span class="file-title" style="flex: 1; min-width: 0;" title="${t.name}" onclick="window.segmentVisualizer.open('${t.id}')">${t.name}</span>
+                <span class="file-title" style="flex: 1; min-width: 0;" title="${escapeHtml(t.name)}" onclick="window.segmentVisualizer.open('${encodeURIComponent(t.id)}')">${escapeHtml(t.name)}</span>
                 ${priorityTag}
                 ${extractionBadge}
                 ${t.streamPreResolved && t.status === 'queued' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Media stream URL pre-fetched in background. Starts instantly!">⚡ Pre-cached</span>' : ''}
                 ${t.singleStream ? '<span class="badge-single-stream" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Whole File Mode (Single Stream - 1 Socket, No Chunks)">📦 Whole File</span>' : (t.downloadEngineMode === 'inPlace' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="In-Place Direct Writing (Zero Lag, Instant Completion)">⚡ Direct</span>' : '')}
-                <span class="row-app-handler-label" id="row-app-label-${t.id}" style="${cachedAppInfo && cachedAppInfo.appName ? 'display:inline-block;' : 'display:none;'}" title="Default Handler">
-                  ${cachedAppInfo && cachedAppInfo.appName ? `Opens with ${cachedAppInfo.appName}` : ''}
+                <span class="row-app-handler-label" id="row-app-label-${encodeURIComponent(t.id)}" style="${cachedAppInfo && cachedAppInfo.appName ? 'display:inline-block;' : 'display:none;'}" title="Default Handler">
+                  ${cachedAppInfo && cachedAppInfo.appName ? `Opens with ${escapeHtml(cachedAppInfo.appName)}` : ''}
                 </span>
               </div>
               <div class="file-subtext">
@@ -740,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px; opacity: 0.8;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>${formatTaskDate(t.addedAt || t.completedAt)}
                 </span>
                 <span class="subtext-sep">•</span>
-                ${t.packageName ? `[${t.packageName}] • ` : ''}${t.savePath || ''}
+                ${t.packageName ? `[${escapeHtml(t.packageName)}] • ` : ''}${escapeHtml(t.savePath || '')}
               </div>
             </div>
           </div>
@@ -773,46 +784,50 @@ document.addEventListener('DOMContentLoaded', () => {
             `)}
           </div>
         </td>
-        <td><span class="hoster-chip">${t.hoster || 'Direct'}</span></td>
+        <td><span class="hoster-chip">${escapeHtml(t.hoster || 'Direct')}</span></td>
         <td style="text-align: right;">
           <div class="row-actions">
             ${isDone
-              ? `<button class="icon-btn btn-open-file" data-path="${t.savePath}" title="Open File in default application">
+              ? `<button class="icon-btn btn-open-file" data-path="${escapeHtml(t.savePath || '')}" title="Open File in default application">
                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                  </button>`
               : ''
             }
             ${t.status === 'downloading'
-              ? `<button class="icon-btn btn-pause" data-id="${t.id}" title="Pause">
+              ? `<button class="icon-btn btn-pause" data-id="${encodeURIComponent(t.id)}" title="Pause">
                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
                  </button>`
               : (t.status !== 'completed'
-                ? `<button class="icon-btn btn-resume" data-id="${t.id}" title="Resume">
+                ? `<button class="icon-btn btn-resume" data-id="${encodeURIComponent(t.id)}" title="Resume">
                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                    </button>`
                 : '')
             }
             ${t.status === 'error' || t.status === 'paused'
-              ? `<button class="icon-btn btn-update-url" data-id="${t.id}" title="Refresh / Update Download URL & Resume">
+              ? `<button class="icon-btn btn-update-url" data-id="${encodeURIComponent(t.id)}" title="Refresh / Update Download URL & Resume">
                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                  </button>`
               : ''
             }
             ${((t.isMedia || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|ogg|opus)$/i.test(t.name || '')) && (t.status === 'downloading' || t.status === 'completed' || t.status === 'paused'))
-              ? `<button class="icon-btn btn-watch-stream" data-id="${t.id}" title="Watch Media Stream Live (Buffer playback while downloading)" style="color: #38bdf8;">
+              ? `<button class="icon-btn btn-watch-stream" data-id="${encodeURIComponent(t.id)}" title="Watch Media Stream Live (Buffer playback while downloading)" style="color: #38bdf8;">
                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                  </button>`
               : ''
             }
-            <button class="icon-btn btn-inspect" onclick="window.segmentVisualizer.open('${t.id}')" title="Inspect IDM Segments & Allocation Map">
+            <button class="icon-btn btn-inspect" onclick="window.segmentVisualizer.open('${encodeURIComponent(t.id)}')" title="Inspect IDM Segments & Allocation Map">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
             </button>
-            <button class="icon-btn btn-folder" data-path="${(t.savePath || '').replace(/"/g, '&quot;')}" title="Open Folder">
+            <button class="icon-btn btn-folder" data-path="${escapeHtml(t.savePath || '')}" title="Open Folder">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
             </button>
-            <button class="icon-btn btn-del btn-del-disk" data-id="${t.id}" title="Delete Download (Remove from list or permanently delete from disk)">
+            <button class="icon-btn btn-del btn-del-disk" data-id="${encodeURIComponent(t.id)}" title="Delete Download (Remove from list or permanently delete from disk)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
             </button>
+          </div>
+        </td>
+      </tr>
+    `;
           </div>
         </td>
       </tr>
@@ -904,20 +919,20 @@ document.addEventListener('DOMContentLoaded', () => {
       : `Multipart Package • ${item.tasks.length} files • ${playlistFolder}`;
 
     const parentRowHtml = `
-      <tr data-group-key="${item.groupKey}" class="group-parent-row ${item.isPlaylist ? 'playlist-group-row' : ''} ${isAllSelected ? 'row-selected' : ''}">
-        <td><input type="checkbox" class="group-checkbox" data-group="${item.groupKey}" ${isAllSelected ? 'checked' : ''}></td>
+      <tr data-group-key="${encodeURIComponent(item.groupKey)}" class="group-parent-row ${item.isPlaylist ? 'playlist-group-row' : ''} ${isAllSelected ? 'row-selected' : ''}">
+        <td><input type="checkbox" class="group-checkbox" data-group="${encodeURIComponent(item.groupKey)}" ${isAllSelected ? 'checked' : ''}></td>
         <td>
           <div class="file-block">
             ${groupIconHtml}
             <div class="file-details">
               <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                <button type="button" class="group-expand-toggle ${isExpanded ? 'expanded' : ''}" data-group="${item.groupKey}" title="${isExpanded ? 'Collapse' : 'Expand'}">
+                <button type="button" class="group-expand-toggle ${isExpanded ? 'expanded' : ''}" data-group="${encodeURIComponent(item.groupKey)}" title="${isExpanded ? 'Collapse' : 'Expand'}">
                   ▶
                 </button>
-                <span class="file-title" style="flex: 1; min-width: 0; font-weight: 700; color: #e6edf3;" title="${item.groupName}">
-                  ${groupTitlePrefix} ${item.groupName}
+                <span class="file-title" style="flex: 1; min-width: 0; font-weight: 700; color: #e6edf3;" title="${escapeHtml(item.groupName)}">
+                  ${groupTitlePrefix} ${escapeHtml(item.groupName)}
                 </span>
-                <span class="group-parts-badge">${groupBadgeText}</span>
+                <span class="group-parts-badge">${escapeHtml(groupBadgeText)}</span>
                 ${groupExtractBadge}
               </div>
               <div class="file-subtext">
@@ -925,7 +940,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px; opacity: 0.8;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>${formatTaskDate(earliestAddedAt)}
                 </span>
                 <span class="subtext-sep">•</span>
-                ${groupSubtext}
+                ${escapeHtml(groupSubtext)}
               </div>
             </div>
           </div>
@@ -1417,7 +1432,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     updateBatchBar();
-    bindTableActions(filtered);
   }
 
   function updateBatchBar() {
@@ -1430,39 +1444,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function bindTableActions(currentFilteredTasks = []) {
-    // Individual task checkbox selection
-    tableBody.querySelectorAll('.task-checkbox').forEach(cb => {
-      cb.onchange = (e) => {
-        const id = cb.dataset.id;
-        if (cb.checked) {
+  function getGroupSiblings(gk) {
+    if (!gk) return [];
+    return window.appState.tasks.filter(t => 
+      (t.multipart && t.multipart.groupKey === gk) ||
+      (t.playlistId === gk) ||
+      (t.playlistGroup && t.playlistGroup.id === gk) ||
+      ('pl_' + (t.packageName || '').trim().toLowerCase() === gk)
+    );
+  }
+
+  // High-Performance Event Delegation for Downloads Table (Single listener per event type)
+  function initTableDelegatedEvents() {
+    if (!tableBody) return;
+
+    // 1. Delegated Change Events (Checkboxes)
+    tableBody.addEventListener('change', (e) => {
+      const target = e.target;
+      if (!target) return;
+
+      if (target.classList.contains('task-checkbox')) {
+        const id = target.dataset.id;
+        if (target.checked) {
           selectedTaskIds.add(id);
         } else {
           selectedTaskIds.delete(id);
         }
         updateBatchBar();
-        const row = cb.closest('tr');
-        if (row) row.classList.toggle('row-selected', cb.checked);
-      };
-    });
+        const row = target.closest('tr');
+        if (row) row.classList.toggle('row-selected', target.checked);
+        return;
+      }
 
-    function getGroupSiblings(gk) {
-      if (!gk) return [];
-      return window.appState.tasks.filter(t => 
-        (t.multipart && t.multipart.groupKey === gk) ||
-        (t.playlistId === gk) ||
-        (t.playlistGroup && t.playlistGroup.id === gk) ||
-        ('pl_' + (t.packageName || '').trim().toLowerCase() === gk)
-      );
-    }
-
-    // Multipart & Playlist group parent checkbox (selects all tasks in group)
-    tableBody.querySelectorAll('.group-checkbox').forEach(cb => {
-      cb.onchange = (e) => {
-        const gk = cb.dataset.group;
+      if (target.classList.contains('group-checkbox')) {
+        const gk = target.dataset.group;
         const siblings = getGroupSiblings(gk);
         for (const s of siblings) {
-          if (cb.checked) {
+          if (target.checked) {
             selectedTaskIds.add(s.id);
           } else {
             selectedTaskIds.delete(s.id);
@@ -1470,151 +1488,146 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateBatchBar();
         renderDownloads();
-      };
+        return;
+      }
     });
 
-    // Group expand / collapse toggle (Down-arrow button)
-    tableBody.querySelectorAll('.group-expand-toggle').forEach(btn => {
-      btn.onclick = (e) => {
+    // 2. Delegated Click Events (Buttons, Badges, Toggles)
+    tableBody.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!target) return;
+
+      // Group expand/collapse toggle
+      const expandToggle = target.closest('.group-expand-toggle');
+      if (expandToggle) {
         e.stopPropagation();
-        const gk = btn.dataset.group;
+        const gk = expandToggle.dataset.group;
         if (window.expandedGroupKeys.has(gk)) {
           window.expandedGroupKeys.delete(gk);
         } else {
           window.expandedGroupKeys.add(gk);
         }
         renderDownloads();
-      };
-    });
+        return;
+      }
 
-    // Extracted folder badges
-    tableBody.querySelectorAll('.badge-extracted').forEach(badge => {
-      badge.onclick = (e) => {
+      // Extracted folder badges
+      const extractedBadge = target.closest('.badge-extracted');
+      if (extractedBadge) {
         e.stopPropagation();
-        const folder = badge.dataset.path;
+        const folder = extractedBadge.dataset.path;
         if (folder) openFolder(folder);
-      };
-    });
+        return;
+      }
 
-    // Password required badges (click opens archive unlock key modal)
-    tableBody.querySelectorAll('.badge-password-req').forEach(badge => {
-      badge.onclick = (e) => {
+      // Password required badges
+      const pwdBadge = target.closest('.badge-password-req');
+      if (pwdBadge) {
         e.stopPropagation();
-        const id = badge.dataset.id;
+        const id = pwdBadge.dataset.id;
         const task = window.appState.tasks.find(t => t.id === id);
         openExtractPasswordPrompt(id, task ? task.name : 'Encrypted Archive');
-      };
-    });
+        return;
+      }
 
-    // Group Actions (Pause All, Resume All, Inspect, Folder, Delete)
-    tableBody.querySelectorAll('.btn-group-pause').forEach(btn => {
-      btn.onclick = (e) => {
+      // Group Pause
+      const btnGroupPause = target.closest('.btn-group-pause');
+      if (btnGroupPause) {
         e.stopPropagation();
-        const gk = btn.dataset.group;
+        const gk = btnGroupPause.dataset.group;
         const siblings = getGroupSiblings(gk);
         fetch('/api/downloads/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'pause', ids: siblings.map(s => s.id) })
         });
-      };
-    });
+        return;
+      }
 
-    tableBody.querySelectorAll('.btn-group-resume').forEach(btn => {
-      btn.onclick = (e) => {
+      // Group Resume
+      const btnGroupResume = target.closest('.btn-group-resume');
+      if (btnGroupResume) {
         e.stopPropagation();
-        const gk = btn.dataset.group;
+        const gk = btnGroupResume.dataset.group;
         const siblings = getGroupSiblings(gk);
         fetch('/api/downloads/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'resume', ids: siblings.map(s => s.id) })
         });
-      };
-    });
+        return;
+      }
 
-    tableBody.querySelectorAll('.btn-group-force').forEach(btn => {
-      btn.onclick = async (e) => {
+      // Group Force
+      const btnGroupForce = target.closest('.btn-group-force');
+      if (btnGroupForce) {
         e.stopPropagation();
-        const gk = btn.dataset.group;
-        btn.disabled = true;
-        try {
-          await fetch(`/api/downloads/group/${encodeURIComponent(gk)}/force-download`, { method: 'POST' });
-        } catch (err) {
-          alert('Force download failed: ' + err.message);
-        } finally {
-          btn.disabled = false;
-        }
-      };
-    });
+        const gk = btnGroupForce.dataset.group;
+        btnGroupForce.disabled = true;
+        fetch(`/api/downloads/group/${encodeURIComponent(gk)}/force-download`, { method: 'POST' })
+          .catch(err => alert('Force download failed: ' + err.message))
+          .finally(() => { btnGroupForce.disabled = false; });
+        return;
+      }
 
-    tableBody.querySelectorAll('.btn-group-inspect').forEach(btn => {
-      btn.onclick = (e) => {
+      // Group Inspect
+      const btnGroupInspect = target.closest('.btn-group-inspect');
+      if (btnGroupInspect) {
         e.stopPropagation();
         if (window.segmentVisualizer && window.segmentVisualizer.openGroup) {
-          window.segmentVisualizer.openGroup(btn.dataset.group);
+          window.segmentVisualizer.openGroup(btnGroupInspect.dataset.group);
         }
-      };
-    });
+        return;
+      }
 
-    tableBody.querySelectorAll('.btn-group-folder').forEach(btn => {
-      btn.onclick = (e) => {
+      // Group Folder
+      const btnGroupFolder = target.closest('.btn-group-folder');
+      if (btnGroupFolder) {
         e.stopPropagation();
-        const p = btn.dataset.path;
+        const p = btnGroupFolder.dataset.path;
         if (p) openFolder(p);
-      };
-    });
+        return;
+      }
 
-    tableBody.querySelectorAll('.btn-group-del').forEach(btn => {
-      btn.onclick = (e) => {
+      // Group Delete
+      const btnGroupDel = target.closest('.btn-group-del');
+      if (btnGroupDel) {
         e.stopPropagation();
-        const gk = btn.dataset.group;
+        const gk = btnGroupDel.dataset.group;
         const siblings = getGroupSiblings(gk);
         if (siblings.length > 0) openDeleteConfirmModal(siblings);
-      };
-    });
+        return;
+      }
 
-    // Right-Click Context Menu for Table Rows
-    tableBody.querySelectorAll('.download-row').forEach(row => {
-      row.oncontextmenu = (e) => {
-        e.preventDefault();
-        const task = window.appState.tasks.find(t => t.id === row.dataset.id);
-        if (task) {
-          openContextMenu(e.clientX, e.clientY, task);
-        }
-      };
-
-      // Double-click to open file if completed or open inspector
-      row.ondblclick = () => {
-        const task = window.appState.tasks.find(t => t.id === row.dataset.id);
-        if (task) {
-          if (task.status === 'completed' && task.savePath) {
-            openFile(task.savePath);
-          } else {
-            window.segmentVisualizer.open(task.id);
-          }
-        }
-      };
-    });
-
-    tableBody.querySelectorAll('.btn-open-file').forEach(btn => {
-      btn.onclick = () => {
-        openFile(btn.dataset.path);
-      };
-    });
-
-    tableBody.querySelectorAll('.btn-pause').forEach(btn => {
-      btn.onclick = () => fetch(`/api/downloads/${btn.dataset.id}/pause`, { method: 'POST' });
-    });
-
-    tableBody.querySelectorAll('.btn-resume').forEach(btn => {
-      btn.onclick = () => fetch(`/api/downloads/${btn.dataset.id}/resume`, { method: 'POST' });
-    });
-
-    tableBody.querySelectorAll('.btn-del').forEach(btn => {
-      btn.onclick = (e) => {
+      // Open File
+      const btnOpenFile = target.closest('.btn-open-file');
+      if (btnOpenFile) {
         e.stopPropagation();
-        const id = btn.dataset.id;
+        openFile(btnOpenFile.dataset.path);
+        return;
+      }
+
+      // Task Pause
+      const btnPause = target.closest('.btn-pause');
+      if (btnPause) {
+        e.stopPropagation();
+        fetch(`/api/downloads/${btnPause.dataset.id}/pause`, { method: 'POST' });
+        return;
+      }
+
+      // Task Resume
+      const btnResume = target.closest('.btn-resume');
+      if (btnResume) {
+        e.stopPropagation();
+        fetch(`/api/downloads/${btnResume.dataset.id}/resume`, { method: 'POST' });
+        return;
+      }
+
+      // Task Delete
+      const btnDel = target.closest('.btn-del');
+      if (btnDel) {
+        e.stopPropagation();
+        const id = btnDel.dataset.id;
         const task = window.appState.tasks.find(t => t.id === id || String(t.id) === String(id));
         if (!task) return;
         if (e.shiftKey) {
@@ -1629,31 +1642,67 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           openDeleteConfirmModal([task]);
         }
-      };
-    });
+        return;
+      }
 
-    tableBody.querySelectorAll('.btn-folder').forEach(btn => {
-      btn.onclick = (e) => {
+      // Task Folder
+      const btnFolder = target.closest('.btn-folder');
+      if (btnFolder) {
         e.stopPropagation();
-        const p = btn.dataset.path;
+        const p = btnFolder.dataset.path;
         if (p) openFolder(p);
-      };
-    });
+        return;
+      }
 
-    tableBody.querySelectorAll('.btn-update-url').forEach(btn => {
-      btn.onclick = () => {
-        const task = window.appState.tasks.find(t => t.id === btn.dataset.id);
+      // Update URL
+      const btnUpdateUrl = target.closest('.btn-update-url');
+      if (btnUpdateUrl) {
+        e.stopPropagation();
+        const task = window.appState.tasks.find(t => t.id === btnUpdateUrl.dataset.id);
         if (task) openUpdateUrlModal(task);
-      };
+        return;
+      }
+
+      // Watch Stream / Media Player
+      const btnWatch = target.closest('.btn-watch-stream');
+      if (btnWatch) {
+        e.stopPropagation();
+        const task = window.appState.tasks.find(t => t.id === btnWatch.dataset.id);
+        if (task) openMediaPlayer(task);
+        return;
+      }
     });
 
-    tableBody.querySelectorAll('.btn-watch-stream').forEach(btn => {
-      btn.onclick = () => {
-        const task = window.appState.tasks.find(t => t.id === btn.dataset.id);
-        if (task) openMediaPlayer(task);
-      };
+    // 3. Delegated Context Menu (Right-Click)
+    tableBody.addEventListener('contextmenu', (e) => {
+      const row = e.target.closest('tr.download-row');
+      if (row) {
+        e.preventDefault();
+        const task = window.appState.tasks.find(t => t.id === row.dataset.id);
+        if (task) {
+          openContextMenu(e.clientX, e.clientY, task);
+        }
+      }
+    });
+
+    // 4. Delegated Double-Click
+    tableBody.addEventListener('dblclick', (e) => {
+      if (e.target.closest('button, input, a, select')) return;
+      const row = e.target.closest('tr.download-row');
+      if (row) {
+        const task = window.appState.tasks.find(t => t.id === row.dataset.id);
+        if (task) {
+          if (task.status === 'completed' && task.savePath) {
+            openFile(task.savePath);
+          } else {
+            window.segmentVisualizer.open(task.id);
+          }
+        }
+      }
     });
   }
+
+  initTableDelegatedEvents();
 
   // Header Select All Checkbox
   if (checkSelectAllDownloads) {
@@ -2201,27 +2250,49 @@ document.addEventListener('DOMContentLoaded', () => {
   // Default Application Icon & Metadata Provider
   async function fetchAppIcon(filePath, filename) {
     const ext = filename && filename.includes('.') ? ('.' + filename.split('.').pop().toLowerCase()) : '';
+    const iconCacheKey = ext || (filePath ? filePath.toLowerCase() : '');
 
-    // Check if running in Electron
-    if (desktop && desktop.getAppIcon) {
-      try {
-        const res = await desktop.getAppIcon(filePath, ext);
-        if (res && res.icon) return res;
-      } catch (_) {}
+    if (iconCacheKey && appIconClientCache.has(iconCacheKey)) {
+      return appIconClientCache.get(iconCacheKey);
+    }
+    if (iconCacheKey && appIconInFlightPromises.has(iconCacheKey)) {
+      return appIconInFlightPromises.get(iconCacheKey);
     }
 
-    // Call Waterfall backend
-    try {
-      const q = new URLSearchParams();
-      if (filePath) q.set('path', filePath);
-      if (ext) q.set('ext', ext);
-      const res = await fetch(`/api/app-icon?${q.toString()}`);
-      if (res.ok) {
-        return await res.json();
+    const promise = (async () => {
+      // Check if running in Electron
+      if (desktop && desktop.getAppIcon) {
+        try {
+          const res = await desktop.getAppIcon(filePath, ext);
+          if (res && res.icon) {
+            if (iconCacheKey) appIconClientCache.set(iconCacheKey, res);
+            return res;
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
 
-    return null;
+      // Call Waterfall backend
+      try {
+        const q = new URLSearchParams();
+        if (filePath) q.set('path', filePath);
+        if (ext) q.set('ext', ext);
+        const res = await fetch(`/api/app-icon?${q.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (iconCacheKey && data && data.icon) {
+            appIconClientCache.set(iconCacheKey, data);
+          }
+          return data;
+        }
+      } catch (_) {}
+
+      return null;
+    })().finally(() => {
+      if (iconCacheKey) appIconInFlightPromises.delete(iconCacheKey);
+    });
+
+    if (iconCacheKey) appIconInFlightPromises.set(iconCacheKey, promise);
+    return promise;
   }
 
   function showCompletionNotification(task) {
@@ -2984,25 +3055,34 @@ document.addEventListener('DOMContentLoaded', () => {
     grabberStagedList.innerHTML = html;
     grabberSelectedCount.textContent = `${selectedCount} selected`;
     grabberTotalSize.textContent = `Total: ${formatBytes(totalBytes)}`;
+  }
 
-    grabberStagedList.querySelectorAll('.staged-checkbox').forEach(cb => {
-      cb.onchange = () => {
+  function initGrabberDelegatedEvents() {
+    if (!grabberStagedList) return;
+
+    grabberStagedList.addEventListener('change', (e) => {
+      const cb = e.target.closest('.staged-checkbox');
+      if (cb) {
         const item = window.appState.staged.find(i => i.id === cb.dataset.id);
         if (item) item.selected = cb.checked;
         renderGrabber();
-      };
+      }
     });
 
-    grabberStagedList.querySelectorAll('.btn-delete-staged').forEach(btn => {
-      btn.onclick = () => {
+    grabberStagedList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-delete-staged');
+      if (btn) {
+        e.stopPropagation();
         const id = btn.dataset.id;
         window.appState.staged = (window.appState.staged || []).filter(i => i.id !== id && String(i.id) !== String(id));
         renderGrabber();
         updateBadges();
         fetch(`/api/linkgrabber/${id}`, { method: 'DELETE' });
-      };
+      }
     });
   }
+
+  initGrabberDelegatedEvents();
 
   // IDM Quick Actions
   btnResumeAll.addEventListener('click', () => fetch('/api/downloads/resume-all', { method: 'POST' }));

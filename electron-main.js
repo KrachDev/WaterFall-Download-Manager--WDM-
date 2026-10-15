@@ -6,6 +6,7 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, dialog, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const http = require('http');
 const { execFile } = require('child_process');
 const WebSocket = require('ws');
@@ -304,7 +305,8 @@ global.electronBrowserSolver = async function(targetUrl) {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          sandbox: true
+          sandbox: true,
+          partition: 'cf-solver-partition'
         }
       });
 
@@ -1217,15 +1219,34 @@ ipcMain.on('window-set-always-on-top', (event, flag) => {
 ipcMain.handle('get-app-icon', async (event, { filePath, ext }) => {
   try {
     let iconUrl = null;
-    if (filePath && fs.existsSync(filePath)) {
-      const nativeIcon = await app.getFileIcon(filePath, { size: 'large' });
+    let targetPath = (filePath && fs.existsSync(filePath)) ? filePath : null;
+
+    // If target file doesn't exist yet on disk (e.g. queued or downloading),
+    // probe with a dummy file in os.tmpdir() with that extension so Electron
+    // resolves the registered Windows shell icon natively in <2ms!
+    const effectiveExt = (ext || (filePath ? path.extname(filePath) : '')).trim();
+
+    if (!targetPath && effectiveExt) {
+      const cleanExt = effectiveExt.startsWith('.') ? effectiveExt : ('.' + effectiveExt);
+      const tempDummy = path.join(os.tmpdir(), `waterfall_ico_probe_${process.pid}${cleanExt}`);
+      try {
+        if (!fs.existsSync(tempDummy)) {
+          fs.writeFileSync(tempDummy, '');
+        }
+        targetPath = tempDummy;
+      } catch (_) {}
+    }
+
+    if (targetPath) {
+      const nativeIcon = await app.getFileIcon(targetPath, { size: 'large' });
       if (nativeIcon && !nativeIcon.isEmpty()) {
         iconUrl = nativeIcon.toDataURL();
       }
     }
+
     return {
       icon: iconUrl,
-      extension: ext || (filePath ? path.extname(filePath) : '')
+      extension: effectiveExt
     };
   } catch (err) {
     return null;

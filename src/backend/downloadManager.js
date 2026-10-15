@@ -540,14 +540,14 @@ class DownloadManager extends EventEmitter {
   executePowerAction(action) {
     console.log(`[Waterfall Power] Queue finished. Executing power action: ${action}`);
     if (action === 'shutdown') {
-      exec('shutdown /s /t 60 /c "Waterfall download queue completed. Shutting down system in 60 seconds (run shutdown /a in PowerShell to cancel)."');
+      execFile('shutdown.exe', ['/s', '/t', '60', '/c', 'Waterfall download queue completed. Shutting down system in 60 seconds (run shutdown /a in PowerShell to cancel).']);
     } else if (action === 'sleep') {
-      exec('rundll32.exe powrprof.dll,SetSuspendState 0,1,0');
+      execFile('rundll32.exe', ['powrprof.dll,SetSuspendState', '0,1,0']);
     }
   }
 
   cancelPowerAction() {
-    exec('shutdown /a');
+    execFile('shutdown.exe', ['/a']);
   }
 
   createTask(options) {
@@ -1020,12 +1020,12 @@ class DownloadManager extends EventEmitter {
 
     // Execute on-completion actions (e.g. shutdown, sleep, openFile, openFolder)
     if (t.onCompleteAction === 'shutdown') {
-      exec('shutdown /s /t 60 /c "Waterfall download finished. Shutting down system in 60 seconds."');
+      execFile('shutdown.exe', ['/s', '/t', '60', '/c', 'Waterfall download finished. Shutting down system in 60 seconds.']);
     } else if (t.onCompleteAction === 'sleep') {
-      exec('rundll32.exe powrprof.dll,SetSuspendState 0,1,0');
+      execFile('rundll32.exe', ['powrprof.dll,SetSuspendState', '0,1,0']);
     } else if (t.onCompleteAction === 'openFile' && t.savePath && fs.existsSync(t.savePath)) {
       try {
-        exec(`start "" "${t.savePath}"`, { shell: 'cmd.exe' });
+        execFile('cmd.exe', ['/c', 'start', '""', t.savePath]);
       } catch (_) {}
     } else if (t.onCompleteAction === 'openFolder' && t.savePath) {
       try {

@@ -26,6 +26,26 @@ function isPasswordRequiredError(output) {
   return /Wrong password|Data Error in encrypted file|Can not open encrypted archive|Enter password/i.test(output);
 }
 
+function get7zExecutable() {
+  const candidates = [
+    path.join(__dirname, '..', '..', 'bin', '7z.exe'),
+    path.join(__dirname, '..', '..', 'bin', '7za.exe'),
+    process.resourcesPath ? path.join(process.resourcesPath, 'bin', '7z.exe') : null,
+    process.resourcesPath ? path.join(process.resourcesPath, 'bin', '7za.exe') : null,
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', '7-Zip', '7z.exe'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', '7-Zip', '7z.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', '7-Zip', '7z.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', '7z.exe'),
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'NanaZip', 'NanaZip.exe'),
+    '7z.exe'
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (c === '7z.exe' || fs.existsSync(c)) return c;
+  }
+  return '7z.exe';
+}
+
 /**
  * Executes a command with timeout and captures stdout/stderr.
  */
@@ -114,8 +134,8 @@ async function unpackArchive(archivePath, options = {}) {
     }
     args.push(`-o${outDir}`);
     args.push(archivePath);
-
-    await runProcess('7z.exe', args, dir);
+    const sevenZipBin = get7zExecutable();
+    await runProcess(sevenZipBin, args, dir);
     const durationMs = Date.now() - startTime;
 
     if (options.deleteArchiveAfter) {
