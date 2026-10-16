@@ -135,10 +135,16 @@ class ExtractionQueue extends EventEmitter {
           outDir: job.outDir,
           password: pwd,
           deleteArchiveAfter: job.deleteArchiveAfter,
-          allPartPaths: job.allPartPaths
+          allPartPaths: job.allPartPaths,
+          onProgress: (pct) => {
+            job.extractProgress = pct;
+            this.emit('jobProgress', job);
+            this.emit('jobUpdated', job);
+          }
         });
 
         if (finalResult.success) {
+          job.extractProgress = 100;
           successfulPassword = pwd;
           break;
         }

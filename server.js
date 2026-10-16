@@ -93,7 +93,8 @@ wss.on('connection', (ws) => {
 // PERFORMANCE OPTIMIZATION: Only map actively running tasks in tick to reduce serialization load
 setInterval(() => {
   const activeList = downloadManager.getAllTasks().filter(t =>
-    t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying'
+    t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying' ||
+    t.extractStatus === 'extracting' || t.extractStatus === 'extract_queued' || t.status === 'extracting'
   );
   const tasks = activeList.map(t => ({
     id: t.id,
@@ -104,7 +105,10 @@ setInterval(() => {
     totalBytes: t.totalBytes,
     speed: t.speed,
     eta: t.eta,
-    segments: t.segments || []
+    segments: t.segments || [],
+    extractStatus: t.extractStatus || null,
+    extractProgress: t.extractProgress !== undefined ? t.extractProgress : (t.extractStatus === 'extracted' ? 100 : 0),
+    extractedPath: t.extractedPath || null
   }));
 
   broadcast({

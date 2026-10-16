@@ -688,14 +688,32 @@ document.addEventListener('DOMContentLoaded', () => {
       : '';
 
     let progressCellHtml = '';
-    if (isDone) {
+    if (t.extractStatus === 'extracting') {
+      const extPct = t.extractProgress !== undefined ? t.extractProgress : 0;
       progressCellHtml = `
-        <div class="progress-done-state">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          <span>Complete • 100%</span>
+        <div class="meter-track extract-track" title="Extracting archive (${extPct}%)">
+          <div class="meter-fill extracting" style="width: ${extPct}%; background: linear-gradient(90deg, #9333ea, #a855f7, #c084fc);"></div>
         </div>
-        <div class="meter-stat">${formatBytes(t.totalBytes || t.downloadedBytes)}</div>
+        <div class="meter-stat" style="color: #c084fc; font-weight: 600;">Extracting • ${extPct}%</div>
       `;
+    } else if (isDone) {
+      if (t.extractStatus === 'extracted') {
+        progressCellHtml = `
+          <div class="progress-done-state" style="color: #34d399;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Extracted • 100%</span>
+          </div>
+          <div class="meter-stat">${formatBytes(t.totalBytes || t.downloadedBytes)}</div>
+        `;
+      } else {
+        progressCellHtml = `
+          <div class="progress-done-state">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Complete • 100%</span>
+          </div>
+          <div class="meter-stat">${formatBytes(t.totalBytes || t.downloadedBytes)}</div>
+        `;
+      }
     } else if (t.status === 'canceled') {
       progressCellHtml = `
         <div class="progress-canceled-state">
@@ -818,16 +836,18 @@ document.addEventListener('DOMContentLoaded', () => {
             <button class="icon-btn btn-inspect" onclick="window.segmentVisualizer.open('${encodeURIComponent(t.id)}')" title="Inspect IDM Segments & Allocation Map">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
             </button>
+            ${(t.extractedPath || t.extractStatus === 'extracted')
+              ? `<button class="icon-btn btn-extracted-folder" data-path="${escapeHtml(t.extractedPath || '')}" title="Open Extracted Folder (${escapeHtml(t.extractedPath || '')})">
+                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><path d="M12 11v6m-3-3l3-3 3 3"></path></svg>
+                 </button>`
+              : ''
+            }
             <button class="icon-btn btn-folder" data-path="${escapeHtml(t.savePath || '')}" title="Open Folder">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
             </button>
             <button class="icon-btn btn-del btn-del-disk" data-id="${encodeURIComponent(t.id)}" title="Delete Download (Remove from list or permanently delete from disk)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
             </button>
-          </div>
-        </td>
-      </tr>
-    `;
           </div>
         </td>
       </tr>
@@ -950,13 +970,24 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="state-tag ${groupStatus}">${groupStatus}</span>
         </td>
         <td class="progress-col">
-          ${allDone ? `
+          ${anyExtracting ? `
+            <div class="meter-track extract-track" title="Extracting package (${(rootTask && rootTask.extractProgress !== undefined) ? rootTask.extractProgress : 0}%)">
+              <div class="meter-fill extracting" style="width: ${(rootTask && rootTask.extractProgress !== undefined) ? rootTask.extractProgress : 0}%; background: linear-gradient(90deg, #9333ea, #a855f7, #c084fc);"></div>
+            </div>
+            <div class="meter-stat" style="color: #c084fc; font-weight: 600;">Extracting • ${(rootTask && rootTask.extractProgress !== undefined) ? rootTask.extractProgress : 0}%</div>
+          ` : (allDone ? (allExtracted ? `
+            <div class="progress-done-state" style="color: #34d399;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>Extracted • 100%</span>
+            </div>
+            <div class="meter-stat">${formatBytes(totalBytes)}</div>
+          ` : `
             <div class="progress-done-state">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
               <span>Complete • 100%</span>
             </div>
             <div class="meter-stat">${formatBytes(totalBytes)}</div>
-          ` : (groupStatus === 'canceled' ? `
+          `) : (groupStatus === 'canceled' ? `
             <div class="progress-canceled-state">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
               <span>Canceled</span>
@@ -972,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="meter-fill ${anyDl ? 'active' : ''}" style="width: ${percent}%;"></div>
             </div>
             <div class="meter-stat">${percent}% • ${formatBytes(downloadedBytes)}</div>
-          `))}
+          `)))}
         </td>
         <td>
           <span style="font-family: var(--font-mono); font-weight: 600; color: ${anyDl ? '#3fb950' : 'var(--text-muted)'};">
@@ -1014,7 +1045,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
               </button>
             `}
-            <button class="icon-btn btn-group-folder" data-path="${(rootTask.savePath || '').replace(/"/g, '&quot;')}" title="Open Playlist Folder">
+            ${(allExtracted || (rootTask && rootTask.extractedPath)) ? `
+              <button class="icon-btn btn-group-extracted-folder" data-path="${escapeHtml((rootTask && rootTask.extractedPath) || '')}" title="Open Extracted Folder (${escapeHtml((rootTask && rootTask.extractedPath) || '')})">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><path d="M12 11v6m-3-3l3-3 3 3"></path></svg>
+              </button>
+            ` : ''}
+            <button class="icon-btn btn-group-folder" data-path="${(rootTask.savePath || '').replace(/"/g, '&quot;')}" title="${item.isPlaylist ? 'Open Playlist Folder' : 'Open Folder'}">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
             </button>
             <button class="icon-btn btn-group-del" data-group="${item.groupKey}" title="Delete All in ${item.isPlaylist ? 'Playlist' : 'Package'}">
@@ -1580,6 +1616,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // Group Extracted Folder
+      const btnGroupExtractedFolder = target.closest('.btn-group-extracted-folder');
+      if (btnGroupExtractedFolder) {
+        e.stopPropagation();
+        const p = btnGroupExtractedFolder.dataset.path;
+        if (p) openFolder(p);
+        return;
+      }
+
       // Group Folder
       const btnGroupFolder = target.closest('.btn-group-folder');
       if (btnGroupFolder) {
@@ -1642,6 +1687,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           openDeleteConfirmModal([task]);
         }
+        return;
+      }
+
+      // Task Extracted Folder
+      const btnExtractedFolder = target.closest('.btn-extracted-folder');
+      if (btnExtractedFolder) {
+        e.stopPropagation();
+        const p = btnExtractedFolder.dataset.path;
+        if (p) openFolder(p);
         return;
       }
 
@@ -1777,6 +1831,11 @@ document.addEventListener('DOMContentLoaded', () => {
       itemExtract.style.display = (isArchive && isCompleted) ? 'flex' : 'none';
     }
 
+    const itemOpenExtracted = document.getElementById('ctx-open-extracted-folder');
+    if (itemOpenExtracted) {
+      itemOpenExtracted.style.display = (task.extractedPath || task.extractStatus === 'extracted') ? 'flex' : 'none';
+    }
+
     const itemUpdateLink = document.getElementById('ctx-update-link');
     if (itemUpdateLink) {
       itemUpdateLink.style.display = isCompleted ? 'none' : 'flex';
@@ -1864,6 +1923,16 @@ document.addEventListener('DOMContentLoaded', () => {
     ctxOpenFolder.onclick = () => {
       if (contextTask && contextTask.savePath) {
         openFolder(contextTask.savePath);
+      }
+      hideContextMenu();
+    };
+  }
+
+  const ctxOpenExtFolder = document.getElementById('ctx-open-extracted-folder');
+  if (ctxOpenExtFolder) {
+    ctxOpenExtFolder.onclick = () => {
+      if (contextTask && contextTask.extractedPath) {
+        openFolder(contextTask.extractedPath);
       }
       hideContextMenu();
     };
@@ -2111,24 +2180,65 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const update of activeUpdates) {
           const cached = rowDomCache.get(update.id);
           if (cached) {
-            const percent = (update.totalBytes > 0)
-              ? Math.min(100, Math.floor((update.downloadedBytes / update.totalBytes) * 100))
-              : (update.status === 'completed' ? 100 : 0);
+            if (update.extractStatus === 'extracting') {
+              const extPct = update.extractProgress !== undefined ? update.extractProgress : 0;
+              if (cached.fill) {
+                cached.fill.style.width = extPct + '%';
+                cached.fill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
+              } else if (cached.row) {
+                const progCol = cached.row.querySelector('.progress-col');
+                if (progCol) {
+                  progCol.innerHTML = `
+                    <div class="meter-track extract-track" title="Extracting archive (${extPct}%)">
+                      <div class="meter-fill extracting" style="width: ${extPct}%; background: linear-gradient(90deg, #9333ea, #a855f7, #c084fc);"></div>
+                    </div>
+                    <div class="meter-stat" style="color: #c084fc; font-weight: 600;">Extracting • ${extPct}%</div>
+                  `;
+                  cached.fill = progCol.querySelector('.meter-fill');
+                  cached.stat = progCol.querySelector('.meter-stat');
+                }
+              }
+              if (cached.stat) {
+                cached.stat.textContent = `Extracting • ${extPct}%`;
+                cached.stat.style.color = '#c084fc';
+              }
+              if (cached.statusTag) {
+                cached.statusTag.textContent = 'extracting';
+                cached.statusTag.className = 'state-tag extracting';
+              }
+              if (cached.speedSpan) {
+                cached.speedSpan.textContent = 'Extracting';
+                cached.speedSpan.style.color = '#c084fc';
+              }
+              if (cached.etaSpan) {
+                cached.etaSpan.textContent = `${extPct}%`;
+              }
+            } else {
+              const percent = (update.totalBytes > 0)
+                ? Math.min(100, Math.floor((update.downloadedBytes / update.totalBytes) * 100))
+                : (update.status === 'completed' ? 100 : 0);
 
-            if (cached.fill) cached.fill.style.width = percent + '%';
-            if (cached.stat) cached.stat.textContent = `${percent}% • ${formatBytes(update.downloadedBytes)}`;
-            if (cached.speedSpan) {
-              cached.speedSpan.textContent = (update.status === 'downloading') ? formatSpeed(update.speed) : '--';
-              cached.speedSpan.style.color = (update.status === 'downloading') ? '#3fb950' : 'var(--text-muted)';
-            }
-            if (cached.etaSpan) {
-              cached.etaSpan.textContent = (update.status === 'downloading')
-                ? formatETA(update.eta)
-                : (update.status === 'completed' ? 'Completed' : '--');
-              if (cached.etaTd) {
-                cached.etaTd.title = (update.status === 'downloading')
-                  ? formatETADuration(update.eta)
-                  : '';
+              if (cached.fill) {
+                cached.fill.style.width = percent + '%';
+                if (update.status === 'downloading') cached.fill.style.background = '';
+              }
+              if (cached.stat) {
+                cached.stat.textContent = `${percent}% • ${formatBytes(update.downloadedBytes)}`;
+                cached.stat.style.color = '';
+              }
+              if (cached.speedSpan) {
+                cached.speedSpan.textContent = (update.status === 'downloading') ? formatSpeed(update.speed) : '--';
+                cached.speedSpan.style.color = (update.status === 'downloading') ? '#3fb950' : 'var(--text-muted)';
+              }
+              if (cached.etaSpan) {
+                cached.etaSpan.textContent = (update.status === 'downloading')
+                  ? formatETA(update.eta)
+                  : (update.status === 'completed' ? 'Completed' : '--');
+                if (cached.etaTd) {
+                  cached.etaTd.title = (update.status === 'downloading')
+                    ? formatETADuration(update.eta)
+                    : '';
+                }
               }
             }
 
@@ -2157,18 +2267,62 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (t.status === 'completed') completedCount++;
           }
-          const gPercent = gTotal > 0 ? Math.min(100, Math.floor((gDownloaded / gTotal) * 100)) : 0;
-          if (gCached.fill) gCached.fill.style.width = gPercent + '%';
-          if (gCached.stat) gCached.stat.textContent = `${gPercent}% • ${formatBytes(gDownloaded)}`;
-          if (gCached.speedSpan) {
-            gCached.speedSpan.textContent = anyDl ? formatSpeed(gSpeed) : '--';
-            gCached.speedSpan.style.color = anyDl ? '#3fb950' : 'var(--text-muted)';
-          }
-          if (gCached.etaSpan) {
-            gCached.etaSpan.textContent = anyDl ? formatETA(gMaxEta) : (completedCount === groupTasks.length ? 'Completed' : '--');
-          }
-          if (gCached.countBadge) {
-            gCached.countBadge.textContent = `${completedCount}/${groupTasks.length} parts`;
+
+          const anyGroupExtracting = groupTasks.some(t => t.extractStatus === 'extracting');
+          if (anyGroupExtracting) {
+            const root = groupTasks.find(t => t.multipart?.partNumber === 1) || groupTasks[0];
+            const extPct = (root && root.extractProgress !== undefined) ? root.extractProgress : (groupTasks.find(t => t.extractProgress !== undefined)?.extractProgress || 0);
+            if (gCached.fill) {
+              gCached.fill.style.width = extPct + '%';
+              gCached.fill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
+            } else if (gCached.row) {
+              const progCol = gCached.row.querySelector('.progress-col');
+              if (progCol) {
+                progCol.innerHTML = `
+                  <div class="meter-track extract-track" title="Extracting package (${extPct}%)">
+                    <div class="meter-fill extracting" style="width: ${extPct}%; background: linear-gradient(90deg, #9333ea, #a855f7, #c084fc);"></div>
+                  </div>
+                  <div class="meter-stat" style="color: #c084fc; font-weight: 600;">Extracting • ${extPct}%</div>
+                `;
+                gCached.fill = progCol.querySelector('.meter-fill');
+                gCached.stat = progCol.querySelector('.meter-stat');
+              }
+            }
+            if (gCached.stat) {
+              gCached.stat.textContent = `Extracting • ${extPct}%`;
+              gCached.stat.style.color = '#c084fc';
+            }
+            if (gCached.statusTag) {
+              gCached.statusTag.textContent = 'extracting';
+              gCached.statusTag.className = 'state-tag extracting';
+            }
+            if (gCached.speedSpan) {
+              gCached.speedSpan.textContent = 'Extracting';
+              gCached.speedSpan.style.color = '#c084fc';
+            }
+            if (gCached.etaSpan) {
+              gCached.etaSpan.textContent = `${extPct}%`;
+            }
+          } else {
+            const gPercent = gTotal > 0 ? Math.min(100, Math.floor((gDownloaded / gTotal) * 100)) : 0;
+            if (gCached.fill) {
+              gCached.fill.style.width = gPercent + '%';
+              if (anyDl) gCached.fill.style.background = '';
+            }
+            if (gCached.stat) {
+              gCached.stat.textContent = `${gPercent}% • ${formatBytes(gDownloaded)}`;
+              gCached.stat.style.color = '';
+            }
+            if (gCached.speedSpan) {
+              gCached.speedSpan.textContent = anyDl ? formatSpeed(gSpeed) : '--';
+              gCached.speedSpan.style.color = anyDl ? '#3fb950' : 'var(--text-muted)';
+            }
+            if (gCached.etaSpan) {
+              gCached.etaSpan.textContent = anyDl ? formatETA(gMaxEta) : (completedCount === groupTasks.length ? 'Completed' : '--');
+            }
+            if (gCached.countBadge) {
+              gCached.countBadge.textContent = `${completedCount}/${groupTasks.length} parts`;
+            }
           }
         }
       });

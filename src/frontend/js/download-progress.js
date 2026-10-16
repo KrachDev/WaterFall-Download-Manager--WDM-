@@ -72,8 +72,14 @@
   const finishFileSize = document.getElementById('finish-file-size');
   const finishAvgSpeed = document.getElementById('finish-avg-speed');
   const finishSavePath = document.getElementById('finish-save-path');
+  const finishExtractSection = document.getElementById('finish-extract-section');
+  const finishExtractTitle = document.getElementById('finish-extract-title');
+  const finishExtractPct = document.getElementById('finish-extract-pct');
+  const finishExtractFill = document.getElementById('finish-extract-fill');
+  const finishExtractDest = document.getElementById('finish-extract-dest');
   const btnFinishOpen = document.getElementById('btn-finish-open');
   const btnFinishFolder = document.getElementById('btn-finish-folder');
+  const btnFinishExtractedFolder = document.getElementById('btn-finish-extracted-folder');
   const btnFinishClose = document.getElementById('btn-finish-close');
 
   // --- Footer Controls ---
@@ -487,12 +493,115 @@
       showCompletionView(task);
       return;
     }
+    if (isCompletedState) {
+      updateExtractionUI(task);
+      return;
+    }
 
     updateProgressMetrics(task);
   }
 
+  function updateExtractionUI(data) {
+    if (!finishExtractSection) return;
+    const extractStatus = data.extractStatus;
+    const extractedPath = data.extractedPath || (currentTask && currentTask.extractedPath);
+    const extractProgress = data.extractProgress !== undefined ? data.extractProgress : (extractStatus === 'extracted' ? 100 : 0);
+
+    if (extractStatus === 'extracting') {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Extracting Archive...`;
+        finishExtractTitle.style.color = '#c084fc';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = `${extractProgress}%`;
+      if (finishExtractFill) {
+        finishExtractFill.style.width = `${extractProgress}%`;
+        finishExtractFill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
+      }
+      if (finishExtractDest) {
+        finishExtractDest.textContent = extractedPath ? `Extracting to: ${extractedPath}` : 'Extracting to folder...';
+      }
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+    } else if (extractStatus === 'extract_queued') {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Extraction Queued...`;
+        finishExtractTitle.style.color = '#a855f7';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = '0%';
+      if (finishExtractFill) {
+        finishExtractFill.style.width = '0%';
+        finishExtractFill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
+      }
+      if (finishExtractDest) finishExtractDest.textContent = 'Waiting in extraction queue...';
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+    } else if (extractStatus === 'extracted' || extractedPath) {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#34d399" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Archive Extracted Successfully ✓`;
+        finishExtractTitle.style.color = '#34d399';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = '100%';
+      if (finishExtractFill) {
+        finishExtractFill.style.width = '100%';
+        finishExtractFill.style.background = '#10b981';
+      }
+      if (finishExtractDest) {
+        finishExtractDest.textContent = extractedPath ? `Extracted to: ${extractedPath}` : 'Archive extracted';
+      }
+      if (btnFinishExtractedFolder) {
+        btnFinishExtractedFolder.style.display = 'inline-flex';
+        btnFinishExtractedFolder.onclick = async () => {
+          const targetPath = extractedPath || (currentTask && currentTask.extractedPath);
+          if (!targetPath) return;
+          if (window.waterfallDesktop && window.waterfallDesktop.openFolder) {
+            await window.waterfallDesktop.openFolder(targetPath);
+          } else {
+            fetch(`${apiBase}/api/open-folder`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: targetPath })
+            }).catch(() => {});
+          }
+        };
+      }
+    } else if (extractStatus === 'extract_failed') {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#f85149" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Extraction Failed: ${data.extractError || 'Error'}`;
+        finishExtractTitle.style.color = '#f85149';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = '!';
+      if (finishExtractFill) {
+        finishExtractFill.style.width = '100%';
+        finishExtractFill.style.background = '#ef4444';
+      }
+      if (finishExtractDest) finishExtractDest.textContent = data.extractError || 'Failed to unpack archive';
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+    } else if (extractStatus === 'extract_password_required') {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#f59e0b" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0110 0v4"></path></svg> Password Required to Extract Archive`;
+        finishExtractTitle.style.color = '#f59e0b';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = '🔒';
+      if (finishExtractFill) {
+        finishExtractFill.style.width = '100%';
+        finishExtractFill.style.background = '#f59e0b';
+      }
+      if (finishExtractDest) finishExtractDest.textContent = 'Encrypted archive — enter password in main app or extraction tab';
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+    } else {
+      finishExtractSection.style.display = 'none';
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+    }
+  }
+
   function updateProgressMetrics(data) {
-    if (isCompletedState) return;
+    if (isCompletedState) {
+      updateExtractionUI(data);
+      return;
+    }
 
     const downloaded = data.downloadedBytes || 0;
     const total = data.totalBytes || 0;
@@ -526,9 +635,16 @@
       } else if (status === 'assembling') {
         dlgStatus.textContent = 'Assembling file parts...';
         statusDot.style.background = '#38bdf8';
-      } else if (status === 'extracting') {
-        dlgStatus.textContent = 'Extracting archive...';
+      } else if (status === 'extracting' || data.extractStatus === 'extracting') {
+        const extPct = data.extractProgress !== undefined ? data.extractProgress : 0;
+        dlgStatus.textContent = `Extracting archive (${extPct}%)...`;
         statusDot.style.background = '#a855f7';
+        statusDot.style.boxShadow = '0 0 8px #a855f7';
+        if (dlgPercent) dlgPercent.textContent = extPct + '%';
+        if (dlgBarFill) {
+          dlgBarFill.style.width = extPct + '%';
+          dlgBarFill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
+        }
       } else {
         dlgStatus.textContent = 'Downloading...';
         statusDot.style.background = '#10b981';
@@ -596,6 +712,9 @@
       finishSavePath.textContent = savePath;
       finishSavePath.title = savePath;
     }
+
+    // Extraction progress / state in finish view
+    updateExtractionUI(task);
 
     // Action buttons in finish view
     if (btnFinishOpen) {

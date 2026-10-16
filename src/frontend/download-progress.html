@@ -530,6 +530,32 @@
       width: 100%;
       justify-content: center;
       margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .finish-extract-card {
+      width: 100%;
+      background: rgba(147, 51, 234, 0.08);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .btn-dlg-extract {
+      background: linear-gradient(135deg, #7c3aed, #9333ea);
+      color: #ffffff;
+      border: 1px solid #a855f7;
+      box-shadow: 0 0 12px rgba(147, 51, 234, 0.3);
+    }
+
+    .btn-dlg-extract:hover {
+      background: linear-gradient(135deg, #8b5cf6, #a855f7);
+      color: #ffffff;
+      box-shadow: 0 0 16px rgba(168, 85, 247, 0.5);
     }
   </style>
 </head>
@@ -806,6 +832,21 @@
         </div>
       </div>
 
+      <!-- Extraction Progress & Output Section -->
+      <div id="finish-extract-section" class="finish-extract-card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; font-weight: 700;">
+          <span id="finish-extract-title" style="color: #c084fc; display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            Extracting Archive...
+          </span>
+          <span id="finish-extract-pct" style="color: #e9d5ff; font-family: var(--font-mono, monospace);">0%</span>
+        </div>
+        <div class="extract-progress-bar-wrap" style="height: 7px; background: rgba(168, 85, 247, 0.18); border-radius: 4px; overflow: hidden; border: 1px solid rgba(168, 85, 247, 0.3);">
+          <div id="finish-extract-fill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #9333ea, #a855f7, #c084fc); transition: width 0.2s ease;"></div>
+        </div>
+        <div id="finish-extract-dest" style="font-size: 0.7rem; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+      </div>
+
       <div class="finish-actions">
         <button id="btn-finish-open" class="btn-dlg btn-dlg-success">
           <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
@@ -814,6 +855,10 @@
         <button id="btn-finish-folder" class="btn-dlg btn-dlg-primary">
           <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>
           Open Folder
+        </button>
+        <button id="btn-finish-extracted-folder" class="btn-dlg btn-dlg-extract" style="display: none;" title="Open Extracted Directory">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v6m-3-3l3-3 3 3"></path></svg>
+          Open Extracted Folder
         </button>
         <button id="btn-finish-close" class="btn-dlg btn-dlg-secondary">
           Close

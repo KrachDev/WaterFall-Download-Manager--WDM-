@@ -49,7 +49,7 @@ function get7zExecutable() {
 /**
  * Executes a command with timeout and captures stdout/stderr.
  */
-function runProcess(cmd, args, cwd, timeoutMs = 600000) {
+function runProcess(cmd, args, cwd, timeoutMs = 600000, onProgress = null) {
   return new Promise((resolve, reject) => {
     let stdout = '';
     let stderr = '';
@@ -64,13 +64,27 @@ function runProcess(cmd, args, cwd, timeoutMs = 600000) {
       }, timeoutMs);
     }
 
-    proc.stdout.on('data', data => stdout += data.toString());
+    proc.stdout.on('data', data => {
+      const chunk = data.toString();
+      stdout += chunk;
+      if (typeof onProgress === 'function') {
+        const matches = chunk.match(/(\d+)\s*%/g);
+        if (matches && matches.length > 0) {
+          const last = matches[matches.length - 1];
+          const pct = parseInt(last, 10);
+          if (!isNaN(pct) && pct >= 0 && pct <= 100) {
+            onProgress(pct);
+          }
+        }
+      }
+    });
     proc.stderr.on('data', data => stderr += data.toString());
 
     proc.on('close', code => {
       if (timer) clearTimeout(timer);
       const combined = stderr + '\n' + stdout;
       if (code === 0) {
+        if (typeof onProgress === 'function') onProgress(100);
         resolve({ code, stdout, stderr });
       } else {
         const isPasswordErr = isPasswordRequiredError(combined);
@@ -99,6 +113,7 @@ function runProcess(cmd, args, cwd, timeoutMs = 600000) {
  *   - password: string
  *   - deleteArchiveAfter: boolean
  *   - allPartPaths: string[] (if multipart)
+ *   - onProgress: function (receives percent 0-100)
  * @returns {Promise<{success: boolean, outDir: string, durationMs: number, passwordRequired?: boolean, error?: string}>}
  */
 async function unpackArchive(archivePath, options = {}) {
@@ -125,7 +140,7 @@ async function unpackArchive(archivePath, options = {}) {
 
   // Try 7z / NanaZip first (handles .rar, .7z, .zip, .tar, .gz, multipart, etc.)
   try {
-    const args = ['x', '-y'];
+    const args = ['x', '-y', '-bsp1'];
     if (password) {
       args.push(`-p${password}`);
     } else {
@@ -135,7 +150,7 @@ async function unpackArchive(archivePath, options = {}) {
     args.push(`-o${outDir}`);
     args.push(archivePath);
     const sevenZipBin = get7zExecutable();
-    await runProcess(sevenZipBin, args, dir);
+    await runProcess(sevenZipBin, args, dir, 600000, options.onProgress);
     const durationMs = Date.now() - startTime;
 
     if (options.deleteArchiveAfter) {

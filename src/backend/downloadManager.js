@@ -331,6 +331,11 @@ class DownloadManager extends EventEmitter {
 
       for (const t of affected) {
         t.extractStatus = job.status;
+        if (job.extractProgress !== undefined) {
+          t.extractProgress = job.extractProgress;
+        } else if (job.status === 'extracted') {
+          t.extractProgress = 100;
+        }
         if (job.outDir) t.extractedPath = job.outDir;
         if (job.error) t.extractError = job.error;
         if (job.passwordRequired) t.extractPasswordRequired = true;

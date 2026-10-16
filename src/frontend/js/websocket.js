@@ -78,6 +78,9 @@ class WSClient {
               task.eta = update.eta;
               task.status = update.status;
               task.segments = update.segments;
+              if (update.extractStatus !== undefined) task.extractStatus = update.extractStatus;
+              if (update.extractProgress !== undefined) task.extractProgress = update.extractProgress;
+              if (update.extractedPath !== undefined) task.extractedPath = update.extractedPath;
             }
           }
         }

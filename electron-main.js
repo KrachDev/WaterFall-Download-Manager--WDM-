@@ -636,6 +636,13 @@ function connectBackendWebSocket() {
               }
             }
           }
+        } else if (msg.type === 'taskUpdated' && msg.task) {
+          if (msg.task.id && progressWindows.has(msg.task.id)) {
+            const pWin = progressWindows.get(msg.task.id);
+            if (pWin && !pWin.isDestroyed()) {
+              pWin.webContents.send('set-progress-data', msg.task);
+            }
+          }
         } else if (msg.type === 'taskFailed') {
           handleTaskFailure(msg);
         } else if (msg.type === 'showDownloadConfirmation') {
