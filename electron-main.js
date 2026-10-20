@@ -34,18 +34,40 @@ process.on('unhandledRejection', (reason) => {
 app.setAppUserModelId('Waterfall.DownloadSuite');
 
 // ============================================================================
-// PERFORMANCE & MEMORY OPTIMIZATION SWITCHES
+// PERFORMANCE & MEMORY OPTIMIZATION SWITCHES (< 100 MB TARGET)
 // ============================================================================
-// 1. Cap V8 garbage collector heap to 128 MB (prevents memory creep)
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
+// 1. Eliminate the heavy (~100-120 MB) Chromium GPU process entirely
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('disable-gpu-rasterization');
 
-// 2. Disable heavy, unneeded Chromium background services
-app.commandLine.appendSwitch('disable-breakpad'); // Crash reporter
+// 2. Cap V8 garbage collector heap to 48 MB per process and expose GC
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=48 --expose-gc');
+
+// 3. Force single renderer process sharing across all windows/origins
+app.commandLine.appendSwitch('renderer-process-limit', '1');
+app.commandLine.appendSwitch('process-per-site');
+app.commandLine.appendSwitch('disable-site-isolation-trials');
+
+// 4. Disable heavy, unneeded Chromium background services & caches
+app.commandLine.appendSwitch('disable-breakpad');
 app.commandLine.appendSwitch('disable-component-update');
 app.commandLine.appendSwitch('disable-background-networking');
 app.commandLine.appendSwitch('disable-domain-reliability');
 app.commandLine.appendSwitch('disable-sync');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-speech-api');
+app.commandLine.appendSwitch('disable-print-preview');
+app.commandLine.appendSwitch('disable-dev-shm-usage');
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService,CalculateNativeWinOcclusion,SpareRendererForSitePerProcess,AudioServiceOutOfProcess');
+
+// 5. Periodic idle GC
+setInterval(() => {
+  if (global.gc) {
+    try { global.gc(); } catch (_) {}
+  }
+}, 15000);
 
 // ============================================================================
 // SINGLE INSTANCE LOCK
@@ -108,7 +130,7 @@ function openConfirmWindow(probeData) {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       spellcheck: false,
-      backgroundThrottling: false
+      backgroundThrottling: true
     }
   });
 
@@ -146,6 +168,7 @@ function openConfirmWindow(probeData) {
   confirmWindow.on('closed', () => {
     confirmWindow = null;
     pendingConfirmData = null;
+    if (global.gc) try { global.gc(); } catch (_) {}
   });
 
   confirmWindow.loadURL(`${APP_URL}/confirm.html`).catch((err) => {
@@ -158,27 +181,27 @@ function openConfirmWindow(probeData) {
   return confirmWindow;
 }
 
-const progressWindows = new Map();
+let sharedProgressWindow = null;
+let currentInspectedTaskId = null;
 
 function openProgressWindow(task) {
   if (!task || !task.id) return null;
   const taskId = task.id;
+  currentInspectedTaskId = taskId;
 
   const icoPath = path.join(__dirname, 'assets', 'icon.ico');
   const pngPath = path.join(__dirname, 'assets', 'icon.png');
   const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
 
-  if (progressWindows.has(taskId)) {
-    const existingWin = progressWindows.get(taskId);
-    if (existingWin && !existingWin.isDestroyed()) {
-      if (existingWin.isMinimized()) existingWin.restore();
-      if (!existingWin.isVisible()) existingWin.show();
-      existingWin.focus();
-      try {
-        existingWin.webContents.send('set-progress-data', task);
-      } catch (_) {}
-      return existingWin;
-    }
+  if (sharedProgressWindow && !sharedProgressWindow.isDestroyed()) {
+    if (sharedProgressWindow.isMinimized()) sharedProgressWindow.restore();
+    if (!sharedProgressWindow.isVisible()) sharedProgressWindow.show();
+    sharedProgressWindow.focus();
+    sharedProgressWindow.setTitle(`Waterfall — ${task.name || task.filename || 'Downloading'}`);
+    try {
+      sharedProgressWindow.webContents.send('set-progress-data', task);
+    } catch (_) {}
+    return sharedProgressWindow;
   }
 
   const pWin = new BrowserWindow({
@@ -198,12 +221,12 @@ function openProgressWindow(task) {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       spellcheck: false,
-      backgroundThrottling: false
+      backgroundThrottling: true
     }
   });
 
   pWin.setMenuBarVisibility(false);
-  progressWindows.set(taskId, pWin);
+  sharedProgressWindow = pWin;
 
   const deliverTask = () => {
     if (pWin && !pWin.isDestroyed()) {
@@ -235,7 +258,9 @@ function openProgressWindow(task) {
   }, 600);
 
   pWin.on('closed', () => {
-    progressWindows.delete(taskId);
+    sharedProgressWindow = null;
+    currentInspectedTaskId = null;
+    if (global.gc) try { global.gc(); } catch (_) {}
   });
 
   const progressUrl = `${APP_URL}/download-progress.html?taskId=${encodeURIComponent(taskId)}`;
@@ -609,28 +634,21 @@ function connectBackendWebSocket() {
         const msg = JSON.parse(data.toString());
         if (msg.type === 'tick') {
           handleEngineTick(msg);
-          // Forward ticks to active individual download progress windows
-          if (Array.isArray(msg.tasks) && progressWindows.size > 0) {
-            for (const t of msg.tasks) {
-              if (progressWindows.has(t.id)) {
-                const pWin = progressWindows.get(t.id);
-                if (pWin && !pWin.isDestroyed()) {
-                  pWin.webContents.send('download-progress-tick', t);
-                }
-              }
+          // Forward ticks to active shared download progress window
+          if (Array.isArray(msg.tasks) && sharedProgressWindow && !sharedProgressWindow.isDestroyed() && currentInspectedTaskId) {
+            const currentTask = msg.tasks.find(t => t.id === currentInspectedTaskId);
+            if (currentTask) {
+              sharedProgressWindow.webContents.send('download-progress-tick', currentTask);
             }
           }
         } else if (msg.type === 'taskCompleted') {
           handleTaskCompletion(msg.task);
           if (msg.task && msg.task.id) {
-            if (progressWindows.has(msg.task.id)) {
-              const pWin = progressWindows.get(msg.task.id);
-              if (pWin && !pWin.isDestroyed()) {
-                if (pWin.isMinimized()) pWin.restore();
-                if (!pWin.isVisible()) pWin.show();
-                pWin.focus();
-                pWin.webContents.send('task-completed', msg.task);
-              }
+            if (sharedProgressWindow && !sharedProgressWindow.isDestroyed() && currentInspectedTaskId === msg.task.id) {
+              if (sharedProgressWindow.isMinimized()) sharedProgressWindow.restore();
+              if (!sharedProgressWindow.isVisible()) sharedProgressWindow.show();
+              sharedProgressWindow.focus();
+              sharedProgressWindow.webContents.send('task-completed', msg.task);
             } else {
               const cfg = getAppConfig();
               if (cfg.showDownloadCompleteDialog !== false) {
@@ -639,11 +657,8 @@ function connectBackendWebSocket() {
             }
           }
         } else if (msg.type === 'taskUpdated' && msg.task) {
-          if (msg.task.id && progressWindows.has(msg.task.id)) {
-            const pWin = progressWindows.get(msg.task.id);
-            if (pWin && !pWin.isDestroyed()) {
-              pWin.webContents.send('set-progress-data', msg.task);
-            }
+          if (msg.task.id && sharedProgressWindow && !sharedProgressWindow.isDestroyed() && currentInspectedTaskId === msg.task.id) {
+            sharedProgressWindow.webContents.send('set-progress-data', msg.task);
           }
         } else if (msg.type === 'taskFailed') {
           handleTaskFailure(msg);
@@ -839,7 +854,7 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       spellcheck: false,
-      backgroundThrottling: false
+      backgroundThrottling: true
     }
   });
 
@@ -878,6 +893,12 @@ function createWindow() {
   mainWindow.on('move', triggerSaveState);
   mainWindow.on('maximize', triggerSaveState);
   mainWindow.on('unmaximize', triggerSaveState);
+  mainWindow.on('minimize', () => {
+    if (global.gc) try { global.gc(); } catch (_) {}
+  });
+  mainWindow.on('hide', () => {
+    if (global.gc) try { global.gc(); } catch (_) {}
+  });
 
   function loadApp() {
     mainWindow.loadURL(APP_URL).catch(() => {
@@ -1075,9 +1096,8 @@ ipcMain.on('open-progress-window', (event, task) => {
 });
 
 ipcMain.on('close-progress-window', (event, taskId) => {
-  if (taskId && progressWindows.has(taskId)) {
-    const pWin = progressWindows.get(taskId);
-    if (pWin && !pWin.isDestroyed()) pWin.close();
+  if (sharedProgressWindow && !sharedProgressWindow.isDestroyed()) {
+    sharedProgressWindow.close();
   }
 });
 

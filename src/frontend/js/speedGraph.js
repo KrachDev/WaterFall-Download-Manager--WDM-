@@ -12,9 +12,14 @@ class SpeedGraph {
     this.currentSpeed = 0;
     this.peakTextElem = document.getElementById('graph-peak-text');
 
+    this.isRendering = false;
+
     this.resize();
-    window.addEventListener('resize', () => this.resize());
-    this.render();
+    window.addEventListener('resize', () => {
+      this.resize();
+      this.draw();
+    });
+    this.draw();
   }
 
   resize() {
@@ -35,6 +40,17 @@ class SpeedGraph {
     }
     this.points.shift();
     this.points.push(speedBytesPerSec);
+    this.scheduleRender();
+  }
+
+  scheduleRender() {
+    if (!this.isRendering) {
+      this.isRendering = true;
+      requestAnimationFrame(() => {
+        this.draw();
+        this.isRendering = false;
+      });
+    }
   }
 
   formatSpeed(bytes) {
@@ -44,8 +60,7 @@ class SpeedGraph {
     return bytes + ' B/s';
   }
 
-  render() {
-    requestAnimationFrame(() => this.render());
+  draw() {
     if (!this.canvas) return;
 
     const width = this.canvas.width / (window.devicePixelRatio || 1);

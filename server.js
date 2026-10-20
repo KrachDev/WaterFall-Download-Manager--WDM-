@@ -91,9 +91,28 @@ wss.on('connection', (ws) => {
   }));
 });
 
+let wasIdle = false;
+
 // Periodic tick broadcast (250ms) for high-framerate transfer speeds and segment bars
-// PERFORMANCE OPTIMIZATION: Only map actively running tasks in tick to reduce serialization load
+// PERFORMANCE & MEMORY OPTIMIZATION: Suppress redundant JSON serialization and WebSocket frames when idle
 setInterval(() => {
+  const activeCount = downloadManager.getActiveCount();
+  const globalSpeed = downloadManager.globalSpeed || 0;
+
+  if (activeCount === 0 && globalSpeed === 0) {
+    if (!wasIdle) {
+      wasIdle = true;
+      broadcast({
+        type: 'tick',
+        globalSpeed: 0,
+        activeTasks: 0,
+        tasks: []
+      });
+    }
+    return;
+  }
+
+  wasIdle = false;
   const activeList = downloadManager.getAllTasks().filter(t =>
     t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying' ||
     t.extractStatus === 'extracting' || t.extractStatus === 'extract_queued' || t.status === 'extracting'
@@ -115,8 +134,8 @@ setInterval(() => {
 
   broadcast({
     type: 'tick',
-    globalSpeed: downloadManager.globalSpeed,
-    activeTasks: downloadManager.getActiveCount(),
+    globalSpeed,
+    activeTasks: activeCount,
     tasks
   });
 }, 250);
