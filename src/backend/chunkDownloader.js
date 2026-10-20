@@ -113,14 +113,18 @@ class ChunkDownloader extends EventEmitter {
     // If totalBytes was unknown, probe range header to discover Content-Length & Accept-Ranges
     if ((!this.task.totalBytes || this.task.totalBytes === 0) && (!this.task.segments || this.task.segments.length <= 1)) {
       try {
+        const probeController = new AbortController();
+        const probeTimer = setTimeout(() => probeController.abort(), 6000);
         const probeRes = await fetch(this.task.directUrl || this.task.url, {
           method: 'GET',
+          signal: probeController.signal,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WaterfallDL/2.0',
             'Range': 'bytes=0-0',
             ...(this.task.downloadHeaders || {})
           }
         });
+        clearTimeout(probeTimer);
         if (probeRes.ok || probeRes.status === 206) {
           const cr = probeRes.headers.get('content-range');
           if (cr) {
@@ -400,12 +404,23 @@ class ChunkDownloader extends EventEmitter {
         this.activeFlushes.set(segment.id, flushPendingBuffers);
       }
 
+      let connectTimeoutTimer = null;
+      let stallWatchdog = null;
+
       try {
+        const timeoutMs = (this.options.connectionTimeoutSec || 15) * 1000;
+        connectTimeoutTimer = setTimeout(() => {
+          try { controller.abort(new Error(`Connection timed out after ${timeoutMs / 1000}s`)); } catch (_) {}
+        }, timeoutMs);
+
         const res = await fetch(this.task.directUrl || this.task.url, {
           method: 'GET',
           headers,
           signal: controller.signal
         });
+
+        clearTimeout(connectTimeoutTimer);
+        connectTimeoutTimer = null;
 
         // Detect expired link
         if (res.status === 401 || res.status === 403 || res.status === 404 || res.status === 410) {
@@ -491,12 +506,26 @@ class ChunkDownloader extends EventEmitter {
         const reader = res.body.getReader();
         let lastSegTime = Date.now();
         let lastSegBytes = segment.downloadedBytes;
-        const speedLimitPerSec = this.options.speedLimitBytesPerSec || 0;
+        let lastChunkTime = Date.now();
+
+        // 25-second socket stall watchdog: aborts stalled socket to trigger reconnect
+        stallWatchdog = setInterval(() => {
+          if (this.isPaused || this.isCancelled) {
+            clearInterval(stallWatchdog);
+            return;
+          }
+          if (Date.now() - lastChunkTime > 25000) {
+            clearInterval(stallWatchdog);
+            console.warn(`[Waterfall] Segment ${segment.id} stream stalled with no data received for 25s. Aborting socket to auto-reconnect.`);
+            try { controller.abort(new Error('Segment stream stalled (no data for 25s)')); } catch (_) {}
+          }
+        }, 3000);
 
         while (true) {
           if (this.isPaused || this.isCancelled) break;
 
           const { done, value } = await reader.read();
+          lastChunkTime = Date.now();
           if (done) break;
 
           if (value && value.length > 0) {
@@ -555,6 +584,8 @@ class ChunkDownloader extends EventEmitter {
           }
         }
 
+        if (stallWatchdog) clearInterval(stallWatchdog);
+
         // Flush any remaining accumulated bytes before completing segment
         if (useInPlace && pendingLength > 0) {
           await flushPendingBuffers();
@@ -575,23 +606,28 @@ class ChunkDownloader extends EventEmitter {
         return; // Success! Exit retry loop cleanly.
 
       } catch (err) {
+        if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
+        if (stallWatchdog) clearInterval(stallWatchdog);
+
         if (useInPlace && pendingLength > 0 && this.fd !== null) {
           try { await flushPendingBuffers(); } catch (_) {}
         }
         if (legacyStream) legacyStream.end();
 
-        if (controller.signal.aborted || this.isPaused) {
-          segment.status = 'paused';
+        if (this.isPaused || this.isCancelled) {
+          segment.status = this.isCancelled ? 'cancelled' : 'paused';
           segment.speed = 0;
           return;
         }
 
-        // Check if error is retryable network drop
-        const isNetworkDrop = /timeout|econnreset|etimedout|epipe|network|socket hang up|fetch failed/i.test(err.message || '');
+        // Check if error is retryable network drop or timeout/stall
+        const isNetworkDrop = /timeout|timed out|abort|stalled|econnreset|etimedout|epipe|network|socket hang up|fetch failed/i.test(err.message || '');
         if (isNetworkDrop && retryAttempt < maxRetries && !this.isPaused && !this.isCancelled) {
           retryAttempt++;
           const backoffDelay = Math.min(5000, 1000 * retryAttempt);
           console.warn(`[Waterfall] Segment ${segment.id} socket dropped (${err.message}). Auto-reconnecting in ${backoffDelay}ms (Attempt ${retryAttempt}/${maxRetries})...`);
+          this.task.error = `Connection interrupted (${err.message}). Reconnecting in ${Math.round(backoffDelay / 1000)}s (${retryAttempt}/${maxRetries})...`;
+          this.emit('update', this.task);
           await new Promise(r => setTimeout(r, backoffDelay));
           continue; // Re-attempt loop with updated offset
         }

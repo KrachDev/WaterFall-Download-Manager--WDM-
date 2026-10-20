@@ -91,6 +91,8 @@
   function closeThisWindow() {
     if (window.waterfallDesktop && window.waterfallDesktop.closeConfirmWindow) {
       window.waterfallDesktop.closeConfirmWindow();
+    } else if (window.__TAURI__ && window.__TAURI__.window) {
+      window.__TAURI__.window.getCurrentWindow().close().catch(() => window.close());
     } else {
       window.close();
     }

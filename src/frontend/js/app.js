@@ -2638,8 +2638,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function openDesktopProgressWindow(task) {
+    if (!task || !task.id) return;
+    const cfg = window.appState.config || {};
+
+    // 1. Electron Native IPC
+    if (window.waterfallDesktop && typeof window.waterfallDesktop.openProgressWindow === 'function') {
+      window.waterfallDesktop.openProgressWindow(task);
+      return;
+    }
+
+    // 2. Tauri 2 Native Invocation
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+      window.__TAURI__.core.invoke('open_progress_window', { taskId: String(task.id) }).catch(() => {});
+      return;
+    }
+
+    // 3. Web Popup Window fallback
+    try {
+      const popup = window.open(
+        `/download-progress.html?taskId=${encodeURIComponent(task.id)}`,
+        `progress_${String(task.id).replace(/-/g, '_')}`,
+        'width=640,height=560,resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no'
+      );
+      if (popup && !popup.closed) {
+        popup.focus();
+      }
+    } catch (_) {}
+  }
+
+  function openDesktopConfirmWindow(probeData) {
+    if (!probeData) return;
+
+    // 1. Electron Native IPC
+    if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
+      window.waterfallDesktop.openConfirmWindow(probeData);
+      return;
+    }
+
+    // 2. Tauri 2 Native Invocation
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+      window.__TAURI__.core.invoke('open_confirm_window').catch(() => {});
+      return;
+    }
+
+    // 3. Web Popup Window fallback
+    try {
+      const popup = window.open(
+        '/confirm.html',
+        'waterfall_confirm_window',
+        'width=680,height=740,resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no'
+      );
+      if (popup && !popup.closed) {
+        popup.focus();
+        return;
+      }
+    } catch (_) {}
+  }
+
+  window.addEventListener('task:created', (e) => {
+    const task = e.detail;
+    const cfg = window.appState.config || {};
+    if (cfg.showDownloadProgressDialog !== false && task && (task.status === 'downloading' || task.status === 'pending') && !task.isPlaylist) {
+      openDesktopProgressWindow(task);
+    }
+  });
+
   window.addEventListener('task:completed', (e) => {
-    showCompletionNotification(e.detail);
+    const task = e.detail;
+    showCompletionNotification(task);
+    const cfg = window.appState.config || {};
+    if (cfg.showDownloadCompleteDialog !== false && task) {
+      openDesktopProgressWindow(task);
+    }
   });
 
   function openUpdateUrlModal(task) {
@@ -3165,6 +3236,19 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       btnCrawlLinks.disabled = false;
       btnCrawlLinks.textContent = 'Analyze & Crawl Links';
+    }
+  });
+
+  window.addEventListener('crawler:progress', (e) => {
+    const p = e.detail;
+    if (btnCrawlLinks && btnCrawlLinks.disabled && p) {
+      if (p.total > 1) {
+        btnCrawlLinks.textContent = `Crawling (${p.processed}/${p.total})...`;
+      } else if (p.stagedCount > 0) {
+        btnCrawlLinks.textContent = `Found ${p.stagedCount} link${p.stagedCount > 1 ? 's' : ''}...`;
+      } else {
+        btnCrawlLinks.textContent = 'Deep analyzing...';
+      }
     }
   });
 
@@ -3810,9 +3894,13 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify(probeData)
     }).catch(() => {});
 
-    // 1. Electron Native Separate Window
+    // 1. Electron or Tauri Native Separate Window
     if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
       window.waterfallDesktop.openConfirmWindow(probeData);
+      return;
+    }
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+      window.__TAURI__.core.invoke('open_confirm_window').catch(() => {});
       return;
     }
 

@@ -70,12 +70,15 @@ class QueueManager extends EventEmitter {
     let currentActive = 0;
     const activeHostsCount = new Map();
 
-    for (const [id] of activeDownloaders.entries()) {
+    for (const [id] of Array.from(activeDownloaders.entries())) {
       const task = tasksMap.get(id);
       if (task && (task.status === 'downloading' || task.status === 'assembling')) {
         currentActive++;
         const host = this.getHostKey(task.directUrl || task.url);
         activeHostsCount.set(host, (activeHostsCount.get(host) || 0) + 1);
+      } else {
+        // Purge ghost/dead downloader reference
+        activeDownloaders.delete(id);
       }
     }
 

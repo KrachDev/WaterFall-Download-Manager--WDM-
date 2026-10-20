@@ -2,7 +2,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { getYtDlpPath, isMediaUrl, getNodeJsPath } = require('./mediaDownloader');
+const { isMediaUrl } = require('./mediaDownloader');
+const { getYtDlpPath, getNodeJsPath } = require('./binaryResolver');
 
 class MediaPrefetcher {
   constructor() {
@@ -62,12 +63,32 @@ class MediaPrefetcher {
 
     let stdout = '';
     const proc = spawn(ytDlpExe, args, { windowsHide: true });
+    let isSettled = false;
+
+    const timeout = setTimeout(() => {
+      if (isSettled) return;
+      isSettled = true;
+      try { proc.kill(); } catch (_) {}
+      this.activeWorkers = Math.max(0, this.activeWorkers - 1);
+      this.prefetchingIds.delete(taskId);
+    }, 20000);
 
     proc.stdout.on('data', chunk => {
       stdout += chunk.toString();
     });
 
+    proc.on('error', () => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timeout);
+      this.activeWorkers = Math.max(0, this.activeWorkers - 1);
+      this.prefetchingIds.delete(taskId);
+    });
+
     proc.on('close', code => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timeout);
       this.activeWorkers = Math.max(0, this.activeWorkers - 1);
       this.prefetchingIds.delete(taskId);
 

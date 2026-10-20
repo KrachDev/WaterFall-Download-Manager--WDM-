@@ -16,9 +16,11 @@ try {
   process.env.WATERFALL_DATA_DIR = getStorageDir();
 } catch (_) {}
 
-// Augment PATH with local bin directory and WinGet links
+// Augment PATH with persistent AppData bin, local bin, and WinGet links
+const binaryResolver = require('./src/backend/binaryResolver');
 const binPath = path.join(__dirname, 'bin');
-process.env.PATH = `${binPath};${process.env.PATH || ''};${process.env.LOCALAPPDATA || ''}\\Microsoft\\WinGet\\Links`;
+const persistentBin = binaryResolver.getPersistentBinDir();
+process.env.PATH = `${persistentBin};${binPath};${process.env.PATH || ''};${process.env.LOCALAPPDATA || ''}\\Microsoft\\WinGet\\Links`;
 
 // Global safety net: prevent silent crashes
 process.on('uncaughtException', (err) => {

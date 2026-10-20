@@ -3,54 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { sanitizeFilename } = require('./namingEngine');
-
-function getYtDlpPath() {
-  const candidates = [
-    path.join(__dirname, '..', '..', 'bin', 'yt-dlp.exe'),
-    path.join(__dirname.replace('app.asar', 'app.asar.unpacked'), '..', '..', 'bin', 'yt-dlp.exe'),
-    process.resourcesPath ? path.join(process.resourcesPath, 'bin', 'yt-dlp.exe') : null,
-    process.resourcesPath ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'yt-dlp.exe') : null,
-    path.join(process.cwd(), 'bin', 'yt-dlp.exe'),
-    path.join(path.dirname(process.execPath || ''), 'bin', 'yt-dlp.exe'),
-    path.join(__dirname, '..', '..', 'bin', 'yt-dlp')
-  ].filter(Boolean);
-
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-
-  return 'yt-dlp';
-}
-
-function getFfmpegLocation() {
-  const candidates = [
-    path.join(__dirname, '..', '..', 'bin'),
-    path.join(__dirname.replace('app.asar', 'app.asar.unpacked'), '..', '..', 'bin'),
-    process.resourcesPath ? path.join(process.resourcesPath, 'bin') : null,
-    process.resourcesPath ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin') : null,
-    path.join(process.cwd(), 'bin'),
-    path.join(path.dirname(process.execPath || ''), 'bin')
-  ].filter(Boolean);
-
-  for (const c of candidates) {
-    if (fs.existsSync(path.join(c, 'ffmpeg.exe'))) return c;
-  }
-  return null;
-}
-
-function getNodeJsPath() {
-  const candidates = [
-    'C:\\Program Files\\nodejs\\node.exe',
-    'C:\\Program Files (x86)\\nodejs\\node.exe',
-    process.env.APPDATA ? path.join(process.env.APPDATA, 'npm', 'node.exe') : null,
-    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Programs', 'nodejs', 'node.exe') : null
-  ].filter(Boolean);
-
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  return null;
-}
+const { getYtDlpPath, getFfmpegLocation, getNodeJsPath } = require('./binaryResolver');
 
 function isMediaUrl(url) {
   if (!url || typeof url !== 'string') return false;
@@ -83,15 +36,30 @@ function probeMedia(url) {
 
     let stdout = '';
     let stderr = '';
+    let isSettled = false;
+
+    const timeoutTimer = setTimeout(() => {
+      if (isSettled) return;
+      isSettled = true;
+      try { proc.kill(); } catch (_) {}
+      reject(new Error('Media metadata probe timed out after 25 seconds'));
+    }, 25000);
 
     proc.stdout.on('data', data => stdout += data.toString());
     proc.stderr.on('data', data => stderr += data.toString());
 
     proc.on('error', (err) => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timeoutTimer);
       reject(new Error(`yt-dlp failed to launch: ${err.message}`));
     });
 
     proc.on('close', code => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timeoutTimer);
+
       if (code !== 0) {
         return reject(new Error(stderr || `yt-dlp probe failed with code ${code}`));
       }
@@ -302,7 +270,21 @@ class MediaDownloader {
     onUpdate(this.task);
     this.proc = spawn(ytDlpExe, args, { windowsHide: true });
 
+    let lastDataTime = Date.now();
+    const stallInterval = setInterval(() => {
+      if (this.isCancelled || this.isPaused) {
+        clearInterval(stallInterval);
+        return;
+      }
+      if (Date.now() - lastDataTime > 60000) {
+        console.warn(`[Waterfall Media] yt-dlp stalled with no data received for 60s on task ${this.task.id}. Aborting process for auto-retry.`);
+        clearInterval(stallInterval);
+        try { this.proc.kill(); } catch (_) {}
+      }
+    }, 5000);
+
     this.proc.stdout.on('data', (data) => {
+      lastDataTime = Date.now();
       const text = data.toString();
       const destMatch = text.match(/(?:Destination:\s+|Merging formats into\s+["']?|\[ExtractAudio\] Destination:\s+|\[download\]\s+)([^\r\n"']+\.(?:mp4|mp3|mkv|webm|m4a|flv|opus|wav|aac|ogg))/i);
       if (destMatch && destMatch[1]) {
@@ -319,6 +301,7 @@ class MediaDownloader {
     });
 
     this.proc.stderr.on('data', (data) => {
+      lastDataTime = Date.now();
       const line = data.toString();
       if (line.includes('ERROR:')) {
         lastErrorMsg = line.trim();
@@ -327,6 +310,7 @@ class MediaDownloader {
     });
 
     this.proc.on('close', (code) => {
+      clearInterval(stallInterval);
       if (this.isCancelled) return;
 
       if (code === 0) {

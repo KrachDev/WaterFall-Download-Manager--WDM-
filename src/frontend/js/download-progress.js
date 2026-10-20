@@ -145,6 +145,8 @@
   function closeWindow() {
     if (window.waterfallDesktop && window.waterfallDesktop.close) {
       window.waterfallDesktop.close();
+    } else if (window.__TAURI__ && window.__TAURI__.window) {
+      window.__TAURI__.window.getCurrentWindow().close().catch(() => window.close());
     } else {
       window.close();
     }
@@ -704,6 +706,27 @@
         statusDot.style.boxShadow = '0 0 8px #f59e0b';
         if (btnPauseResume) {
           btnPauseResume.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg> Resume`;
+        }
+      } else if (status === 'queued') {
+        dlgStatus.textContent = 'Queued in Waterfall...';
+        statusDot.style.background = '#38bdf8';
+        statusDot.style.boxShadow = '0 0 8px #38bdf8';
+        if (btnPauseResume) {
+          btnPauseResume.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg> Start Now`;
+        }
+      } else if (status === 'retrying') {
+        dlgStatus.textContent = data.error || 'Connection dropped. Reconnecting...';
+        statusDot.style.background = '#f59e0b';
+        statusDot.style.boxShadow = '0 0 8px #f59e0b';
+        if (btnPauseResume) {
+          btnPauseResume.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"></path></svg> Pause`;
+        }
+      } else if (status === 'error') {
+        dlgStatus.textContent = `Error: ${data.error || 'Download failed'}`;
+        statusDot.style.background = '#ef4444';
+        statusDot.style.boxShadow = '0 0 8px #ef4444';
+        if (btnPauseResume) {
+          btnPauseResume.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg> Retry`;
         }
       } else if (status === 'assembling') {
         dlgStatus.textContent = 'Assembling file parts...';

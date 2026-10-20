@@ -12,9 +12,12 @@
     "postinstall": "node -e \"try { const { rcedit } = require('rcedit'); rcedit('node_modules/electron/dist/electron.exe', { icon: 'assets/icon.ico', 'version-string': { ProductName: 'Waterfall', FileDescription: 'Waterfall Download Suite' } }); } catch (_) {}\"",
     "daemon": "node server.js",
     "bench": "node test-benchmark.js",
-    "build": "npx @electron/packager . Waterfall --platform=win32 --arch=x64 --icon=assets/icon.ico --out=dist --overwrite --electron-version=44.7.0 --ignore=\"^/dist\" --ignore=\"^/downloads\" --ignore=\"^/temp\" --ignore=\"^/\\.git\" --extra-resource=bin --win32metadata.ProductName=\"Waterfall\" --win32metadata.FileDescription=\"Waterfall Download Suite\"",
-    "build:electron": "npx @electron/packager . Waterfall --platform=win32 --arch=x64 --icon=assets/icon.ico --out=dist --overwrite --electron-version=44.7.0 --ignore=\"^/dist\" --ignore=\"^/downloads\" --ignore=\"^/temp\" --ignore=\"^/\\.git\" --extra-resource=bin --win32metadata.ProductName=\"Waterfall\" --win32metadata.FileDescription=\"Waterfall Download Suite\"",
-    "build:native": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /r:System.Windows.Forms.dll,System.Drawing.dll /target:winexe /win32icon:assets\\icon.ico /optimize+ /out:Waterfall.exe src\\native\\HydraApp.cs",
+    "build": "node scripts/pack.js all",
+    "build:rust": "node scripts/pack.js rust",
+    "build:tauri": "node scripts/pack.js rust",
+    "build:electron": "node scripts/pack.js electron",
+    "build:native": "node scripts/pack.js native",
+    "pack": "node scripts/pack.js all",
     "shortcut": "powershell -ExecutionPolicy Bypass -File .\\create-desktop-shortcut.ps1"
   },
   "keywords": [],
@@ -27,6 +30,8 @@
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "@tauri-apps/cli": "^2.12.3",
     "electron": "^44.7.0",
     "rcedit": "^5.0.2"
   }

@@ -17,6 +17,7 @@ const downloadManager = require('./src/backend/downloadManager');
 const { linkGrabber } = require('./src/backend/linkGrabber');
 const { probeMedia, isMediaUrl } = require('./src/backend/mediaDownloader');
 const { testRunScript } = require('./src/backend/scriptRunner');
+const binaryResolver = require('./src/backend/binaryResolver');
 
 const app = express();
 const server = http.createServer(app);
@@ -84,6 +85,7 @@ wss.on('connection', (ws) => {
     tasks: downloadManager.getAllTasks(),
     staged: linkGrabber.getStagedItems(),
     config: getConfig(),
+    binaries: binaryResolver.getSystemBinariesStatus(),
     globalSpeed: downloadManager.globalSpeed,
     activeTasks: downloadManager.getActiveCount()
   }));
@@ -621,7 +623,19 @@ app.post('/api/linkgrabber/crawl', async (req, res) => {
   if (!text) return res.status(400).json({ error: 'Text/URLs required' });
 
   try {
-    const results = await linkGrabber.crawlText(text, packageName);
+    let lastBroadcast = 0;
+    const results = await linkGrabber.crawlText(text, packageName, (progress) => {
+      const now = Date.now();
+      if (now - lastBroadcast > 200 || progress.processed === progress.total) {
+        lastBroadcast = now;
+        broadcast({
+          type: 'crawler_progress',
+          progress,
+          staged: linkGrabber.getStagedItems()
+        });
+      }
+    });
+
     broadcast({ type: 'linkgrabberUpdated', staged: linkGrabber.getStagedItems() });
     res.json({ count: results.length, items: results });
   } catch (err) {
@@ -891,6 +905,32 @@ app.get('/api/app-icon', async (req, res) => {
   }
 });
 
+app.get('/api/system/binaries', (req, res) => {
+  try {
+    const status = binaryResolver.getSystemBinariesStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/system/download-ytdl', async (req, res) => {
+  try {
+    const forceUpdate = req.body && req.body.forceUpdate === true;
+    const result = await binaryResolver.ensureYtDlpInstalled({
+      forceUpdate,
+      onProgress: (dl, total) => {
+        broadcast({ type: 'ytdl_download_progress', downloaded: dl, total });
+      }
+    });
+    const status = binaryResolver.getSystemBinariesStatus();
+    broadcast({ type: 'system_binaries', binaries: status });
+    res.json({ success: true, result, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const config = getConfig();
 const PORT = process.env.PORT || config.listenPort || 4567;
 syncWindowsStartupRegistry(config.startWithWindows !== false, config.startWithWindow === true);
@@ -912,6 +952,19 @@ function startServer(port = PORT) {
       console.log(` WATERFALL - IDM + JDownloader Hybrid Core Running     `);
       console.log(` Web & Desktop UI: http://localhost:${port}             `);
       console.log(`=======================================================`);
+
+      // Asynchronously ensure yt-dlp is available or auto-download from official GitHub release
+      binaryResolver.ensureYtDlpInstalled({
+        onProgress: (dl, total) => {
+          broadcast({ type: 'ytdl_download_progress', downloaded: dl, total });
+        }
+      }).then((res) => {
+        const status = binaryResolver.getSystemBinariesStatus();
+        broadcast({ type: 'system_binaries', binaries: status });
+      }).catch((err) => {
+        console.warn('[Waterfall Server] Background yt-dlp check warning:', err.message);
+      });
+
       resolve(server);
     });
   });

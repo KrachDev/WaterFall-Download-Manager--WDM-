@@ -6,6 +6,9 @@ package-lock.json
 dist/
 out/
 build/
+Publish/
+publish/
+src-tauri/target/
 *.exe
 *.dll
 *.node

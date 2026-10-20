@@ -791,7 +791,13 @@ class DownloadManager extends EventEmitter {
     }
 
     if (options.autoStart && !options.skipProcessQueue) {
+      if (queueManager.isPaused) {
+        queueManager.resumeQueue();
+      }
       this.processQueue();
+      if (!this.activeDownloaders.has(id)) {
+        this.startDownload(id);
+      }
     } else {
       mediaPrefetcher.checkQueue(this.tasks, (t) => {
         this.saveState();
@@ -921,6 +927,7 @@ class DownloadManager extends EventEmitter {
       segments,
       tempDir: config.tempDir,
       bufferSize: config.bufferSizeBytes || (1024 * 1024),
+      connectionTimeoutSec: config.connectionTimeoutSec || 15,
       speedLimitBytesPerSec
     });
 
@@ -1211,9 +1218,19 @@ class DownloadManager extends EventEmitter {
     queueManager.clearRetryTimer(id);
     task.status = 'queued';
     task.retryCount = 0;
+    task.error = null;
+
+    if (queueManager.isPaused) {
+      queueManager.resumeQueue();
+    }
+
     this.saveState();
     this.emit('taskUpdated', task);
     this.processQueue();
+
+    if (!this.activeDownloaders.has(id)) {
+      this.startDownload(id);
+    }
   }
 
   updateTaskUrl(id, newUrl) {
@@ -1241,9 +1258,17 @@ class DownloadManager extends EventEmitter {
     const config = getConfig();
     recoverPartialBytes(task, config);
 
+    if (queueManager.isPaused) {
+      queueManager.resumeQueue();
+    }
+
     this.saveState(true);
     this.emit('taskUpdated', task);
     this.processQueue();
+
+    if (!this.activeDownloaders.has(id)) {
+      this.startDownload(id);
+    }
     return task;
   }
 

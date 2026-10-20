@@ -1,8 +1,12 @@
 const path = require('path');
-const { probeMedia } = require('../mediaDownloader');
+const { probeMedia, isMediaUrl } = require('../mediaDownloader');
 const gofileHoster = require('./gofile');
 const transferItHoster = require('./transferIt');
 const fuckingFastHoster = require('./fuckingfast');
+const pixeldrainHoster = require('./pixeldrain');
+const archiveOrgHoster = require('./archiveOrg');
+const krakenfilesHoster = require('./krakenfiles');
+const buzzheavierHoster = require('./buzzheavier');
 
 class HosterManager {
   constructor() {
@@ -11,10 +15,14 @@ class HosterManager {
   }
 
   registerDefaults() {
-    // Specialized hosters
+    // Specialized multi-file & direct hosters
     this.register(gofileHoster);
     this.register(transferItHoster);
     this.register(fuckingFastHoster);
+    this.register(pixeldrainHoster);
+    this.register(archiveOrgHoster);
+    this.register(krakenfilesHoster);
+    this.register(buzzheavierHoster);
 
     // 0. YouTube & Streaming Audio/Video
     this.register({
@@ -22,11 +30,40 @@ class HosterManager {
       id: 'youtube',
       pattern: /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/i,
       async resolve(url) {
+        // If playlist, extract via crawlMediaPlaylist directly
+        if (/[?&]list=|(\/playlist)/i.test(url)) {
+          const { crawlMediaPlaylist } = require('../crawlerEngine');
+          const pl = await crawlMediaPlaylist(url);
+          if (pl && pl.isMulti && Array.isArray(pl.items) && pl.items.length > 0) {
+            return pl;
+          }
+        }
+
         try {
           const info = await probeMedia(url);
+          if (info && info.isPlaylist && Array.isArray(info.entries)) {
+            const playlistTitle = info.title || 'YouTube Playlist';
+            return {
+              isMulti: true,
+              packageName: playlistTitle,
+              hoster: 'YouTube',
+              items: info.entries.map((entry, idx) => ({
+                originalUrl: entry.url,
+                directUrl: entry.url,
+                filename: `${(entry.title || `Track_${idx + 1}`).replace(/[<>:"/\\|?*]/g, '_')}.mp3`,
+                size: 0,
+                hoster: 'YouTube',
+                packageName: playlistTitle,
+                status: 'online',
+                isMedia: true,
+                mediaOptions: { mediaType: 'audio', audioFormat: 'mp3', audioQuality: '0' }
+              }))
+            };
+          }
+
           return {
             directUrl: url,
-            filename: `${info.title.replace(/[<>:"/\\|?*]/g, '_')}.mp3`,
+            filename: `${((info && info.title) ? info.title : 'youtube_media').replace(/[<>:"/\\|?*]/g, '_')}.mp3`,
             size: 0,
             hoster: 'YouTube',
             status: 'online',
@@ -36,7 +73,7 @@ class HosterManager {
         } catch (_) {
           return {
             directUrl: url,
-            filename: `youtube_stream.mp3`,
+            filename: 'youtube_stream.mp3',
             size: 0,
             hoster: 'YouTube',
             status: 'online',
@@ -47,58 +84,104 @@ class HosterManager {
       }
     });
 
-    // 1. Pixeldrain
+    // 0.1 Qiwi
     this.register({
-      name: 'Pixeldrain',
-      id: 'pixeldrain',
-      pattern: /^https?:\/\/(?:www\.)?pixeldrain\.com\/(?:u|d)\/([a-zA-Z0-9_-]+)/i,
+      name: 'Qiwi',
+      id: 'qiwi',
+      pattern: /^https?:\/\/(?:www\.)?qiwi\.(?:gg|to)\/file\/([a-zA-Z0-9_-]+)/i,
       async resolve(url) {
-        const match = url.match(/^https?:\/\/(?:www\.)?pixeldrain\.com\/(?:u|d)\/([a-zA-Z0-9_-]+)/i);
-        if (!match) return null;
-        const fileId = match[1];
-        
         try {
-          const infoRes = await fetch(`https://pixeldrain.com/api/file/${fileId}/info`, {
-            headers: { 'User-Agent': 'WaterfallDL/2.0' }
+          const res = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            signal: AbortSignal.timeout(5000)
           });
-          if (infoRes.ok) {
-            const data = await infoRes.json();
-            return {
-              directUrl: `https://pixeldrain.com/api/file/${fileId}`,
-              filename: data.name || `pixeldrain_${fileId}`,
-              size: data.size || 0,
-              hoster: 'Pixeldrain',
-              status: 'online'
-            };
+          if (res.ok) {
+            const html = await res.text();
+            const dlMatch = html.match(/href="(https:\/\/[^"]*qiwi\.[^"]*\/[^\/]+\/download[^"]*)"/i) ||
+                            html.match(/<a[^>]*href="([^"]+)"[^>]*>Download/i);
+            const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+            let filename = titleMatch ? titleMatch[1].replace(/\s*-\s*Qiwi.*$/i, '').trim() : 'qiwi_download';
+
+            if (dlMatch) {
+              return {
+                directUrl: new URL(dlMatch[1], url).href,
+                filename,
+                size: 0,
+                hoster: 'Qiwi',
+                status: 'online'
+              };
+            }
           }
-        } catch (e) {
-          console.warn('Pixeldrain API probe failed, using direct fallback:', e.message);
-        }
+        } catch (_) {}
 
         return {
-          directUrl: `https://pixeldrain.com/api/file/${fileId}`,
-          filename: `pixeldrain_${fileId}`,
+          directUrl: url,
+          filename: 'qiwi_file',
           size: 0,
-          hoster: 'Pixeldrain',
+          hoster: 'Qiwi',
           status: 'online'
         };
       }
     });
 
-    // 2. MediaFire
+    // 1. Google Drive
+    this.register({
+      name: 'Google Drive',
+      id: 'gdrive',
+      pattern: /^https?:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/i,
+      async resolve(url) {
+        const match = url.match(/^https?:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/i);
+        if (!match) return null;
+        const id = match[1];
+        return {
+          directUrl: `https://drive.google.com/uc?export=download&id=${id}`,
+          filename: `gdrive_${id}`,
+          size: 0,
+          hoster: 'Google Drive',
+          status: 'online'
+        };
+      }
+    });
+
+    // 2. Dropbox
+    this.register({
+      name: 'Dropbox',
+      id: 'dropbox',
+      pattern: /^https?:\/\/(?:www\.)?dropbox\.com\/s(?:cl)?\//i,
+      async resolve(url) {
+        let directUrl = url;
+        if (directUrl.includes('dl=0')) directUrl = directUrl.replace('dl=0', 'dl=1');
+        else if (!directUrl.includes('dl=1')) directUrl += (directUrl.includes('?') ? '&dl=1' : '?dl=1');
+        const u = new URL(url);
+        const filename = path.basename(u.pathname) || 'dropbox_file';
+        return {
+          directUrl,
+          filename: decodeURIComponent(filename),
+          size: 0,
+          hoster: 'Dropbox',
+          status: 'online'
+        };
+      }
+    });
+
+    // 3. MediaFire
     this.register({
       name: 'MediaFire',
       id: 'mediafire',
-      pattern: /^https?:\/\/(?:www\.)?mediafire\.com\/(?:file|download)\/([a-zA-Z0-9]+)/i,
+      pattern: /^https?:\/\/(?:www\.)?mediafire\.com\/(?:file|download|folder)\/([a-zA-Z0-9]+)/i,
       async resolve(url) {
         try {
           const res = await fetch(url, {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            },
+            signal: AbortSignal.timeout(5000)
           });
+          if (!res.ok) return null;
           const html = await res.text();
-          
+
           // Regex search for direct download button href
           const dlMatch = html.match(/aria-label="Download file"[\s\S]*?href="(https:\/\/[^"]+)"/i) ||
                           html.match(/id="downloadButton"[\s\S]*?href="(https:\/\/[^"]+)"/i) ||
@@ -118,7 +201,7 @@ class HosterManager {
             };
           }
         } catch (e) {
-          console.warn('Mediafire scraping failed:', e.message);
+          console.warn('[MediaFire] Scraping failed:', e.message);
         }
 
         return {
@@ -131,7 +214,7 @@ class HosterManager {
       }
     });
 
-    // 3. Catbox
+    // 4. Catbox
     this.register({
       name: 'Catbox',
       id: 'catbox',
@@ -149,24 +232,6 @@ class HosterManager {
       }
     });
 
-    // 4. Archive.org
-    this.register({
-      name: 'Archive.org',
-      id: 'archive_org',
-      pattern: /^https?:\/\/(?:www\.)?archive\.org\/download\//i,
-      async resolve(url) {
-        const u = new URL(url);
-        const filename = path.basename(u.pathname) || 'archive_download';
-        return {
-          directUrl: url,
-          filename: decodeURIComponent(filename),
-          size: 0,
-          hoster: 'Archive.org',
-          status: 'online'
-        };
-      }
-    });
-
     // 5. 1Fichier
     this.register({
       name: '1Fichier',
@@ -179,7 +244,7 @@ class HosterManager {
           size: 0,
           hoster: '1Fichier',
           status: 'online',
-          notice: 'Requires direct token or premium for instant high-speed multi-threaded chunks.'
+          notice: 'Supports direct download token or premium.'
         };
       }
     });
@@ -237,23 +302,15 @@ class HosterManager {
       }
     }
 
-    // Fast-path: If the URL ends with a known binary download extension, skip heavy yt-dlp spawn entirely
-    const isDirectBinary = /\.(zip|rar|7z|tar|gz|bz2|xz|iso|pkg|bin|exe|msi|dmg|apk|deb|rpm|pdf|docx?|xlsx?|epub|cbz|cbr)(\?.*)?$/i.test(url);
-    if (!isDirectBinary) {
-      // Check if URL is recognized media host or extensionless HTML endpoint
-      const { isMediaUrl } = require('../mediaDownloader');
-      const shouldProbeYtDlp = isMediaUrl(url) || !/\.[a-zA-Z0-9]{2,5}(\?.*)?$/i.test(url);
-
-      if (shouldProbeYtDlp) {
-        // Try Universal Extractor Bridge (yt-dlp 1,800+ websites)
-        try {
-          const { probeWithYtDlp } = require('../crawlerEngine');
-          const universalRes = await probeWithYtDlp(url);
-          if (universalRes && universalRes.directUrl) {
-            return universalRes;
-          }
-        } catch (_) {}
-      }
+    // Fast-path: If the URL is an explicit media host (YouTube, TikTok, SoundCloud, etc.), probe via yt-dlp
+    if (isMediaUrl(url)) {
+      try {
+        const { probeWithYtDlp } = require('../crawlerEngine');
+        const universalRes = await probeWithYtDlp(url);
+        if (universalRes && universalRes.directUrl) {
+          return universalRes;
+        }
+      } catch (_) {}
     }
 
     const directHoster = this.hosters.find(h => h.id === 'direct');

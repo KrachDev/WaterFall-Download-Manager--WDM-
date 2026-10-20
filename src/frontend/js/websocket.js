@@ -101,6 +101,7 @@ class WSClient {
       case 'taskCreated':
         window.appState.tasks.unshift(msg.task);
         window.dispatchEvent(new CustomEvent('state:change'));
+        window.dispatchEvent(new CustomEvent('task:created', { detail: msg.task }));
         break;
 
       case 'taskUpdated':
@@ -153,6 +154,14 @@ class WSClient {
       case 'linkgrabberUpdated':
         window.appState.staged = msg.staged || [];
         window.dispatchEvent(new CustomEvent('state:grabber'));
+        break;
+
+      case 'crawler_progress':
+        if (msg.staged) {
+          window.appState.staged = msg.staged;
+          window.dispatchEvent(new CustomEvent('state:grabber'));
+        }
+        window.dispatchEvent(new CustomEvent('crawler:progress', { detail: msg.progress }));
         break;
 
       case 'extractPasswordRequired':
