@@ -191,6 +191,19 @@
       extractBox.style.display = isArchive ? 'block' : 'none';
     }
 
+    function resolveExtractedDir(savePath) {
+      if (!savePath || typeof savePath !== 'string') return null;
+      const parts = savePath.replace(/\\/g, '/').split('/');
+      const fname = parts.pop() || '';
+      const dir = parts.join('\\');
+      const extMatch = fname.match(/\.(zip|rar|7z|tar\.gz|tar\.bz2|tar|tgz|bz2|xz|iso|part\d+\.rar|part\d+|001|r00|r01)$/i);
+      const baseName = extMatch ? fname.slice(0, extMatch.index).trim() : fname;
+      if (dir && baseName) {
+        return `${dir}\\${baseName}`;
+      }
+      return null;
+    }
+
     // Duplicate detection alert
     if (dupBanner && data.existingMatch) {
       const match = data.existingMatch;
@@ -202,9 +215,13 @@
         if (dupIcon) dupIcon.textContent = '✓';
         if (dupText) dupText.textContent = `File already completed on disk: "${match.name}"`;
         if (dupActions) {
+          const extractedPath = match.extractedPath || (match.isArchive || isArchive ? resolveExtractedDir(match.savePath) : null);
           dupActions.innerHTML = `
             <button type="button" class="tool-btn" id="btn-dup-open" style="padding: 3px 10px; font-size: 0.72rem;">Open File</button>
             <button type="button" class="tool-btn" id="btn-dup-folder" style="padding: 3px 10px; font-size: 0.72rem;">Show in Folder</button>
+            ${extractedPath ? `
+            <button type="button" class="tool-btn" id="btn-dup-extracted" style="padding: 3px 10px; font-size: 0.72rem; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.45); color: #d8b4fe;" title="Open Extracted Directory (${extractedPath})">Open Extracted Folder</button>
+            ` : ''}
           `;
           document.getElementById('btn-dup-open').onclick = () => {
             fetch(`${apiBase}/api/open-file`, {
@@ -220,6 +237,20 @@
               body: JSON.stringify({ filePath: match.savePath })
             });
           };
+          const btnExtracted = document.getElementById('btn-dup-extracted');
+          if (btnExtracted && extractedPath) {
+            btnExtracted.onclick = () => {
+              if (window.waterfallDesktop && window.waterfallDesktop.openFolder) {
+                window.waterfallDesktop.openFolder(extractedPath);
+              } else {
+                fetch(`${apiBase}/api/open-folder`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ filePath: extractedPath })
+                });
+              }
+            };
+          }
         }
       } else {
         dupBanner.style.background = 'rgba(56, 189, 248, 0.12)';

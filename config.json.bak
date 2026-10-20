@@ -54,5 +54,5 @@
   "showDownloadProgressDialog": true,
   "showDownloadCompleteDialog": true,
   "closeAction": "ask",
-  "themeAccent": "cyan"
+  "themeAccent": "emerald"
 }

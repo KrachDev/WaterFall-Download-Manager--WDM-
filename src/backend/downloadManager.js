@@ -102,6 +102,37 @@ function makeUniqueFilename(folder, filename) {
   return candidateName;
 }
 
+function resolveExtractedDirForPath(filePath, targetTask, allTasks) {
+  if (targetTask && targetTask.extractedPath) return targetTask.extractedPath;
+  if (targetTask && targetTask.multipart && targetTask.multipart.groupKey && allTasks) {
+    for (const sibling of allTasks.values()) {
+      if (sibling.multipart && sibling.multipart.groupKey === targetTask.multipart.groupKey && sibling.extractedPath) {
+        return sibling.extractedPath;
+      }
+    }
+  }
+  const checkPath = filePath || (targetTask && targetTask.savePath);
+  if (!checkPath || typeof checkPath !== 'string') return null;
+  if (!isArchiveFile(checkPath)) return null;
+
+  try {
+    const dir = path.dirname(checkPath);
+    const ext = path.extname(checkPath);
+    let baseName = path.basename(checkPath, ext)
+      .replace(/\.part\d+$/i, '')
+      .replace(/\.7z$/i, '')
+      .replace(/\.zip$/i, '')
+      .trim();
+    if (baseName) {
+      const candidate = path.join(dir, baseName);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 function findExistingMatchingTask(tasks, options = {}, filename = '', savePath = '') {
   const normName = normalizeFileTitle(filename);
   const optUrl = (options.url || '').trim();
@@ -631,7 +662,14 @@ class DownloadManager extends EventEmitter {
     } else if (matchResult) {
       if (matchResult.isCompletedOnDisk) {
         console.log(`[Waterfall] Task "${matchResult.targetTask.name}" (${matchResult.targetTask.id}) is already completed on disk.`);
-        return { ...matchResult.targetTask, isDuplicate: true };
+        const t = matchResult.targetTask;
+        const extractedPath = resolveExtractedDirForPath(t.savePath, t, this.tasks);
+        return {
+          ...t,
+          isDuplicate: true,
+          extractedPath,
+          extractStatus: t.extractStatus || (extractedPath ? 'extracted' : null)
+        };
       }
 
       const targetTask = matchResult.targetTask;
@@ -1666,6 +1704,8 @@ class DownloadManager extends EventEmitter {
           const t = match.targetTask;
           const isDone = Boolean(match.isCompletedOnDisk || t.status === 'completed');
           const percent = (t.totalBytes > 0) ? Math.min(100, Math.round(((t.downloadedBytes || 0) / t.totalBytes) * 100)) : 0;
+          const filePath = t.savePath || dest.savePath;
+          const extractedPath = resolveExtractedDirForPath(filePath, t, this.tasks);
           existingMatch = {
             id: t.id,
             name: t.name || filename,
@@ -1676,13 +1716,17 @@ class DownloadManager extends EventEmitter {
             totalBytes: t.totalBytes || 0,
             formattedSize: t.totalBytes > 0 ? this.formatBytes(t.totalBytes) : 'Dynamic Stream',
             percent,
-            savePath: t.savePath || dest.savePath,
-            url: t.url || cleanUrl
+            savePath: filePath,
+            url: t.url || cleanUrl,
+            extractedPath,
+            extractStatus: t.extractStatus || (extractedPath ? 'extracted' : null),
+            isArchive: Boolean(isArchiveFile(filePath) || isArchiveFile(filename) || isArchiveFile(t.name))
           };
         } else if (dest.savePath && fs.existsSync(dest.savePath)) {
           try {
             const st = fs.statSync(dest.savePath);
             if (st.size > 0) {
+              const extractedPath = resolveExtractedDirForPath(dest.savePath, null, this.tasks);
               existingMatch = {
                 id: null,
                 name: filename,
@@ -1694,7 +1738,10 @@ class DownloadManager extends EventEmitter {
                 formattedSize: this.formatBytes(st.size),
                 percent: 100,
                 savePath: dest.savePath,
-                url: cleanUrl
+                url: cleanUrl,
+                extractedPath,
+                extractStatus: extractedPath ? 'extracted' : null,
+                isArchive: Boolean(isArchiveFile(dest.savePath) || isArchiveFile(filename))
               };
             }
           } catch (_) {}
@@ -1818,6 +1865,8 @@ class DownloadManager extends EventEmitter {
       const t = match.targetTask;
       const isDone = Boolean(match.isCompletedOnDisk || t.status === 'completed');
       const percent = (t.totalBytes > 0) ? Math.min(100, Math.round(((t.downloadedBytes || 0) / t.totalBytes) * 100)) : 0;
+      const filePath = t.savePath || dest.savePath;
+      const extractedPath = resolveExtractedDirForPath(filePath, t, this.tasks);
       existingMatch = {
         id: t.id,
         name: t.name || filename,
@@ -1828,13 +1877,17 @@ class DownloadManager extends EventEmitter {
         totalBytes: t.totalBytes || 0,
         formattedSize: t.totalBytes > 0 ? this.formatBytes(t.totalBytes) : 'Unknown',
         percent,
-        savePath: t.savePath || dest.savePath,
-        url: t.url || cleanUrl
+        savePath: filePath,
+        url: t.url || cleanUrl,
+        extractedPath,
+        extractStatus: t.extractStatus || (extractedPath ? 'extracted' : null),
+        isArchive: Boolean(isArchiveFile(filePath) || isArchiveFile(filename) || isArchiveFile(t.name))
       };
     } else if (dest.savePath && fs.existsSync(dest.savePath)) {
       try {
         const st = fs.statSync(dest.savePath);
         if (st.size > 0) {
+          const extractedPath = resolveExtractedDirForPath(dest.savePath, null, this.tasks);
           existingMatch = {
             id: null,
             name: filename,
@@ -1846,7 +1899,10 @@ class DownloadManager extends EventEmitter {
             formattedSize: this.formatBytes(st.size),
             percent: 100,
             savePath: dest.savePath,
-            url: cleanUrl
+            url: cleanUrl,
+            extractedPath,
+            extractStatus: extractedPath ? 'extracted' : null,
+            isArchive: Boolean(isArchiveFile(dest.savePath) || isArchiveFile(filename))
           };
         }
       } catch (_) {}

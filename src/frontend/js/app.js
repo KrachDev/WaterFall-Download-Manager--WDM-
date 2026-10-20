@@ -526,6 +526,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Extraction helpers
+  function findExtractedPathForTask(t) {
+    if (!t) return null;
+    if (t.extractedPath) return t.extractedPath;
+    if (t.multipart && t.multipart.groupKey && window.appState && Array.isArray(window.appState.tasks)) {
+      const match = window.appState.tasks.find(o => o.multipart && o.multipart.groupKey === t.multipart.groupKey && o.extractedPath);
+      if (match) return match.extractedPath;
+    }
+    const checkPath = t.savePath || t.path || t.filename || t.name;
+    if (!checkPath || typeof checkPath !== 'string') return null;
+    const isArch = /\.(zip|rar|7z|tar\.gz|tar\.bz2|tar|tgz|bz2|xz|iso|part\d+\.rar|part\d+|001|r00|r01)$/i.test(checkPath);
+    if (!isArch) return null;
+    const parts = checkPath.replace(/\\/g, '/').split('/');
+    const fname = parts.pop() || '';
+    const dir = parts.join('\\');
+    const extMatch = fname.match(/\.(zip|rar|7z|tar\.gz|tar\.bz2|tar|tgz|bz2|xz|iso|part\d+\.rar|part\d+|001|r00|r01)$/i);
+    const baseName = extMatch ? fname.slice(0, extMatch.index).trim() : fname;
+    if (dir && baseName) {
+      return `${dir}\\${baseName}`;
+    }
+    return null;
+  }
+
   // Extraction badge helper
   function renderExtractionBadge(t) {
     if (t.extractStatus === 'extracted') {
@@ -2484,6 +2507,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const categoryName = task.category || (task.isMedia ? 'Media' : 'File');
     const savePath = task.savePath || 'Downloads folder';
 
+    const extractedPath = task.extractedPath || findExtractedPathForTask(task);
+
     toast.innerHTML = `
       <div class="completion-toast-header">
         <div class="completion-toast-status">
@@ -2519,6 +2544,12 @@ document.addEventListener('DOMContentLoaded', () => {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           Open Folder
         </button>
+        ${extractedPath ? `
+        <button class="toast-btn-extracted" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.45); color: #d8b4fe; padding: 4px 10px; font-size: 0.75rem; border-radius: 4px; cursor: pointer;" title="Open Extracted Directory (${escapeHtml(extractedPath)})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><path d="M12 11v6m-3-3l3-3 3 3"></path></svg>
+          Open Extracted Folder
+        </button>
+        ` : ''}
         <button class="toast-btn-dismiss">Dismiss</button>
       </div>
 
@@ -2527,6 +2558,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnOpen = toast.querySelector('.toast-btn-open');
     const btnFolder = toast.querySelector('.toast-btn-folder');
+    const btnExtracted = toast.querySelector('.toast-btn-extracted');
     const btnDismiss = toast.querySelector('.toast-btn-dismiss');
     const btnClose = toast.querySelector('.completion-toast-close');
 
@@ -2551,6 +2583,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (task.savePath) openFolder(task.savePath);
       dismiss();
     };
+
+    if (btnExtracted && extractedPath) {
+      btnExtracted.onclick = (e) => {
+        e.stopPropagation();
+        openFolder(extractedPath);
+        dismiss();
+      };
+    }
 
     btnDismiss.onclick = (e) => {
       e.stopPropagation();
@@ -3583,6 +3623,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (progressBox) progressBox.style.display = 'none';
       if (newUrlBox) newUrlBox.style.display = 'none';
 
+      const extractedPath = match.extractedPath || findExtractedPathForTask(match);
+      const extractRow = document.getElementById('duplicate-prompt-extract-row');
+      const extractPathEl = document.getElementById('duplicate-prompt-extracted-path');
+      if (extractRow && extractPathEl) {
+        if (extractedPath) {
+          extractRow.style.display = 'flex';
+          extractPathEl.textContent = extractedPath;
+          extractPathEl.title = extractedPath;
+        } else {
+          extractRow.style.display = 'none';
+        }
+      }
+
       if (footerEl) {
         footerEl.innerHTML = `
           <button type="button" class="tool-btn modal-close-btn" id="dup-btn-cancel">Cancel</button>
@@ -3595,6 +3648,12 @@ document.addEventListener('DOMContentLoaded', () => {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
               Open File
             </button>
+            ${extractedPath ? `
+            <button type="button" class="tool-btn" id="dup-btn-open-extracted" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.45); color: #d8b4fe;" title="Open Extracted Directory (${escapeHtml(extractedPath)})">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><path d="M12 11v6m-3-3l3-3 3 3"></path></svg>
+              Open Extracted Folder
+            </button>
+            ` : ''}
             <button type="button" class="tool-btn primary" id="dup-btn-download-copy" title="Download a new copy (will be saved as filename (1))">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Download Duplicate Copy
@@ -3615,6 +3674,14 @@ document.addEventListener('DOMContentLoaded', () => {
           modalDuplicatePrompt.classList.remove('open');
           if (match.savePath) await openFolder(match.savePath);
         };
+
+        const btnExt = document.getElementById('dup-btn-open-extracted');
+        if (btnExt && extractedPath) {
+          btnExt.onclick = async () => {
+            modalDuplicatePrompt.classList.remove('open');
+            await openFolder(extractedPath);
+          };
+        }
 
         document.getElementById('dup-btn-download-copy').onclick = () => {
           modalDuplicatePrompt.classList.remove('open');
@@ -3798,12 +3865,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dupIcon) dupIcon.textContent = '✓';
         if (dupMsg) dupMsg.textContent = `File already completed on disk (${match.name})`;
         if (dupActions) {
+          const extractedPath = match.extractedPath || findExtractedPathForTask(match);
           dupActions.innerHTML = `
             <button type="button" class="tool-btn" id="idm-dup-btn-open" style="padding: 2px 8px; font-size: 0.72rem;">Open File</button>
             <button type="button" class="tool-btn" id="idm-dup-btn-folder" style="padding: 2px 8px; font-size: 0.72rem;">Show Folder</button>
+            ${extractedPath ? `
+            <button type="button" class="tool-btn" id="idm-dup-btn-extracted" style="padding: 2px 8px; font-size: 0.72rem; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.45); color: #d8b4fe;" title="Open Extracted Directory (${escapeHtml(extractedPath)})">Open Extracted Folder</button>
+            ` : ''}
           `;
           document.getElementById('idm-dup-btn-open').onclick = () => openFile(match.savePath);
           document.getElementById('idm-dup-btn-folder').onclick = () => openFolder(match.savePath);
+          const btnExt = document.getElementById('idm-dup-btn-extracted');
+          if (btnExt && extractedPath) {
+            btnExt.onclick = () => openFolder(extractedPath);
+          }
         }
       } else {
         dupAlert.style.background = 'rgba(56, 189, 248, 0.12)';

@@ -90,7 +90,23 @@
   const saveStatusMsg = document.getElementById('save-status-msg');
   const btnHideBg = document.getElementById('btn-hide-bg');
 
-  // --- Formatting Helpers ---
+  function isArchiveFilename(name = '') {
+    return /\.(zip|rar|7z|tar\.gz|tar\.bz2|tar|tgz|bz2|xz|iso|part\d+\.rar|part\d+|001|r00|r01)$/i.test(name);
+  }
+
+  function resolveExtractedDir(savePath) {
+    if (!savePath || typeof savePath !== 'string') return null;
+    const parts = savePath.replace(/\\/g, '/').split('/');
+    const fname = parts.pop() || '';
+    const dir = parts.join('\\');
+    const extMatch = fname.match(/\.(zip|rar|7z|tar\.gz|tar\.bz2|tar|tgz|bz2|xz|iso|part\d+\.rar|part\d+|001|r00|r01)$/i);
+    const baseName = extMatch ? fname.slice(0, extMatch.index).trim() : fname;
+    if (dir && baseName) {
+      return `${dir}\\${baseName}`;
+    }
+    return null;
+  }
+
   function getFileExtensionIcon(name = '') {
     const ext = (name.split('.').pop() || '').toLowerCase();
     if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'].includes(ext)) return '📦';
@@ -503,14 +519,36 @@
 
   function updateExtractionUI(data) {
     if (!finishExtractSection) return;
-    const extractStatus = data.extractStatus;
-    const extractedPath = data.extractedPath || (currentTask && currentTask.extractedPath);
-    const extractProgress = data.extractProgress !== undefined ? data.extractProgress : (extractStatus === 'extracted' ? 100 : 0);
+    if (data && currentTask && currentTask !== data) {
+      Object.assign(currentTask, data);
+    } else if (data && !currentTask) {
+      currentTask = data;
+    }
+    const extractStatus = data.extractStatus || (currentTask && currentTask.extractStatus) || null;
+    const savePath = data.savePath || (currentTask && currentTask.savePath) || '';
+    const candidatePath = savePath ? resolveExtractedDir(savePath) : null;
+    const confirmedExtractedPath = data.extractedPath || (currentTask && currentTask.extractedPath) || null;
+    const targetFolder = confirmedExtractedPath || candidatePath;
+    const extractProgress = data.extractProgress !== undefined
+      ? data.extractProgress
+      : ((currentTask && currentTask.extractProgress !== undefined)
+          ? currentTask.extractProgress
+          : (extractStatus === 'extracted' ? 100 : 0));
+    const isArchive = Boolean(
+      (data.isArchive !== undefined ? data.isArchive : (currentTask && currentTask.isArchive)) ||
+      isArchiveFilename(data.filename || data.name || savePath || '')
+    );
+
+    if (!isArchive) {
+      finishExtractSection.style.display = 'none';
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+      return;
+    }
 
     if (extractStatus === 'extracting') {
       finishExtractSection.style.display = 'flex';
       if (finishExtractTitle) {
-        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Extracting Archive...`;
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" class="spin-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Extracting Archive...`;
         finishExtractTitle.style.color = '#c084fc';
       }
       if (finishExtractPct) finishExtractPct.textContent = `${extractProgress}%`;
@@ -519,13 +557,15 @@
         finishExtractFill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
       }
       if (finishExtractDest) {
-        finishExtractDest.textContent = extractedPath ? `Extracting to: ${extractedPath}` : 'Extracting to folder...';
+        finishExtractDest.textContent = targetFolder ? `Extracting to: ${targetFolder}` : 'Extracting archive in background...';
       }
-      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+      if (btnFinishExtractedFolder) {
+        btnFinishExtractedFolder.style.display = 'none';
+      }
     } else if (extractStatus === 'extract_queued') {
       finishExtractSection.style.display = 'flex';
       if (finishExtractTitle) {
-        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Extraction Queued...`;
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" class="spin-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Extraction Queued...`;
         finishExtractTitle.style.color = '#a855f7';
       }
       if (finishExtractPct) finishExtractPct.textContent = '0%';
@@ -533,9 +573,26 @@
         finishExtractFill.style.width = '0%';
         finishExtractFill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
       }
-      if (finishExtractDest) finishExtractDest.textContent = 'Waiting in extraction queue...';
-      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
-    } else if (extractStatus === 'extracted' || extractedPath) {
+      if (finishExtractDest) finishExtractDest.textContent = targetFolder ? `Target: ${targetFolder}` : 'Waiting in extraction queue...';
+      if (btnFinishExtractedFolder) {
+        btnFinishExtractedFolder.style.display = 'none';
+      }
+    } else if (extractStatus === 'waiting_all_parts') {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#38bdf8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Waiting for remaining parts...`;
+        finishExtractTitle.style.color = '#38bdf8';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = '0%';
+      if (finishExtractFill) {
+        finishExtractFill.style.width = '0%';
+        finishExtractFill.style.background = 'linear-gradient(90deg, #0284c7, #38bdf8)';
+      }
+      if (finishExtractDest) finishExtractDest.textContent = 'Extraction will start once all multi-part files complete';
+      if (btnFinishExtractedFolder) {
+        btnFinishExtractedFolder.style.display = 'none';
+      }
+    } else if (extractStatus === 'extracted' || (confirmedExtractedPath && extractStatus !== 'extract_failed' && extractStatus !== 'extract_password_required')) {
       finishExtractSection.style.display = 'flex';
       if (finishExtractTitle) {
         finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#34d399" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Archive Extracted Successfully ✓`;
@@ -547,28 +604,31 @@
         finishExtractFill.style.background = '#10b981';
       }
       if (finishExtractDest) {
-        finishExtractDest.textContent = extractedPath ? `Extracted to: ${extractedPath}` : 'Archive extracted';
+        finishExtractDest.textContent = targetFolder ? `Extracted to: ${targetFolder}` : 'Archive extracted';
       }
       if (btnFinishExtractedFolder) {
         btnFinishExtractedFolder.style.display = 'inline-flex';
+        btnFinishExtractedFolder.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v6m-3-3l3-3 3 3"></path></svg> Open Extracted Folder`;
+        btnFinishExtractedFolder.title = targetFolder ? `Open Extracted Directory (${targetFolder})` : 'Open Extracted Directory';
         btnFinishExtractedFolder.onclick = async () => {
-          const targetPath = extractedPath || (currentTask && currentTask.extractedPath);
-          if (!targetPath) return;
+          const finalTarget = (currentTask && currentTask.extractedPath) || data.extractedPath || targetFolder;
+          if (!finalTarget) return;
           if (window.waterfallDesktop && window.waterfallDesktop.openFolder) {
-            await window.waterfallDesktop.openFolder(targetPath);
+            await window.waterfallDesktop.openFolder(finalTarget);
           } else {
             fetch(`${apiBase}/api/open-folder`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filePath: targetPath })
+              body: JSON.stringify({ filePath: finalTarget })
             }).catch(() => {});
           }
         };
       }
     } else if (extractStatus === 'extract_failed') {
       finishExtractSection.style.display = 'flex';
+      const errMsg = data.extractError || (currentTask && currentTask.extractError) || 'Failed to unpack archive';
       if (finishExtractTitle) {
-        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#f85149" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Extraction Failed: ${data.extractError || 'Error'}`;
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#f85149" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Extraction Failed`;
         finishExtractTitle.style.color = '#f85149';
       }
       if (finishExtractPct) finishExtractPct.textContent = '!';
@@ -576,7 +636,7 @@
         finishExtractFill.style.width = '100%';
         finishExtractFill.style.background = '#ef4444';
       }
-      if (finishExtractDest) finishExtractDest.textContent = data.extractError || 'Failed to unpack archive';
+      if (finishExtractDest) finishExtractDest.textContent = errMsg;
       if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
     } else if (extractStatus === 'extract_password_required') {
       finishExtractSection.style.display = 'flex';
@@ -590,6 +650,19 @@
         finishExtractFill.style.background = '#f59e0b';
       }
       if (finishExtractDest) finishExtractDest.textContent = 'Encrypted archive — enter password in main app or extraction tab';
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+    } else if (data.autoExtract !== false && (optEnableExtract ? optEnableExtract.checked : true)) {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" class="spin-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Extraction Queued...`;
+        finishExtractTitle.style.color = '#a855f7';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = '0%';
+      if (finishExtractFill) {
+        finishExtractFill.style.width = '0%';
+        finishExtractFill.style.background = 'linear-gradient(90deg, #9333ea, #a855f7, #c084fc)';
+      }
+      if (finishExtractDest) finishExtractDest.textContent = targetFolder ? `Target: ${targetFolder}` : 'Preparing archive extraction...';
       if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
     } else {
       finishExtractSection.style.display = 'none';
@@ -678,6 +751,7 @@
   }
 
   function showCompletionView(task) {
+    if (task) currentTask = task;
     isCompletedState = true;
     const name = task.name || task.filename || 'Downloaded File';
     document.title = `Waterfall — Complete: ${name}`;
@@ -741,6 +815,23 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filePath: savePath })
+          }).catch(() => {});
+        }
+      };
+    }
+
+    if (btnFinishExtractedFolder) {
+      const candidatePath = (savePath && isArchiveFilename(savePath)) ? resolveExtractedDir(savePath) : null;
+      btnFinishExtractedFolder.onclick = async () => {
+        const finalTarget = (currentTask && currentTask.extractedPath) || task.extractedPath || candidatePath;
+        if (!finalTarget) return;
+        if (window.waterfallDesktop && window.waterfallDesktop.openFolder) {
+          await window.waterfallDesktop.openFolder(finalTarget);
+        } else {
+          fetch(`${apiBase}/api/open-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: finalTarget })
           }).catch(() => {});
         }
       };
