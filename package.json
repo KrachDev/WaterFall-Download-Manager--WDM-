@@ -1,7 +1,7 @@
 {
   "name": "waterfall",
   "productName": "Waterfall",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Waterfall — Ultra-lightweight IDM & JDownloader modern hybrid download suite",
   "main": "electron-main.js",
   "scripts": {

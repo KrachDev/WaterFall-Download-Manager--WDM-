@@ -72,7 +72,10 @@ async function buildElectron() {
         '/scratch',
         '/.git',
         '/.github',
-        '/scripts'
+        '/scripts',
+        '/target',
+        '/src-tauri',
+        '/Publish'
       ];
 
       for (const ig of ignoredFolders) {
@@ -115,7 +118,7 @@ async function buildElectron() {
 
   // 3. Compress into release zip
   console.log('[Packager] Creating compressed release archive...');
-  const zipName = 'Waterfall-v1.0.0-windows-x64.zip';
+  const zipName = 'Waterfall-v1.1.0-Electron-windows-x64.zip';
   const zipPath = path.join(distDir, zipName);
 
   if (fs.existsSync(zipPath)) {
@@ -302,10 +305,10 @@ async function buildRust() {
   }
 
   const uncompressedMb = (getDirSize(rustReleaseDir) / 1024 / 1024).toFixed(2);
-  console.log(`[Packager] Rust bundle uncompressed size: ${uncompressedMb} MB`);
+  console.log(`[Packager] WebView2 (Rust) bundle uncompressed size: ${uncompressedMb} MB`);
 
   // 3. Compress into Release Zip
-  const zipName = 'Waterfall-v1.0.0-Rust-windows-x64.zip';
+  const zipName = 'Waterfall-v1.1.0-WebView2-windows-x64.zip';
   const zipPath = path.join(distDir, zipName);
   if (fs.existsSync(zipPath)) {
     try { fs.unlinkSync(zipPath); } catch (_) {}
@@ -328,14 +331,46 @@ async function buildRust() {
     if (!fs.existsSync(publishDir)) {
       fs.mkdirSync(publishDir, { recursive: true });
     }
-    const publishZip = path.join(publishDir, 'Waterfall-v1.0.0-windows-x64.zip');
+    const publishZip = path.join(publishDir, zipName);
     fs.copyFileSync(zipPath, publishZip);
 
     console.log('=======================================================');
-    console.log(` SUCCESS: Rust Release Zip created at: ${zipPath}`);
+    console.log(` SUCCESS: WebView2 Release Zip created at: ${zipPath}`);
     console.log(` Published to: ${publishZip}`);
-    console.log(` Final Rust Zip Size: ${zipMb} MB (Reduced from 553 MB!)`);
+    console.log(` Final WebView2 Zip Size: ${zipMb} MB`);
     console.log('=======================================================');
+  }
+}
+
+async function buildExtension() {
+  console.log('\n=======================================================');
+  console.log(' Packaging Browser Companion Extension...             ');
+  console.log('=======================================================');
+
+  const rootDir = path.resolve(__dirname, '..');
+  const distDir = path.join(rootDir, 'dist');
+  const extDir = path.join(rootDir, 'extension');
+  const zipName = 'waterfall-companion-extension-v1.1.0.zip';
+  const zipPath = path.join(distDir, zipName);
+
+  if (fs.existsSync(zipPath)) {
+    try { fs.unlinkSync(zipPath); } catch (_) {}
+  }
+
+  const sevenZipExe = binaryResolver.get7zExecutable();
+  if (sevenZipExe) {
+    try {
+      execSync(`"${sevenZipExe}" a -tzip -mx=9 "${zipPath}" "${extDir}\\*"`, { stdio: 'ignore' });
+    } catch (_) {}
+  }
+
+  if (!fs.existsSync(zipPath)) {
+    execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${extDir}\\*' -DestinationPath '${zipPath}' -CompressionLevel Optimal"`, { stdio: 'ignore' });
+  }
+
+  if (fs.existsSync(zipPath)) {
+    const zipMb = (fs.statSync(zipPath).size / 1024 / 1024).toFixed(2);
+    console.log(` SUCCESS: Companion Extension Zip: ${zipPath} (${zipMb} MB)`);
   }
 }
 
@@ -343,16 +378,18 @@ async function main() {
   const args = process.argv.slice(2);
   const target = args[0] || 'all';
 
-  if (target === 'rust' || target === 'tauri') {
+  if (target === 'rust' || target === 'tauri' || target === 'webview') {
     await buildRust();
   } else if (target === 'native') {
     await buildNative();
   } else if (target === 'electron') {
     await buildElectron();
+  } else if (target === 'extension') {
+    await buildExtension();
   } else {
     await buildRust();
-    await buildNative();
     await buildElectron();
+    await buildExtension();
   }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "waterfall"
-version = "1.0.0"
+version = "1.1.0"
 description = "Waterfall — Ultra-lightweight IDM & JDownloader modern hybrid download suite"
 authors = ["KrachDev"]
 license = "ISC"
