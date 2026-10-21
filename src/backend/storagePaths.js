@@ -34,10 +34,30 @@ function getElectronUserData() {
   return null;
 }
 
+function getGlobalAppDataDir() {
+  const electronUserDir = getElectronUserData();
+  if (electronUserDir && isWritableDirectory(electronUserDir)) {
+    return electronUserDir;
+  }
+  try {
+    const appData = process.env.APPDATA || (process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support')
+      : path.join(os.homedir(), '.config'));
+    const userDir = path.join(appData, 'Waterfall');
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+    if (isWritableDirectory(userDir)) {
+      return userDir;
+    }
+  } catch (_) {}
+  return null;
+}
+
 function getStorageDir() {
   if (cachedStorageDir) return cachedStorageDir;
 
-  // 1. Explicit override via environment variable
+  // 1. Explicit override via environment variable (useful for isolated tests)
   if (process.env.WATERFALL_DATA_DIR && process.env.WATERFALL_DATA_DIR.trim().length > 0) {
     const dir = path.resolve(process.env.WATERFALL_DATA_DIR.trim());
     try {
@@ -49,7 +69,15 @@ function getStorageDir() {
     } catch (_) {}
   }
 
-  // 2. Check if running from source (development workspace)
+  // 2. Global application data directory shared by ALL builds (Electron, packaged, dev, portable, CLI)
+  // Ensures all builds share the exact same settings, download history, and resume states.
+  const globalDir = getGlobalAppDataDir();
+  if (globalDir) {
+    cachedStorageDir = globalDir;
+    return globalDir;
+  }
+
+  // 3. Fallback: workspace source root
   if (!__dirname.includes('app.asar')) {
     const sourceDir = path.resolve(__dirname, '..', '..');
     if (isWritableDirectory(sourceDir)) {
@@ -58,52 +86,7 @@ function getStorageDir() {
     }
   }
 
-  // 3. If running inside packaged Electron (e.g. dist/Waterfall-win32-x64/Waterfall.exe):
-  // Check if project workspace root (3 levels up from exe) exists and is writable
-  try {
-    const exeDir = path.dirname(process.execPath);
-    const candidateProjectRoot = path.resolve(exeDir, '..', '..');
-    if (fs.existsSync(path.join(candidateProjectRoot, 'package.json')) && isWritableDirectory(candidateProjectRoot)) {
-      cachedStorageDir = candidateProjectRoot;
-      return candidateProjectRoot;
-    }
-  } catch (_) {}
-
-  // 4. Electron UserData directory (e.g. %APPDATA%\Waterfall)
-  const electronUserDir = getElectronUserData();
-  if (electronUserDir) {
-    try {
-      if (!fs.existsSync(electronUserDir)) fs.mkdirSync(electronUserDir, { recursive: true });
-      if (isWritableDirectory(electronUserDir)) {
-        cachedStorageDir = electronUserDir;
-        return electronUserDir;
-      }
-    } catch (_) {}
-  }
-
-  // 5. Portable mode: check if directory containing executable is writable and has portable marker
-  try {
-    const exeDir = path.dirname(process.execPath);
-    if (fs.existsSync(path.join(exeDir, 'portable.dat')) && isWritableDirectory(exeDir)) {
-      cachedStorageDir = exeDir;
-      return exeDir;
-    }
-  } catch (_) {}
-
-  // 6. Standard persistent UserData directory in %APPDATA%\Waterfall
-  try {
-    const appData = process.env.APPDATA || (process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.config'));
-    const userDir = path.join(appData, 'Waterfall');
-    if (!fs.existsSync(userDir)) {
-      fs.mkdirSync(userDir, { recursive: true });
-    }
-    if (isWritableDirectory(userDir)) {
-      cachedStorageDir = userDir;
-      return userDir;
-    }
-  } catch (_) {}
-
-  // 7. Absolute last resort fallback: temp directory
+  // 4. Absolute last resort fallback: temp directory
   const fallbackDir = path.join(os.tmpdir(), 'WaterfallData');
   if (!fs.existsSync(fallbackDir)) fs.mkdirSync(fallbackDir, { recursive: true });
   cachedStorageDir = fallbackDir;
@@ -114,32 +97,46 @@ function getStorageFilePath(filename) {
   const dir = getStorageDir();
   const targetPath = path.join(dir, filename);
 
-  // If target file doesn't exist yet, seed it from workspace or appdata if available
-  if (!fs.existsSync(targetPath)) {
+  // If target file doesn't exist yet (or is virtually empty/unseeded),
+  // seamlessly migrate and seed it from existing workspace or exe directories.
+  const targetExists = fs.existsSync(targetPath);
+  let targetSize = 0;
+  if (targetExists) {
+    try { targetSize = fs.statSync(targetPath).size; } catch (_) {}
+  }
+
+  const shouldSeed = !targetExists || targetSize < 10;
+
+  if (shouldSeed) {
     try {
-      // Check 1: workspace source root
+      // Check 1: workspace source root (seed if valid populated file exists)
       const workspaceSeed = path.resolve(__dirname, '..', '..', filename);
       if (fs.existsSync(workspaceSeed) && workspaceSeed !== targetPath) {
-        fs.copyFileSync(workspaceSeed, targetPath);
-        return targetPath;
+        try {
+          const wSize = fs.statSync(workspaceSeed).size;
+          if (wSize > targetSize) {
+            fs.copyFileSync(workspaceSeed, targetPath);
+            const bakSeed = `${workspaceSeed}.bak`;
+            if (fs.existsSync(bakSeed)) {
+              try { fs.copyFileSync(bakSeed, `${targetPath}.bak`); } catch (_) {}
+            }
+            console.log(`[Waterfall Storage] Migrated ${filename} (${wSize} bytes) to global data: ${targetPath}`);
+            return targetPath;
+          }
+        } catch (_) {}
       }
 
-      // Check 2: APPDATA/Waterfall
-      const appData = process.env.APPDATA;
-      if (appData) {
-        const appDataSeed = path.join(appData, 'Waterfall', filename);
-        if (fs.existsSync(appDataSeed) && appDataSeed !== targetPath) {
-          fs.copyFileSync(appDataSeed, targetPath);
-          return targetPath;
-        }
-      }
-
-      // Check 3: exeDir
+      // Check 2: exe directory
       const exeDir = path.dirname(process.execPath);
       const exeSeed = path.join(exeDir, filename);
       if (fs.existsSync(exeSeed) && exeSeed !== targetPath) {
-        fs.copyFileSync(exeSeed, targetPath);
-        return targetPath;
+        try {
+          const eSize = fs.statSync(exeSeed).size;
+          if (eSize > targetSize) {
+            fs.copyFileSync(exeSeed, targetPath);
+            return targetPath;
+          }
+        } catch (_) {}
       }
     } catch (_) {}
   }

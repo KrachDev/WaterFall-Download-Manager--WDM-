@@ -7,9 +7,7 @@ const CONFIG_FILE = getStorageFilePath('config.json');
 
 const DEFAULT_CONFIG = {
   // Storage & Directory Architecture
-  downloadDir: (fs.existsSync(path.resolve(__dirname, '..', '..', 'downloads')) && !__dirname.includes('app.asar'))
-    ? path.resolve(__dirname, '..', '..', 'downloads')
-    : path.join(os.homedir(), 'Downloads', 'Waterfall'),
+  downloadDir: path.join(os.homedir(), 'Downloads', 'Waterfall'),
   tempDir: path.join(os.tmpdir(), 'Waterfall', 'temp'),
   useOsMediaFolders: true,
   createPackageSubfolders: false,
@@ -88,6 +86,15 @@ function loadConfig() {
     const data = safeReadJson(CONFIG_FILE, null);
     if (data && typeof data === 'object') {
       currentConfig = { ...DEFAULT_CONFIG, ...data };
+      // Always enforce Windows Temp directory for temporary chunks & metadata operations
+      if (!currentConfig.tempDir || currentConfig.tempDir.includes('Jdownloader rebirth') || !path.isAbsolute(currentConfig.tempDir)) {
+        currentConfig.tempDir = path.join(os.tmpdir(), 'Waterfall', 'temp');
+      }
+      try {
+        fs.mkdirSync(currentConfig.tempDir, { recursive: true });
+        fs.mkdirSync(path.join(os.tmpdir(), 'Waterfall', 'metadata'), { recursive: true });
+        fs.mkdirSync(path.join(os.tmpdir(), 'Waterfall', 'chunks'), { recursive: true });
+      } catch (_) {}
     } else {
       saveConfig(DEFAULT_CONFIG);
     }
@@ -101,6 +108,9 @@ function loadConfig() {
 function saveConfig(newConfig) {
   try {
     currentConfig = { ...currentConfig, ...newConfig };
+    if (!currentConfig.tempDir || currentConfig.tempDir.includes('Jdownloader rebirth') || !path.isAbsolute(currentConfig.tempDir)) {
+      currentConfig.tempDir = path.join(os.tmpdir(), 'Waterfall', 'temp');
+    }
     safeWriteJsonSync(CONFIG_FILE, currentConfig);
   } catch (err) {
     console.error('Failed to save config:', err.message);

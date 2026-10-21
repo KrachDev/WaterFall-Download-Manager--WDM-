@@ -145,7 +145,8 @@ async function computeFileSha256(filePath) {
 /**
  * Preserves metadata:
  * 1. Sets file modification time (mtime) and access time (atime) from server Last-Modified or upload date.
- * 2. Writes sidecar metadata file (.meta.json) with source URL, hoster, SHA256, date, etc.
+ * 2. Writes metadata file (.meta.json) inside Windows Temp directory (NEVER cluttering the user's download folder).
+ * 3. Removes any stray or legacy .meta.json files from the destination directory.
  */
 async function preserveMetadata(filePath, metadata = {}) {
   if (!fs.existsSync(filePath)) return;
@@ -155,16 +156,23 @@ async function preserveMetadata(filePath, metadata = {}) {
     if (metadata.lastModified) {
       const serverDate = new Date(metadata.lastModified);
       if (!isNaN(serverDate.getTime())) {
-        fs.utimesSync(filePath, serverDate, serverDate);
+        try { fs.utimesSync(filePath, serverDate, serverDate); } catch (_) {}
       }
     }
 
     // 2. Compute file checksum (SHA256) memory-safely
     const sha256 = await computeFileSha256(filePath);
 
-    // 3. Write metadata sidecar file
-    const metaFilePath = `${filePath}.meta.json`;
+    // 3. Write metadata to Windows Temp folder so download directory remains clean
+    const metaDir = path.join(os.tmpdir(), 'Waterfall', 'metadata');
+    if (!fs.existsSync(metaDir)) {
+      try { fs.mkdirSync(metaDir, { recursive: true }); } catch (_) {}
+    }
+
+    const metaKey = metadata.id || path.basename(filePath);
+    const metaFilePath = path.join(metaDir, `${metaKey}.meta.json`);
     const metaData = {
+      id: metadata.id || undefined,
       filename: path.basename(filePath),
       filePath: filePath,
       sourceUrl: metadata.url || '',
@@ -179,6 +187,16 @@ async function preserveMetadata(filePath, metadata = {}) {
     };
 
     fs.writeFileSync(metaFilePath, JSON.stringify(metaData, null, 2), 'utf-8');
+
+    // 4. Clean up any stray or legacy .meta.json files from download folder
+    const localMeta = `${filePath}.meta.json`;
+    if (fs.existsSync(localMeta)) {
+      try { fs.unlinkSync(localMeta); } catch (_) {}
+    }
+    const localPartMeta = `${filePath}.part.meta.json`;
+    if (fs.existsSync(localPartMeta)) {
+      try { fs.unlinkSync(localPartMeta); } catch (_) {}
+    }
   } catch (err) {
     console.warn(`Failed to preserve metadata for ${filePath}:`, err.message);
   }
