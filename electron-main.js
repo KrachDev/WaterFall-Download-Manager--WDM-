@@ -94,13 +94,25 @@ let downloadManager = null;
 const PORT = 4567;
 const APP_URL = `http://localhost:${PORT}`;
 
+function getAppIconPath() {
+  const candidates = [
+    path.join(__dirname, 'assets', 'icon.ico'),
+    path.join(path.dirname(process.execPath), 'assets', 'icon.ico'),
+    path.join(__dirname, 'assets', 'icon.png'),
+    path.join(path.dirname(process.execPath), 'assets', 'icon.png'),
+    'C:\\Waterfall\\assets\\icon.ico'
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return undefined;
+}
+
 let pendingConfirmData = null;
 
 function openConfirmWindow(probeData) {
   pendingConfirmData = probeData;
-  const icoPath = path.join(__dirname, 'assets', 'icon.ico');
-  const pngPath = path.join(__dirname, 'assets', 'icon.png');
-  const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
+  const windowIcon = getAppIconPath();
 
   if (confirmWindow && !confirmWindow.isDestroyed()) {
     if (confirmWindow.isMinimized()) confirmWindow.restore();
@@ -189,9 +201,7 @@ function openProgressWindow(task) {
   const taskId = task.id;
   currentInspectedTaskId = taskId;
 
-  const icoPath = path.join(__dirname, 'assets', 'icon.ico');
-  const pngPath = path.join(__dirname, 'assets', 'icon.png');
-  const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
+  const windowIcon = getAppIconPath();
 
   if (sharedProgressWindow && !sharedProgressWindow.isDestroyed()) {
     if (sharedProgressWindow.isMinimized()) sharedProgressWindow.restore();
@@ -832,9 +842,7 @@ function saveWindowState() {
 }
 
 function createWindow() {
-  const icoPath = path.join(__dirname, 'assets', 'icon.ico');
-  const pngPath = path.join(__dirname, 'assets', 'icon.png');
-  const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
+  const windowIcon = getAppIconPath();
 
   const windowState = getWindowState();
 
@@ -941,9 +949,7 @@ function createWindow() {
       }
     } catch (_) {}
 
-    const icoPath = path.join(__dirname, 'assets', 'icon.ico');
-    const pngPath = path.join(__dirname, 'assets', 'icon.png');
-    const windowIcon = fs.existsSync(icoPath) ? icoPath : (fs.existsSync(pngPath) ? pngPath : undefined);
+    const windowIcon = getAppIconPath();
 
     const result = await dialog.showMessageBox(mainWindow, {
       type: 'question',
@@ -992,12 +998,11 @@ function createWindow() {
 
 function createTray() {
   try {
-    const icoPath = path.join(__dirname, 'assets', 'icon.ico');
-    const pngPath = path.join(__dirname, 'assets', 'icon.png');
-    const trayIconPath = (process.platform === 'win32' && fs.existsSync(icoPath)) ? icoPath : pngPath;
-    if (!fs.existsSync(trayIconPath)) return;
+    const iconPath = getAppIconPath();
+    if (!iconPath) return;
 
-    tray = new Tray(trayIconPath);
+    const trayImage = nativeImage.createFromPath(iconPath);
+    tray = new Tray(trayImage);
     tray.setToolTip('Waterfall — Modern IDM & JDownloader Suite');
 
     const contextMenu = Menu.buildFromTemplate([
