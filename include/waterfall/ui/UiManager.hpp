@@ -16,7 +16,7 @@ public:
     UiManager();
     ~UiManager();
 
-    bool Initialize(int width = 1200, int height = 750);
+    bool Initialize(int width = 1240, int height = 800);
     void Run();
     void Shutdown();
 
