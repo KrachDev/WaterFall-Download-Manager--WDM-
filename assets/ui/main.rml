@@ -101,37 +101,41 @@
                         <button class="tool-btn primary empty-action" data-event-click="open_add_modal()">+ Add Download Now</button>
                     </div>
 
-                    <!-- Dynamic Task Cards Loop -->
-                    <div class="task-card" data-for="task:tasks">
-                        <div class="card-top">
-                            <div class="file-info">
-                                <span class="file-name">{{task.filename}}</span>
-                            </div>
-                            <div class="card-badges">
-                                <span class="badge-status">{{task.status}}</span>
-                                <span class="badge-speed">{{task.speed}}</span>
-                            </div>
-                        </div>
+                    <!-- Dynamic Task Cards Loop (Only shown when queue has items) -->
+                    <div class="tasks-list" data-if="active_count != '0' || completed_count != '0' || paused_count != '0'">
+                        <div data-for="task:tasks">
+                            <div class="task-card">
+                                <div class="card-top">
+                                    <div class="file-info">
+                                        <span class="file-name">{{task.filename}}</span>
+                                    </div>
+                                    <div class="card-badges">
+                                        <span class="badge-status">{{task.status}}</span>
+                                        <span class="badge-speed">{{task.speed}}</span>
+                                    </div>
+                                </div>
 
-                        <!-- Progress Bar Track -->
-                        <div class="progress-track">
-                            <div class="progress-fill" data-style-width="task.progress + '%'"></div>
-                        </div>
+                                <!-- Progress Bar Track -->
+                                <div class="progress-track">
+                                    <div class="progress-fill" data-style-width="task.progress + '%'"></div>
+                                </div>
 
-                        <div class="card-bottom">
-                            <div class="meta-stats">
-                                <span class="meta-text">{{task.downloaded}} / {{task.total}}</span>
-                                <span class="meta-dot">•</span>
-                                <span class="meta-text">ETA: {{task.eta}}</span>
-                                <span class="meta-dot">•</span>
-                                <span class="meta-text">16 In-Place Sockets</span>
-                            </div>
-                            <div class="card-actions">
-                                <button class="btn-action" data-event-click="resume_download(task.id)">Resume</button>
-                                <button class="btn-action" data-event-click="pause_download(task.id)">Pause</button>
-                                <button class="btn-action" data-event-click="open_folder(task.id)">Folder</button>
-                                <button class="btn-action inspect" data-event-click="toggle_inspector(task.id)">Inspect</button>
-                                <button class="btn-action danger" data-event-click="delete_download(task.id)">Delete</button>
+                                <div class="card-bottom">
+                                    <div class="meta-stats">
+                                        <span class="meta-text">{{task.downloaded}} / {{task.total}}</span>
+                                        <span class="meta-dot">•</span>
+                                        <span class="meta-text">ETA: {{task.eta}}</span>
+                                        <span class="meta-dot">•</span>
+                                        <span class="meta-text">16 In-Place Sockets</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="btn-action" data-event-click="resume_download(task.id)">Resume</button>
+                                        <button class="btn-action" data-event-click="pause_download(task.id)">Pause</button>
+                                        <button class="btn-action" data-event-click="open_folder(task.id)">Folder</button>
+                                        <button class="btn-action inspect" data-event-click="toggle_inspector(task.id)">Inspect</button>
+                                        <button class="btn-action danger" data-event-click="delete_download(task.id)">Delete</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

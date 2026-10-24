@@ -202,6 +202,7 @@ bool UiManager::Initialize(int width, int height) {
 
     SetupDataModel();
     LoadDocument();
+    RefreshModelData(); // Notify loaded document of initial data model values
 
     core::DownloadManager::Instance().SetUpdateListener([this]() {
         this->RequestDataUpdate();
