@@ -91,6 +91,13 @@ add_executable(waterfall
     src/core/DownloadManager.cpp
     src/core/ChunkEngine.cpp
     src/core/StorageRouter.cpp
+    src/core/ConfigManager.cpp
+    src/core/ArchiveEngine.cpp
+    src/core/MediaEngine.cpp
+    src/core/CrawlerEngine.cpp
+    src/core/ScriptEngine.cpp
+    src/core/ShellIntegration.cpp
+    src/core/QueueScheduler.cpp
     src/server/ExtensionServer.cpp
     src/ui/UiManager.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_GL2.cpp
@@ -117,6 +124,8 @@ target_link_libraries(waterfall PRIVATE
     ws2_32
     dwmapi
     shlwapi
+    bcrypt
+    powrprof
 )
 
 # Copy UI assets next to binary on build

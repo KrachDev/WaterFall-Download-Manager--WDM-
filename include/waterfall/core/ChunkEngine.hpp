@@ -5,6 +5,8 @@
 #include <memory>
 #include <thread>
 #include <atomic>
+#include <vector>
+#include <mutex>
 
 namespace waterfall::core {
 
@@ -27,14 +29,20 @@ public:
     // Probe URL to inspect Content-Length, filename, and 206 Partial Content support
     static RemoteFileInfo ProbeUrl(const std::string& url);
 
-    // Start or resume downloading a task
+    // Start or resume downloading a task with multi-socket chunking
     void StartTask(DownloadTask& task, ProgressCallback on_progress, CompleteCallback on_complete);
     void PauseTask(int task_id);
     void CancelTask(int task_id);
 
+    // Configuration
+    void SetDefaultConnections(int connections) { default_connections_ = connections; }
+    [[nodiscard]] int GetDefaultConnections() const { return default_connections_; }
+
 private:
-    struct WorkerContext;
-    std::vector<std::unique_ptr<WorkerContext>> active_workers_;
+    struct TaskWorkerContext;
+    std::mutex workers_mutex_;
+    std::vector<std::shared_ptr<TaskWorkerContext>> active_workers_;
+    int default_connections_ = 16;
 };
 
 } // namespace waterfall::core

@@ -10,6 +10,8 @@ std::string DownloadTask::GetStatusString() const {
         case TaskStatus::Probing: return "Connecting";
         case TaskStatus::Downloading: return "Downloading";
         case TaskStatus::Paused: return "Paused";
+        case TaskStatus::Extracting: return "Extracting " + std::to_string(static_cast<int>(extract_progress)) + "%";
+        case TaskStatus::WaitingAllParts: return "Waiting Other Parts";
         case TaskStatus::Completed: return "Completed";
         case TaskStatus::Error: return "Error: " + error_message;
         default: return "Unknown";
@@ -47,6 +49,8 @@ std::string DownloadTask::GetTotalFormatted() const {
 }
 
 float DownloadTask::GetProgressPercent() const {
+    if (status == TaskStatus::Completed) return 100.0f;
+    if (status == TaskStatus::Extracting) return extract_progress;
     if (total_bytes <= 0) return 0.0f;
     return static_cast<float>((static_cast<double>(downloaded_bytes) / static_cast<double>(total_bytes)) * 100.0);
 }
