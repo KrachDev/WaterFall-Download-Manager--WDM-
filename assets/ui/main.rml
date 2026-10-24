@@ -1,0 +1,114 @@
+<rml>
+<head>
+    <title>Waterfall Download Accelerator</title>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body data-model="downloads">
+
+    <!-- Top Navigation & Global Telemetry Header -->
+    <div id="header">
+        <div class="header-left">
+            <span class="logo-icon">🌊</span>
+            <span class="app-title">WATERFALL</span>
+            <span class="app-badge">NATIVE C++20</span>
+        </div>
+
+        <!-- Direct URL Quick-Add Bar -->
+        <div class="header-center">
+            <input type="text" class="url-input" placeholder="Paste download URL (HTTP/HTTPS)..." data-value="new_url"/>
+            <button class="btn-primary" data-event-click="add_download">
+                <span class="btn-text">+ Add Task</span>
+            </button>
+        </div>
+
+        <!-- Telemetry Stats Pill -->
+        <div class="header-right">
+            <div class="stat-pill">
+                <span class="stat-label">TOTAL SPEED</span>
+                <span class="stat-value cyan">{{total_speed}}</span>
+            </div>
+            <div class="stat-pill">
+                <span class="stat-label">ACTIVE</span>
+                <span class="stat-value emerald">{{active_count}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application Split-Layout -->
+    <div id="workspace">
+
+        <!-- Sidebar Navigation -->
+        <div id="sidebar">
+            <div class="sidebar-section">
+                <span class="section-title">QUEUES</span>
+                <button class="sidebar-btn active">⚡ Downloads</button>
+                <button class="sidebar-btn">🧲 LinkGrabber</button>
+                <button class="sidebar-btn">🎬 Media Studio</button>
+            </div>
+
+            <div class="sidebar-section">
+                <span class="section-title">CATEGORIES</span>
+                <button class="sidebar-btn">📁 Compressed</button>
+                <button class="sidebar-btn">🎬 Videos & Media</button>
+                <button class="sidebar-btn">🎵 Audio</button>
+                <button class="sidebar-btn">📄 Documents</button>
+                <button class="sidebar-btn">📦 Software</button>
+            </div>
+
+            <div class="sidebar-footer">
+                <span class="server-status">● Extension: Port 4567</span>
+            </div>
+        </div>
+
+        <!-- Central Download Tasks Feed -->
+        <div id="content">
+            <div class="content-header">
+                <span class="feed-title">ACTIVE DOWNLOADS</span>
+            </div>
+
+            <div class="tasks-scroll-container">
+                <!-- Data-Bound Download Cards -->
+                <div class="task-card" data-for="task : tasks">
+                    <div class="card-top">
+                        <div class="file-info">
+                            <span class="file-icon">📦</span>
+                            <span class="file-name">{{task.filename}}</span>
+                        </div>
+                        <div class="card-badges">
+                            <span class="badge-status">{{task.status}}</span>
+                            <span class="badge-speed">{{task.speed}}</span>
+                        </div>
+                    </div>
+
+                    <!-- Glowing Segmented Progress Bar -->
+                    <div class="progress-track">
+                        <div class="progress-fill" data-style-width="task.progress + '%'"></div>
+                    </div>
+
+                    <div class="card-bottom">
+                        <div class="meta-stats">
+                            <span class="meta-text">{{task.downloaded}} / {{task.total}}</span>
+                            <span class="meta-dot">•</span>
+                            <span class="meta-text">ETA: {{task.eta}}</span>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn-action" data-event-click="resume_download(task.id)">Resume</button>
+                            <button class="btn-action" data-event-click="pause_download(task.id)">Pause</button>
+                            <button class="btn-action danger" data-event-click="delete_download(task.id)">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bottom Status Strip -->
+    <div id="statusbar">
+        <span class="status-item">Engine: Zero-Copy WinHTTP IOCP Pipeline</span>
+        <span class="status-item">State: SQLite3 WAL Mode</span>
+        <span class="status-item right">Memory: 100% Native C++ (Zero Web Engine)</span>
+    </div>
+
+</body>
+</rml>

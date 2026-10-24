@@ -28,6 +28,7 @@ downloads.json.bak
 config.json
 window-state.json
 .icon_stamped
+waterfall.db*
 
 # Logs
 *.log
