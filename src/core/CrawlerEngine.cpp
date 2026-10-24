@@ -319,9 +319,289 @@ CrawlerPackage CrawlerEngine::ScrapeWebpage(const std::string& url) {
     return pkg;
 }
 
+CrawlerPackage CrawlerEngine::ResolveGofile(const std::string& url) {
+    CrawlerPackage pkg;
+    pkg.hoster = "Gofile";
+
+    std::regex gf_regex(R"(gofile\.io/(?:d/|contents/)?([a-zA-Z0-9_-]+))", std::regex::icase);
+    std::smatch m;
+    if (std::regex_search(url, m, gf_regex)) {
+        std::string content_id = m[1].str();
+        std::string api_url = "https://api.gofile.io/contents/" + content_id;
+        std::string json_str = FetchHttp(api_url, 6);
+        if (!json_str.empty()) {
+            try {
+                auto j = json::parse(json_str);
+                if (j.value("status", "") == "ok" && j.contains("data")) {
+                    auto data = j["data"];
+                    pkg.name = data.value("name", "Gofile Package (" + content_id + ")");
+                    if (data.contains("children") && data["children"].is_object()) {
+                        for (auto& [key, item_obj] : data["children"].items()) {
+                            CrawlerItem item;
+                            item.original_url = url;
+                            item.direct_url = item_obj.value("link", "");
+                            item.filename = item_obj.value("name", "gofile_" + key);
+                            item.size = item_obj.value("size", 0LL);
+                            item.hoster = "Gofile";
+                            item.package_name = pkg.name;
+                            if (!item.direct_url.empty()) {
+                                pkg.items.push_back(item);
+                            }
+                        }
+                    }
+                    if (!pkg.items.empty()) return pkg;
+                }
+            } catch (...) {}
+        }
+    }
+
+    CrawlerItem item;
+    item.original_url = url;
+    item.direct_url = url;
+    item.filename = "gofile_download";
+    item.hoster = "Gofile";
+    pkg.name = item.filename;
+    item.package_name = pkg.name;
+    pkg.items.push_back(item);
+    return pkg;
+}
+
+CrawlerPackage CrawlerEngine::ResolveFuckingFast(const std::string& url) {
+    CrawlerPackage pkg;
+    pkg.hoster = "FuckingFast";
+
+    if (url.find("/dl/") != std::string::npos) {
+        CrawlerItem item;
+        item.original_url = url;
+        item.direct_url = url;
+        item.hoster = "FuckingFast";
+        size_t slash = url.find_last_of('/');
+        item.filename = (slash != std::string::npos) ? url.substr(slash + 1) : "fuckingfast_file";
+        pkg.name = item.filename;
+        item.package_name = pkg.name;
+        pkg.items.push_back(item);
+        return pkg;
+    }
+
+    std::string html = FetchHttp(url, 6);
+    if (!html.empty()) {
+        std::regex dl_regex(R"((?:href=["']|window\.open\(["']|location(?:\.href)?\s*=\s*["'])(https?://[^"']*fuckingfast\.co/dl/[^"']+))", std::regex::icase);
+        std::smatch m;
+        if (std::regex_search(html, m, dl_regex)) {
+            CrawlerItem item;
+            item.original_url = url;
+            item.direct_url = m[1].str();
+            item.hoster = "FuckingFast";
+
+            std::smatch title_m;
+            std::regex title_reg(R"(<title>([^<]+)</title>)", std::regex::icase);
+            if (std::regex_search(html, title_m, title_reg)) {
+                std::string t = title_m[1].str();
+                if (t.find("FuckingFast") == std::string::npos && t.find("fuckingfast") == std::string::npos) {
+                    item.filename = t;
+                } else {
+                    size_t slash = item.direct_url.find_last_of('/');
+                    item.filename = (slash != std::string::npos) ? item.direct_url.substr(slash + 1) : "fuckingfast_file";
+                }
+            } else {
+                size_t slash = item.direct_url.find_last_of('/');
+                item.filename = (slash != std::string::npos) ? item.direct_url.substr(slash + 1) : "fuckingfast_file";
+            }
+
+            pkg.name = item.filename;
+            item.package_name = pkg.name;
+            pkg.items.push_back(item);
+            return pkg;
+        }
+    }
+
+    CrawlerItem item;
+    item.original_url = url;
+    item.direct_url = url;
+    item.filename = "fuckingfast_file";
+    item.hoster = "FuckingFast";
+    pkg.name = item.filename;
+    item.package_name = pkg.name;
+    pkg.items.push_back(item);
+    return pkg;
+}
+
+CrawlerPackage CrawlerEngine::ResolveBuzzheavier(const std::string& url) {
+    CrawlerPackage pkg;
+    pkg.hoster = "Buzzheavier";
+    std::string direct = url;
+    if (direct.find("/download") == std::string::npos) {
+        if (direct.back() == '/') direct += "download";
+        else direct += "/download";
+    }
+
+    CrawlerItem item;
+    item.original_url = url;
+    item.direct_url = direct;
+    item.hoster = "Buzzheavier";
+
+    size_t last_slash = url.find_last_of('/');
+    if (last_slash != std::string::npos) {
+        std::string fn = url.substr(last_slash + 1);
+        size_t q = fn.find('?');
+        if (q != std::string::npos) fn = fn.substr(0, q);
+        item.filename = fn.empty() ? "buzzheavier_download" : fn;
+    } else {
+        item.filename = "buzzheavier_download";
+    }
+
+    pkg.name = item.filename;
+    item.package_name = pkg.name;
+    pkg.items.push_back(item);
+    return pkg;
+}
+
+CrawlerPackage CrawlerEngine::ResolveKrakenfiles(const std::string& url) {
+    CrawlerPackage pkg;
+    pkg.hoster = "Krakenfiles";
+
+    std::string html = FetchHttp(url, 6);
+    if (!html.empty()) {
+        std::smatch title_m;
+        std::regex title_reg(R"(<h5 class="[^"]*file-name[^"]*">([^<]+)</h5>|<title>([^<]+)</title>)", std::regex::icase);
+        std::string filename = "krakenfiles_download";
+        if (std::regex_search(html, title_m, title_reg)) {
+            filename = title_m[1].matched ? title_m[1].str() : title_m[2].str();
+            size_t kpos = filename.find(" - Krakenfiles");
+            if (kpos != std::string::npos) filename = filename.substr(0, kpos);
+        }
+
+        std::regex dl_reg(R"(href=["']([^"']+/download/[^"']+)["'])", std::regex::icase);
+        std::smatch dl_m;
+        if (std::regex_search(html, dl_m, dl_reg)) {
+            std::string direct = dl_m[1].str();
+            if (direct.rfind("http", 0) != 0) direct = "https://krakenfiles.com" + direct;
+            CrawlerItem item;
+            item.original_url = url;
+            item.direct_url = direct;
+            item.filename = filename;
+            item.hoster = "Krakenfiles";
+            pkg.name = item.filename;
+            item.package_name = pkg.name;
+            pkg.items.push_back(item);
+            return pkg;
+        }
+    }
+
+    CrawlerItem item;
+    item.original_url = url;
+    item.direct_url = url;
+    item.filename = "krakenfiles_download";
+    item.hoster = "Krakenfiles";
+    pkg.name = item.filename;
+    item.package_name = pkg.name;
+    pkg.items.push_back(item);
+    return pkg;
+}
+
+CrawlerPackage CrawlerEngine::ResolveMediaFire(const std::string& url) {
+    CrawlerPackage pkg;
+    pkg.hoster = "MediaFire";
+
+    std::string html = FetchHttp(url, 6);
+    if (!html.empty()) {
+        std::regex dl_reg(R"(href=["'](https?://download[^"']+)["'][^>]*id=["']downloadButton["']|id=["']downloadButton["'][^>]*href=["'](https?://download[^"']+)["']|aria-label=["']Download file["'][^>]*href=["'](https?://download[^"']+)["'])", std::regex::icase);
+        std::smatch m;
+        std::string direct_url;
+        if (std::regex_search(html, m, dl_reg)) {
+            for (size_t i = 1; i < m.size(); ++i) {
+                if (m[i].matched) {
+                    direct_url = m[i].str();
+                    break;
+                }
+            }
+        }
+
+        std::string filename = "mediafire_file";
+        std::smatch fn_m;
+        std::regex fn_reg(R"(class=["']filename["'][^>]*>([^<]+)</div>|<div class=["']promoDownloadName[^"']*title=["']([^"']+)["'])", std::regex::icase);
+        if (std::regex_search(html, fn_m, fn_reg)) {
+            filename = fn_m[1].matched ? fn_m[1].str() : fn_m[2].str();
+        } else {
+            std::regex title_reg(R"(<title>([^<]+)</title>)", std::regex::icase);
+            if (std::regex_search(html, fn_m, title_reg)) {
+                std::string t = fn_m[1].str();
+                size_t pos = t.find(" - MediaFire");
+                if (pos != std::string::npos) t = t.substr(0, pos);
+                if (!t.empty()) filename = t;
+            }
+        }
+
+        if (!direct_url.empty()) {
+            CrawlerItem item;
+            item.original_url = url;
+            item.direct_url = direct_url;
+            item.filename = filename;
+            item.hoster = "MediaFire";
+            pkg.name = item.filename;
+            item.package_name = pkg.name;
+            pkg.items.push_back(item);
+            return pkg;
+        }
+    }
+
+    CrawlerItem item;
+    item.original_url = url;
+    item.direct_url = url;
+    item.filename = "mediafire_download";
+    item.hoster = "MediaFire";
+    pkg.name = item.filename;
+    item.package_name = pkg.name;
+    pkg.items.push_back(item);
+    return pkg;
+}
+
+CrawlerPackage CrawlerEngine::ResolveCatbox(const std::string& url) {
+    CrawlerPackage pkg;
+    pkg.hoster = "Catbox";
+
+    CrawlerItem item;
+    item.original_url = url;
+    item.direct_url = url;
+    item.hoster = "Catbox";
+
+    size_t slash = url.find_last_of('/');
+    if (slash != std::string::npos) {
+        std::string fn = url.substr(slash + 1);
+        size_t q = fn.find('?');
+        if (q != std::string::npos) fn = fn.substr(0, q);
+        item.filename = fn.empty() ? "catbox_download" : fn;
+    } else {
+        item.filename = "catbox_download";
+    }
+
+    pkg.name = item.filename;
+    item.package_name = pkg.name;
+    pkg.items.push_back(item);
+    return pkg;
+}
+
 CrawlerPackage CrawlerEngine::CrawlUrl(const std::string& url) {
     if (url.find("pixeldrain.com") != std::string::npos) {
         return ResolvePixeldrain(url);
+    }
+    if (url.find("gofile.io") != std::string::npos) {
+        return ResolveGofile(url);
+    }
+    if (url.find("fuckingfast.co") != std::string::npos || url.find("fuckfast.co") != std::string::npos) {
+        return ResolveFuckingFast(url);
+    }
+    if (url.find("buzzheavier.com") != std::string::npos) {
+        return ResolveBuzzheavier(url);
+    }
+    if (url.find("krakenfiles.com") != std::string::npos) {
+        return ResolveKrakenfiles(url);
+    }
+    if (url.find("mediafire.com") != std::string::npos) {
+        return ResolveMediaFire(url);
+    }
+    if (url.find("catbox.moe") != std::string::npos) {
+        return ResolveCatbox(url);
     }
     if (url.find("drive.google.com") != std::string::npos) {
         return ResolveGoogleDrive(url);

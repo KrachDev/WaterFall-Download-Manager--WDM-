@@ -37,6 +37,10 @@ private:
     CrawlerPackage ResolvePixeldrain(const std::string& url);
     CrawlerPackage ResolveGofile(const std::string& url);
     CrawlerPackage ResolveFuckingFast(const std::string& url);
+    CrawlerPackage ResolveMediaFire(const std::string& url);
+    CrawlerPackage ResolveKrakenfiles(const std::string& url);
+    CrawlerPackage ResolveBuzzheavier(const std::string& url);
+    CrawlerPackage ResolveCatbox(const std::string& url);
     CrawlerPackage ResolveGoogleDrive(const std::string& url);
     CrawlerPackage ResolveDropbox(const std::string& url);
     CrawlerPackage ResolvePaste(const std::string& url);
