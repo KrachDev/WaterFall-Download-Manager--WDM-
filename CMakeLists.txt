@@ -120,6 +120,7 @@ target_link_libraries(waterfall PRIVATE
     gdi32
     user32
     shell32
+    ole32
     winhttp
     ws2_32
     dwmapi

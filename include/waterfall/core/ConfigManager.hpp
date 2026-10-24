@@ -44,13 +44,22 @@ public:
 
     // Specific quick accessors
     int GetMaxConcurrentDownloads();
+    void SetMaxConcurrentDownloads(int count);
     int GetMaxConcurrentPerHost();
+    void SetMaxConcurrentPerHost(int count);
     bool IsSpeedLimitEnabled();
+    void SetSpeedLimitEnabled(bool enabled);
     int64_t GetSpeedLimitBps();
+    void SetSpeedLimitBps(int64_t bps);
     bool ShouldAutoExtract();
+    void SetAutoExtract(bool val);
     bool ShouldDeleteArchiveAfterExtract();
+    void SetDeleteArchiveAfterExtract(bool val);
+    int GetDefaultConnectionsPerTask();
+    void SetDefaultConnectionsPerTask(int count);
     std::vector<std::string> GetArchivePasswords();
     void AddArchivePassword(const std::string& pwd);
+    void RemoveArchivePassword(const std::string& pwd);
     PowerAction GetPowerAction();
     void SetPowerAction(PowerAction action);
     std::string GetDownloadDirectory();

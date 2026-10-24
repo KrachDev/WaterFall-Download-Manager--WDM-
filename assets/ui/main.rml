@@ -88,9 +88,21 @@
                 <div class="view-header">
                     <span class="view-title">DOWNLOAD QUEUE</span>
                     <div class="view-tools">
-                        <input type="text" class="search-input" placeholder="Filter by filename, hoster, or tag..."/>
+                        <button class="tool-btn" data-event-click="select_all_tasks()">Toggle All</button>
+                        <button class="tool-btn" data-event-click="sort_queue('date')">Date</button>
+                        <button class="tool-btn" data-event-click="sort_queue('name')">Name</button>
+                        <button class="tool-btn" data-event-click="sort_queue('size')">Size</button>
                         <button class="tool-btn" data-event-click="clear_completed()">Clean Completed</button>
                     </div>
+                </div>
+
+                <!-- Multi-Selection Batch Action Bar -->
+                <div class="batch-bar" data-if="selected_count > 0">
+                    <span class="batch-text">{{selected_count}} Tasks Selected</span>
+                    <button class="tool-btn primary" data-event-click="batch_resume()">▶ Resume</button>
+                    <button class="tool-btn" data-event-click="batch_pause()">⏸ Pause</button>
+                    <button class="tool-btn danger" data-event-click="batch_delete()">🗑 Delete</button>
+                    <button class="tool-btn" data-event-click="batch_deselect()">✕ Cancel</button>
                 </div>
 
                 <div class="tasks-scroll-container">
@@ -106,6 +118,7 @@
                         <div data-for="task:tasks">
                             <div class="task-card">
                                 <div class="card-top">
+                                    <button class="card-select-btn" data-class-checked="task.selected" data-event-click="toggle_task_selection(task.id)">✓</button>
                                     <div class="file-info">
                                         <span class="file-name">{{task.filename}}</span>
                                     </div>
@@ -133,6 +146,7 @@
                                         <button class="btn-action" data-event-click="pause_download(task.id)">Pause</button>
                                         <button class="btn-action" data-event-click="open_folder(task.id)">Folder</button>
                                         <button class="btn-action inspect" data-event-click="toggle_inspector(task.id)">Inspect</button>
+                                        <button class="btn-action menu-btn" data-event-click="open_task_menu(task.id)">⋮ Menu</button>
                                         <button class="btn-action danger" data-event-click="delete_download(task.id)">Delete</button>
                                     </div>
                                 </div>
@@ -282,27 +296,69 @@
                 <button class="btn-close" data-event-click="close_add_modal()">✕</button>
             </div>
             <div class="modal-body">
-                <span class="input-label">ORIGIN DOWNLOAD URL</span>
-                <input type="text" class="modal-input" placeholder="https://... (HTTP, HTTPS, Direct Link)" data-value="new_url"/>
-
-                <span class="input-label">CUSTOM FILENAME (OPTIONAL)</span>
-                <input type="text" class="modal-input" placeholder="Leave empty for auto-detection" data-value="new_custom_name"/>
-
-                <span class="input-label">DOWNLOAD ACCELERATION ENGINE</span>
-                <div class="engine-chips">
-                    <button class="chip-btn active">⚡ 16 Sockets In-Place</button>
-                    <button class="chip-btn">⚡ 32 Sockets Turbo</button>
-                    <button class="chip-btn">● Single Stream</button>
+                <!-- Sub-Tabs: Direct / Batch / Media -->
+                <div class="modal-subtabs">
+                    <button class="subtab-btn" data-class-active="add_modal_tab == 'direct'" data-event-click="set_add_modal_tab('direct')">Direct URL</button>
+                    <button class="subtab-btn" data-class-active="add_modal_tab == 'batch'" data-event-click="set_add_modal_tab('batch')">Batch URLs</button>
+                    <button class="subtab-btn" data-class-active="add_modal_tab == 'media'" data-event-click="set_add_modal_tab('media')">YouTube / Media</button>
                 </div>
 
-                <div class="checkbox-row">
-                    <input type="checkbox" checked="checked"/>
-                    <span class="checkbox-label">Auto-extract archive upon completion</span>
+                <div data-if="add_modal_tab == 'direct'">
+                    <span class="input-label">ORIGIN DOWNLOAD URL</span>
+                    <input type="text" class="modal-input" placeholder="https://... (HTTP, HTTPS, Direct Link)" data-value="new_url"/>
+
+                    <span class="input-label">CUSTOM FILENAME (OPTIONAL)</span>
+                    <input type="text" class="modal-input" placeholder="Leave empty for auto-detection" data-value="new_custom_name"/>
+
+                    <span class="input-label">DOWNLOAD DESTINATION FOLDER</span>
+                    <div class="folder-picker-row">
+                        <input type="text" class="modal-input folder-input" data-value="new_save_folder"/>
+                        <button class="tb-btn" data-event-click="browse_add_folder()">Browse...</button>
+                    </div>
+
+                    <div class="quick-folders-chips">
+                        <button class="chip-folder-btn" data-event-click="set_quick_folder('downloads')">Downloads</button>
+                        <button class="chip-folder-btn" data-event-click="set_quick_folder('desktop')">Desktop</button>
+                        <button class="chip-folder-btn" data-event-click="set_quick_folder('videos')">Videos</button>
+                        <button class="chip-folder-btn" data-event-click="set_quick_folder('music')">Music</button>
+                    </div>
+
+                    <span class="input-label">DOWNLOAD ACCELERATION ENGINE</span>
+                    <div class="engine-chips">
+                        <button class="chip-btn" data-class-active="new_engine_mode == 'inPlace-16'" data-event-click="set_engine_mode('inPlace-16')">⚡ 16 Sockets In-Place</button>
+                        <button class="chip-btn" data-class-active="new_engine_mode == 'inPlace-32'" data-event-click="set_engine_mode('inPlace-32')">⚡ 32 Sockets Turbo</button>
+                        <button class="chip-btn" data-class-active="new_engine_mode == 'singleStream'" data-event-click="set_engine_mode('singleStream')">● Single Stream</button>
+                    </div>
+
+                    <span class="input-label">ARCHIVE PASSWORD (IF ENCRYPTED)</span>
+                    <input type="text" class="modal-input" placeholder="Optional archive extraction password" data-value="new_archive_password"/>
+                </div>
+
+                <div data-if="add_modal_tab == 'batch'">
+                    <span class="input-label">BATCH URLS (ONE PER LINE)</span>
+                    <textarea class="modal-textarea" rows="6" placeholder="https://example.com/file1.zip&#10;https://example.com/file2.rar" data-value="new_batch_urls"></textarea>
+
+                    <span class="input-label">SAVE DESTINATION FOLDER</span>
+                    <div class="folder-picker-row">
+                        <input type="text" class="modal-input folder-input" data-value="new_save_folder"/>
+                        <button class="tb-btn" data-event-click="browse_add_folder()">Browse...</button>
+                    </div>
+                </div>
+
+                <div data-if="add_modal_tab == 'media'">
+                    <span class="input-label">YOUTUBE / VIDEO URL</span>
+                    <input type="text" class="modal-input" placeholder="https://www.youtube.com/watch?v=..." data-value="media_url"/>
+                    <span class="input-label">OUTPUT FORMAT</span>
+                    <div class="engine-chips">
+                        <button class="chip-btn" data-class-active="media_format == 'mp4-1080'" data-event-click="set_media_format('mp4-1080')">1080p MP4 Video</button>
+                        <button class="chip-btn" data-class-active="media_format == 'mp4-best'" data-event-click="set_media_format('mp4-best')">4K Best Video</button>
+                        <button class="chip-btn" data-class-active="media_format == 'mp3-320'" data-event-click="set_media_format('mp3-320')">320k MP3 Audio</button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="tb-btn" data-event-click="close_add_modal()">Cancel</button>
-                <button class="tb-btn primary" data-event-click="submit_add_modal()">⚡ Start Download Now</button>
+                <button class="tb-btn primary" data-event-click="submit_add_modal()">⚡ Start Download</button>
             </div>
         </div>
     </div>
@@ -331,41 +387,144 @@
                     <div data-if="settings_tab == 'general'">
                         <span class="setting-heading">General Configuration</span>
                         <span class="input-label">DEFAULT STORAGE LOCATION</span>
-                        <input type="text" class="modal-input" value="C:\Users\Kracher.Krach\Downloads"/>
+                        <div class="folder-picker-row">
+                            <input type="text" class="modal-input folder-input" data-value="settings_save_path"/>
+                            <button class="tb-btn" data-event-click="browse_settings_folder()">Browse...</button>
+                        </div>
+
                         <span class="input-label">MAX CONCURRENT DOWNLOADS</span>
-                        <input type="text" class="modal-input" value="5"/>
+                        <div class="stepper-row">
+                            <button class="stepper-btn" data-event-click="settings_change_max_concurrent(-1)">-</button>
+                            <span class="stepper-val">{{settings_max_concurrent}}</span>
+                            <button class="stepper-btn" data-event-click="settings_change_max_concurrent(1)">+</button>
+                        </div>
+
+                        <span class="input-label">MAX CONCURRENT PER HOST</span>
+                        <div class="stepper-row">
+                            <button class="stepper-btn" data-event-click="settings_change_max_per_host(-1)">-</button>
+                            <span class="stepper-val">{{settings_max_per_host}}</span>
+                            <button class="stepper-btn" data-event-click="settings_change_max_per_host(1)">+</button>
+                        </div>
                     </div>
+
                     <div data-if="settings_tab == 'engine'">
                         <span class="setting-heading">Native Network &amp; Disk Engine</span>
                         <span class="input-label">DEFAULT THREADS PER TASK</span>
-                        <input type="text" class="modal-input" value="16"/>
+                        <input type="text" class="modal-input" data-value="settings_default_connections"/>
                         <span class="input-label">STREAM DISK BUFFER SIZE</span>
                         <input type="text" class="modal-input" value="64 KB"/>
                     </div>
+
                     <div data-if="settings_tab == 'limiter'">
                         <span class="setting-heading">Global Speed Limiter</span>
-                        <span class="input-label">GLOBAL BANDWIDTH CAP</span>
-                        <input type="text" class="modal-input" value="Unlimited"/>
+                        <span class="input-label">CURRENT SPEED CAP</span>
+                        <input type="text" class="modal-input" data-value="limiter_display_text"/>
+                        <button class="tb-btn primary" style="margin-top: 10px;" data-event-click="open_limiter_modal()">Configure Speed Limiter...</button>
                     </div>
+
                     <div data-if="settings_tab == 'archive'">
-                        <span class="setting-heading">Multi-Part Archive Extractor</span>
+                        <span class="setting-heading">Multi-Part Archive Extractor &amp; Password Vault</span>
                         <div class="checkbox-row">
                             <input type="checkbox" checked="checked"/>
                             <span class="checkbox-label">Automatically extract archives when all parts finish</span>
                         </div>
+                        <span class="input-label">SAVED ARCHIVE PASSWORDS</span>
+                        <div class="vault-list">
+                            <div class="vault-item" data-for="pwd:vault_passwords">
+                                <span class="vault-pwd">{{pwd}}</span>
+                                <button class="vault-del-btn" data-event-click="remove_vault_password(pwd)">✕</button>
+                            </div>
+                        </div>
+                        <div class="folder-picker-row">
+                            <input type="text" class="modal-input folder-input" placeholder="Add new password to vault..." data-value="new_vault_password"/>
+                            <button class="tb-btn primary" data-event-click="add_vault_password()">+ Add</button>
+                        </div>
                     </div>
+
                     <div data-if="settings_tab == 'automation'">
                         <span class="setting-heading">Post-Download Automation</span>
+                        <span class="input-label">CUSTOM POST-PROCESSING SCRIPT PATH</span>
+                        <input type="text" class="modal-input" placeholder="C:\scripts\post_download.bat" data-value="settings_script_path"/>
                         <div class="checkbox-row">
                             <input type="checkbox"/>
-                            <span class="checkbox-label">Run custom post-processing script upon completion</span>
+                            <span class="checkbox-label">Run script upon download completion</span>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="tb-btn" data-event-click="close_settings_modal()">Close</button>
-                <button class="tb-btn primary" data-event-click="close_settings_modal()">💾 Save Changes</button>
+                <button class="tb-btn primary" data-event-click="save_settings_modal()">💾 Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- MODAL 3: SPEED LIMITER QUICK MODAL                                      -->
+    <!-- ======================================================================= -->
+    <div class="modal-backdrop" data-if="is_limiter_modal_open">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">⚡ GLOBAL SPEED LIMITER</span>
+                <button class="btn-close" data-event-click="close_limiter_modal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <span class="input-label">CURRENT BANDWIDTH STATUS</span>
+                <div class="limiter-display">
+                    <span class="limiter-current-val">{{limiter_display_text}}</span>
+                    <span class="limiter-status-tag" data-class-active="limiter_enabled">{{limiter_status_text}}</span>
+                </div>
+
+                <span class="input-label">QUICK PRESETS</span>
+                <div class="limiter-presets">
+                    <button class="preset-btn" data-event-click="set_speed_preset('500k')">500 KB/s</button>
+                    <button class="preset-btn" data-event-click="set_speed_preset('1m')">1 MB/s</button>
+                    <button class="preset-btn" data-event-click="set_speed_preset('5m')">5 MB/s</button>
+                    <button class="preset-btn" data-event-click="set_speed_preset('10m')">10 MB/s</button>
+                    <button class="preset-btn" data-event-click="set_speed_preset('20m')">20 MB/s</button>
+                    <button class="preset-btn danger" data-event-click="set_speed_preset('unlimited')">● Unlimited</button>
+                </div>
+
+                <span class="input-label">CUSTOM CAP (MB/s)</span>
+                <div class="custom-limiter-row">
+                    <input type="text" class="modal-input" placeholder="e.g. 12.5" data-value="limiter_custom_input"/>
+                    <button class="tb-btn primary" data-event-click="apply_custom_limit()">Apply</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="tb-btn" data-event-click="toggle_speed_limit()">Toggle Limiter</button>
+                <button class="tb-btn primary" data-event-click="close_limiter_modal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- MODAL 4: TASK CONTEXT MENU MODAL OVERLAY                                -->
+    <!-- ======================================================================= -->
+    <div class="modal-backdrop transparent" data-if="is_context_menu_open">
+        <div class="context-menu-card">
+            <div class="context-header">
+                <span class="context-title">{{context_task_filename}}</span>
+                <span class="context-sub">{{context_task_info}}</span>
+            </div>
+            <div class="context-items">
+                <button class="context-item" data-event-click="context_open_file()">▶ Open File</button>
+                <button class="context-item" data-event-click="context_open_folder()">📁 Open Containing Folder</button>
+                <button class="context-item" data-event-click="context_open_extracted()">📦 Open Extracted Folder</button>
+                <button class="context-item" data-event-click="context_extract_now()">⚡ Extract Archive Now</button>
+                <button class="context-item" data-event-click="context_verify_hash()">🔒 Verify SHA-256 Checksum</button>
+                <button class="context-item" data-event-click="context_copy_link()">📋 Copy Download Link</button>
+                <div class="context-divider"></div>
+                <button class="context-item" data-event-click="context_move_top()">⬆ Move to Top</button>
+                <button class="context-item" data-event-click="context_move_up()">▲ Move Up</button>
+                <button class="context-item" data-event-click="context_move_down()">▼ Move Down</button>
+                <button class="context-item" data-event-click="context_move_bottom()">⬇ Move to Bottom</button>
+                <div class="context-divider"></div>
+                <button class="context-item danger" data-event-click="context_delete_list()">✕ Delete from List Only</button>
+                <button class="context-item danger" data-event-click="context_delete_disk()">🗑 Delete from List &amp; Disk</button>
+            </div>
+            <div class="modal-footer" style="margin-top: 10px; padding-top: 8px;">
+                <button class="tb-btn" data-event-click="close_context_menu()">Close</button>
             </div>
         </div>
     </div>

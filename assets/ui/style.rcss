@@ -762,10 +762,10 @@ body {
 .seg-cell.pending { background-color: #1e293b; color: #64748b; }
 
 /* --------------------------------------------------------------------------
-   Modal Overlays
+   Modal Overlays & Advanced Interactive Components
    -------------------------------------------------------------------------- */
 .modal-backdrop {
-    display: none;
+    display: flex;
     position: absolute;
     top: 0;
     left: 0;
@@ -776,8 +776,12 @@ body {
     justify-content: center;
 }
 
+.modal-backdrop.transparent {
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
 .modal-card {
-    width: 500px;
+    width: 520px;
     background-color: #111827;
     border: 1px solid #334155;
     border-radius: 8px;
@@ -787,8 +791,12 @@ body {
 }
 
 .modal-card.large {
-    width: 720px;
-    height: 480px;
+    width: 740px;
+    height: 500px;
+}
+
+.modal-card.small {
+    width: 360px;
 }
 
 .modal-header {
@@ -833,6 +841,73 @@ body {
 
 .modal-input:focus { border-color: #00e5ff; }
 
+.modal-textarea {
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 8px 12px;
+    font-size: 12px;
+    height: 110px;
+}
+
+.modal-subtabs {
+    display: flex;
+    flex-direction: row;
+    border-bottom: 1px solid #1e293b;
+    margin-bottom: 12px;
+}
+
+.subtab-btn {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 8px 14px;
+    cursor: pointer;
+}
+
+.subtab-btn.active {
+    color: #00e5ff;
+    border-bottom-color: #00e5ff;
+}
+
+.folder-picker-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.folder-picker-row .folder-input {
+    flex: 1;
+    margin-right: 8px;
+}
+
+.quick-folders-chips {
+    display: flex;
+    flex-direction: row;
+    margin-top: 6px;
+    margin-bottom: 10px;
+}
+
+.chip-folder-btn {
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    color: #94a3b8;
+    font-size: 10px;
+    padding: 4px 8px;
+    margin-right: 6px;
+    cursor: pointer;
+}
+
+.chip-folder-btn:hover {
+    color: #00e5ff;
+    border-color: #00e5ff;
+}
+
 .engine-chips {
     display: flex;
     flex-direction: row;
@@ -860,6 +935,270 @@ body {
     margin-top: 20px;
     border-top: 1px solid #1e293b;
     padding-top: 14px;
+}
+
+/* Speed Limiter Quick Modal Styling */
+.limiter-display {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-top: 6px;
+    margin-bottom: 14px;
+}
+
+.limiter-current-val {
+    font-size: 20px;
+    font-weight: bold;
+    color: #00e5ff;
+}
+
+.limiter-status-tag {
+    font-size: 10px;
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: #1e293b;
+    color: #64748b;
+}
+
+.limiter-status-tag.active {
+    background-color: #047857;
+    color: #10b981;
+}
+
+.limiter-presets {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 14px;
+}
+
+.preset-btn {
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #cbd5e1;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-right: 6px;
+    cursor: pointer;
+}
+
+.preset-btn:hover {
+    border-color: #00e5ff;
+    color: #ffffff;
+    background-color: #0f172a;
+}
+
+.preset-btn.danger {
+    border-color: #ef4444;
+    color: #f87171;
+}
+
+.preset-btn.danger:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+}
+
+.custom-limiter-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.custom-limiter-row .modal-input {
+    flex: 1;
+    margin-right: 8px;
+}
+
+/* Batch Action Bar */
+.batch-bar {
+    background-color: #0c4a6e;
+    border: 1px solid #0284c7;
+    border-radius: 6px;
+    padding: 8px 14px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.batch-text {
+    font-size: 12px;
+    font-weight: bold;
+    color: #38bdf8;
+    margin-right: 14px;
+}
+
+.card-select-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    background-color: #1e293b;
+    border: 1px solid #475569;
+    color: transparent;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 20px;
+    margin-right: 10px;
+    padding: 0;
+    cursor: pointer;
+}
+
+.card-select-btn:hover {
+    border-color: #00e5ff;
+}
+
+.card-select-btn.checked {
+    background-color: #0284c7;
+    border-color: #38bdf8;
+    color: #ffffff;
+}
+
+.menu-btn {
+    font-size: 14px;
+    font-weight: bold;
+    padding: 4px 8px;
+}
+
+/* Context Menu Card */
+.context-menu-card {
+    width: 320px;
+    background-color: #111827;
+    border: 1px solid #38bdf8;
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+}
+
+.context-header {
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+
+.context-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffffff;
+    display: block;
+}
+
+.context-sub {
+    font-size: 10px;
+    color: #94a3b8;
+    display: block;
+    margin-top: 3px;
+}
+
+.context-items {
+    display: flex;
+    flex-direction: column;
+}
+
+.context-item {
+    background-color: transparent;
+    border: none;
+    color: #cbd5e1;
+    font-size: 11px;
+    text-align: left;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.context-item:hover {
+    background-color: #1e293b;
+    color: #38bdf8;
+}
+
+.context-item.danger {
+    color: #f87171;
+}
+
+.context-item.danger:hover {
+    background-color: #7f1d1d;
+    color: #ffffff;
+}
+
+.context-divider {
+    height: 1px;
+    background-color: #1e293b;
+    margin: 4px 0;
+}
+
+/* Password Vault List */
+.vault-list {
+    background-color: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 8px;
+    max-height: 110px;
+    display: flex;
+    flex-direction: column;
+    margin-top: 6px;
+    margin-bottom: 8px;
+}
+
+.vault-item {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.vault-pwd {
+    font-size: 11px;
+    color: #e2e8f0;
+}
+
+.vault-del-btn {
+    background-color: transparent;
+    border: none;
+    color: #f87171;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.stepper-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.stepper-val {
+    font-size: 14px;
+    font-weight: bold;
+    color: #00e5ff;
+    width: 40px;
+    text-align: center;
+}
+
+.stepper-btn {
+    width: 28px;
+    height: 28px;
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.stepper-btn:hover {
+    border-color: #00e5ff;
+    background-color: #334155;
 }
 
 /* Settings Layout */

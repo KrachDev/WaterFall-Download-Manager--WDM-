@@ -13,11 +13,91 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <unordered_set>
+#include <sstream>
 #include <windows.h>
 #include <shellapi.h>
+#include <shobjidl.h>
+#include <shlobj.h>
 #include <thread>
 
 namespace waterfall::ui {
+
+static std::string ShowWin32FolderPicker() {
+    std::string selected_path = "";
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    IFileOpenDialog* pFileOpen = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen)))) {
+        DWORD dwOptions = 0;
+        if (SUCCEEDED(pFileOpen->GetOptions(&dwOptions))) {
+            pFileOpen->SetOptions(dwOptions | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+        }
+        pFileOpen->SetTitle(L"Select Download Destination Folder");
+        if (SUCCEEDED(pFileOpen->Show(nullptr))) {
+            IShellItem* pItem = nullptr;
+            if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
+                PWSTR pszFilePath = nullptr;
+                if (SUCCEEDED(pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath))) {
+                    int size_needed = WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, nullptr, 0, nullptr, nullptr);
+                    if (size_needed > 1) {
+                        selected_path.resize(size_needed - 1);
+                        WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, &selected_path[0], size_needed, nullptr, nullptr);
+                    }
+                    CoTaskMemFree(pszFilePath);
+                }
+                pItem->Release();
+            }
+        }
+        pFileOpen->Release();
+    }
+    return selected_path;
+}
+
+static std::string GetWin32KnownFolder(REFKNOWNFOLDERID rfid) {
+    PWSTR path = nullptr;
+    std::string result;
+    if (SUCCEEDED(SHGetKnownFolderPath(rfid, 0, nullptr, &path))) {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
+        if (size_needed > 1) {
+            result.resize(size_needed - 1);
+            WideCharToMultiByte(CP_UTF8, 0, path, -1, &result[0], size_needed, nullptr, nullptr);
+        }
+        CoTaskMemFree(path);
+    }
+    return result;
+}
+
+static std::string GetWin32ClipboardText() {
+    std::string text;
+    if (OpenClipboard(nullptr)) {
+        HANDLE hData = GetClipboardData(CF_TEXT);
+        if (hData) {
+            char* pszText = static_cast<char*>(GlobalLock(hData));
+            if (pszText) {
+                text = pszText;
+                GlobalUnlock(hData);
+            }
+        }
+        CloseClipboard();
+    }
+    return text;
+}
+
+static void SetWin32ClipboardText(const std::string& text) {
+    if (OpenClipboard(nullptr)) {
+        EmptyClipboard();
+        HGLOBAL hGlob = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
+        if (hGlob) {
+            char* pData = static_cast<char*>(GlobalLock(hGlob));
+            if (pData) {
+                memcpy(pData, text.c_str(), text.size() + 1);
+                GlobalUnlock(hGlob);
+                SetClipboardData(CF_TEXT, hGlob);
+            }
+        }
+        CloseClipboard();
+    }
+}
 
 struct UiTask {
     int id = 0;
@@ -29,6 +109,7 @@ struct UiTask {
     Rml::String eta;
     float progress = 0.0f;
     int category_id = 0; // 0=general, 1=compressed, 2=video, 3=audio, 4=documents, 5=software
+    bool selected = false;
 };
 
 struct UiGrabberPackage {
@@ -52,6 +133,10 @@ static Rml::String g_ui_grabber_count = "0";
 static bool g_has_tasks = false;
 static bool g_has_grabber = false;
 
+// Selection & Batch State
+static std::unordered_set<int> g_selected_task_ids;
+static int g_selected_count = 0;
+
 // Views & Modals state
 static Rml::String g_current_view = "downloads"; // "downloads" | "grabber" | "media"
 static Rml::String g_active_filter = "all";       // "all" | "downloading" | "paused" | "completed" | "extracting" | "error"
@@ -63,6 +148,18 @@ static bool g_is_add_modal_open = false;
 static bool g_is_settings_modal_open = false;
 static bool g_is_limiter_modal_open = false;
 static bool g_is_inspector_open = false;
+static bool g_is_context_menu_open = false;
+
+// Task Context Menu details
+static int g_context_task_id = 0;
+static Rml::String g_context_task_filename = "--";
+static Rml::String g_context_task_info = "--";
+
+// Speed Limiter State
+static bool g_limiter_enabled = false;
+static Rml::String g_limiter_display_text = "Full Speed (Unlimited)";
+static Rml::String g_limiter_status_text = "OFF";
+static Rml::String g_limiter_custom_input = "5.0";
 
 // Selected task details for Inspector Drawer
 static int g_selected_task_id = 0;
@@ -74,12 +171,27 @@ static Rml::String g_inspector_hash = "SHA-256: --";
 static int g_inspector_chunks = 16;
 static bool g_inspector_auto_extract = true;
 
-// Input fields
+// Add Download Modal State
+static Rml::String g_add_modal_tab = "direct"; // "direct" | "batch" | "media"
 static Rml::String g_new_url_input = "";
 static Rml::String g_new_custom_name = "";
+static Rml::String g_new_save_folder = "";
+static Rml::String g_new_batch_urls = "";
 static Rml::String g_new_engine_mode = "inPlace-16";
 static bool g_new_auto_extract = true;
 static Rml::String g_new_archive_password = "";
+
+// Settings Modal State
+static Rml::String g_settings_save_path = "";
+static Rml::String g_settings_max_concurrent = "3";
+static Rml::String g_settings_max_per_host = "2";
+static Rml::String g_settings_default_connections = "16";
+static bool g_settings_auto_extract = true;
+static bool g_settings_delete_archive = false;
+static Rml::Vector<Rml::String> g_vault_passwords;
+static Rml::String g_new_vault_password = "";
+static Rml::String g_settings_script_path = "";
+static bool g_settings_script_enabled = false;
 
 // Media Studio Inputs
 static Rml::String g_media_url_input = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
@@ -118,6 +230,7 @@ static void RefreshModelData() {
         item.total = t.GetTotalFormatted().c_str();
         item.eta = t.GetEtaFormatted().c_str();
         item.progress = t.GetProgressPercent();
+        item.selected = (g_selected_task_ids.count(t.id) > 0);
         
         auto cat = core::StorageRouter::Instance().CategorizeFile(t.filename);
         item.category_id = static_cast<int>(cat);
@@ -125,10 +238,29 @@ static void RefreshModelData() {
         g_ui_tasks.push_back(item);
     }
 
+    g_selected_count = static_cast<int>(g_selected_task_ids.size());
     g_ui_active_count = std::to_string(active_cnt).c_str();
     g_ui_paused_count = std::to_string(paused_cnt).c_str();
     g_ui_completed_count = std::to_string(done_cnt).c_str();
-    g_ui_total_speed = core::DownloadTask::FormatBytes(core::DownloadManager::Instance().GetTotalSpeed()).c_str() + Rml::String("/s");
+    g_ui_total_speed = (core::DownloadTask::FormatBytes(core::DownloadManager::Instance().GetTotalSpeed()) + "/s").c_str();
+
+    // Update speed limiter status
+    g_limiter_enabled = core::ConfigManager::Instance().IsSpeedLimitEnabled();
+    if (g_limiter_enabled) {
+        int64_t bps = core::ConfigManager::Instance().GetSpeedLimitBps();
+        g_limiter_display_text = (core::DownloadTask::FormatBytes(bps) + "/s").c_str();
+        g_limiter_status_text = "THROTTLED";
+    } else {
+        g_limiter_display_text = "Full Speed (Unlimited)";
+        g_limiter_status_text = "OFF";
+    }
+
+    // Update password vault entries
+    auto pwds = core::ConfigManager::Instance().GetArchivePasswords();
+    g_vault_passwords.clear();
+    for (const auto& p : pwds) {
+        g_vault_passwords.push_back(p.c_str());
+    }
 
     // Populate LinkGrabber packages from DownloadManager
     auto pkgs = core::DownloadManager::Instance().GetGrabberPackages();
@@ -167,6 +299,7 @@ static void RefreshModelData() {
         g_model_handle.DirtyVariable("grabber_packages");
         g_model_handle.DirtyVariable("has_tasks");
         g_model_handle.DirtyVariable("has_grabber");
+        g_model_handle.DirtyVariable("selected_count");
         g_model_handle.DirtyVariable("active_count");
         g_model_handle.DirtyVariable("paused_count");
         g_model_handle.DirtyVariable("completed_count");
@@ -181,6 +314,29 @@ static void RefreshModelData() {
         g_model_handle.DirtyVariable("is_settings_modal_open");
         g_model_handle.DirtyVariable("is_limiter_modal_open");
         g_model_handle.DirtyVariable("is_inspector_open");
+        g_model_handle.DirtyVariable("is_context_menu_open");
+        g_model_handle.DirtyVariable("context_task_filename");
+        g_model_handle.DirtyVariable("context_task_info");
+        g_model_handle.DirtyVariable("limiter_enabled");
+        g_model_handle.DirtyVariable("limiter_display_text");
+        g_model_handle.DirtyVariable("limiter_status_text");
+        g_model_handle.DirtyVariable("limiter_custom_input");
+        g_model_handle.DirtyVariable("add_modal_tab");
+        g_model_handle.DirtyVariable("new_url");
+        g_model_handle.DirtyVariable("new_custom_name");
+        g_model_handle.DirtyVariable("new_save_folder");
+        g_model_handle.DirtyVariable("new_batch_urls");
+        g_model_handle.DirtyVariable("new_engine_mode");
+        g_model_handle.DirtyVariable("settings_save_path");
+        g_model_handle.DirtyVariable("settings_max_concurrent");
+        g_model_handle.DirtyVariable("settings_max_per_host");
+        g_model_handle.DirtyVariable("settings_default_connections");
+        g_model_handle.DirtyVariable("settings_auto_extract");
+        g_model_handle.DirtyVariable("settings_delete_archive");
+        g_model_handle.DirtyVariable("vault_passwords");
+        g_model_handle.DirtyVariable("new_vault_password");
+        g_model_handle.DirtyVariable("settings_script_path");
+        g_model_handle.DirtyVariable("settings_script_enabled");
         g_model_handle.DirtyVariable("inspector_filename");
         g_model_handle.DirtyVariable("inspector_url");
         g_model_handle.DirtyVariable("inspector_path");
@@ -257,6 +413,7 @@ void UiManager::SetupDataModel() {
         task_handle.RegisterMember("eta", &UiTask::eta);
         task_handle.RegisterMember("progress", &UiTask::progress);
         task_handle.RegisterMember("category_id", &UiTask::category_id);
+        task_handle.RegisterMember("selected", &UiTask::selected);
     }
     constructor.RegisterArray<Rml::Vector<UiTask>>();
     constructor.Bind("tasks", &g_ui_tasks);
@@ -273,9 +430,14 @@ void UiManager::SetupDataModel() {
     constructor.RegisterArray<Rml::Vector<UiGrabberPackage>>();
     constructor.Bind("grabber_packages", &g_ui_grabber_packages);
 
+    // Bind password vault array
+    constructor.RegisterArray<Rml::Vector<Rml::String>>();
+    constructor.Bind("vault_passwords", &g_vault_passwords);
+
     // Bind dashboard telemetry variables
     constructor.Bind("has_tasks", &g_has_tasks);
     constructor.Bind("has_grabber", &g_has_grabber);
+    constructor.Bind("selected_count", &g_selected_count);
     constructor.Bind("active_count", &g_ui_active_count);
     constructor.Bind("total_speed", &g_ui_total_speed);
     constructor.Bind("completed_count", &g_ui_completed_count);
@@ -294,6 +456,17 @@ void UiManager::SetupDataModel() {
     constructor.Bind("is_settings_modal_open", &g_is_settings_modal_open);
     constructor.Bind("is_limiter_modal_open", &g_is_limiter_modal_open);
     constructor.Bind("is_inspector_open", &g_is_inspector_open);
+    constructor.Bind("is_context_menu_open", &g_is_context_menu_open);
+
+    // Bind context menu details
+    constructor.Bind("context_task_filename", &g_context_task_filename);
+    constructor.Bind("context_task_info", &g_context_task_info);
+
+    // Bind speed limiter variables
+    constructor.Bind("limiter_enabled", &g_limiter_enabled);
+    constructor.Bind("limiter_display_text", &g_limiter_display_text);
+    constructor.Bind("limiter_status_text", &g_limiter_status_text);
+    constructor.Bind("limiter_custom_input", &g_limiter_custom_input);
 
     // Bind inspector details
     constructor.Bind("inspector_filename", &g_inspector_filename);
@@ -304,12 +477,26 @@ void UiManager::SetupDataModel() {
     constructor.Bind("inspector_chunks", &g_inspector_chunks);
     constructor.Bind("inspector_auto_extract", &g_inspector_auto_extract);
 
-    // Bind input model variables
+    // Bind Add modal variables
+    constructor.Bind("add_modal_tab", &g_add_modal_tab);
     constructor.Bind("new_url", &g_new_url_input);
     constructor.Bind("new_custom_name", &g_new_custom_name);
+    constructor.Bind("new_save_folder", &g_new_save_folder);
+    constructor.Bind("new_batch_urls", &g_new_batch_urls);
     constructor.Bind("new_engine_mode", &g_new_engine_mode);
     constructor.Bind("new_auto_extract", &g_new_auto_extract);
     constructor.Bind("new_archive_password", &g_new_archive_password);
+
+    // Bind Settings modal variables
+    constructor.Bind("settings_save_path", &g_settings_save_path);
+    constructor.Bind("settings_max_concurrent", &g_settings_max_concurrent);
+    constructor.Bind("settings_max_per_host", &g_settings_max_per_host);
+    constructor.Bind("settings_default_connections", &g_settings_default_connections);
+    constructor.Bind("settings_auto_extract", &g_settings_auto_extract);
+    constructor.Bind("settings_delete_archive", &g_settings_delete_archive);
+    constructor.Bind("new_vault_password", &g_new_vault_password);
+    constructor.Bind("settings_script_path", &g_settings_script_path);
+    constructor.Bind("settings_script_enabled", &g_settings_script_enabled);
 
     // Bind media studio variables
     constructor.Bind("media_url", &g_media_url_input);
@@ -322,7 +509,6 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("set_view", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             g_current_view = args[0].Get<Rml::String>();
-            std::cout << "[UI] Switched view to: " << g_current_view << std::endl;
             RefreshModelData();
         }
     });
@@ -330,7 +516,6 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("set_filter", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             g_active_filter = args[0].Get<Rml::String>();
-            std::cout << "[UI] Filter set to: " << g_active_filter << std::endl;
             RefreshModelData();
         }
     });
@@ -338,81 +523,432 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("set_category", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             g_active_category = args[0].Get<Rml::String>();
-            std::cout << "[UI] Category set to: " << g_active_category << std::endl;
             RefreshModelData();
         }
     });
 
-    // Modals
+    // Modals: Add Download
     constructor.BindEventCallback("open_add_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
         g_is_add_modal_open = true;
-        std::cout << "[UI] Opened Add Download Modal" << std::endl;
+        // Auto-paste clipboard URL if valid
+        std::string clip = GetWin32ClipboardText();
+        while (!clip.empty() && (clip.front() == ' ' || clip.front() == '\t' || clip.front() == '\r' || clip.front() == '\n')) clip.erase(clip.begin());
+        while (!clip.empty() && (clip.back() == ' ' || clip.back() == '\t' || clip.back() == '\r' || clip.back() == '\n')) clip.pop_back();
+        if (clip.rfind("http://", 0) == 0 || clip.rfind("https://", 0) == 0) {
+            g_new_url_input = clip.c_str();
+        }
+        if (g_new_save_folder.empty()) {
+            g_new_save_folder = core::ConfigManager::Instance().GetDownloadDirectory().c_str();
+        }
         RefreshModelData();
     });
 
     constructor.BindEventCallback("close_add_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
         g_is_add_modal_open = false;
-        std::cout << "[UI] Closed Add Download Modal" << std::endl;
         RefreshModelData();
     });
 
+    constructor.BindEventCallback("set_add_modal_tab", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            g_add_modal_tab = args[0].Get<Rml::String>();
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("browse_add_folder", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        std::string picked = ShowWin32FolderPicker();
+        if (!picked.empty()) {
+            g_new_save_folder = picked.c_str();
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("set_quick_folder", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            std::string t = args[0].Get<Rml::String>().c_str();
+            if (t == "downloads") g_new_save_folder = GetWin32KnownFolder(FOLDERID_Downloads).c_str();
+            else if (t == "desktop") g_new_save_folder = GetWin32KnownFolder(FOLDERID_Desktop).c_str();
+            else if (t == "videos") g_new_save_folder = GetWin32KnownFolder(FOLDERID_Videos).c_str();
+            else if (t == "music") g_new_save_folder = GetWin32KnownFolder(FOLDERID_Music).c_str();
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("set_engine_mode", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            g_new_engine_mode = args[0].Get<Rml::String>();
+            RefreshModelData();
+        }
+    });
+
     constructor.BindEventCallback("submit_add_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
-        if (!g_new_url_input.empty()) {
-            std::string pwd = g_new_archive_password.c_str();
-            if (!pwd.empty()) {
-                core::ConfigManager::Instance().AddArchivePassword(pwd);
+        std::string target_dir = g_new_save_folder.c_str();
+        if (target_dir.empty()) target_dir = core::ConfigManager::Instance().GetDownloadDirectory();
+
+        if (g_add_modal_tab == "batch") {
+            // Process batch URLs line by line
+            std::istringstream iss(g_new_batch_urls.c_str());
+            std::string line;
+            while (std::getline(iss, line)) {
+                while (!line.empty() && (line.front() == ' ' || line.front() == '\t' || line.front() == '\r')) line.erase(line.begin());
+                while (!line.empty() && (line.back() == ' ' || line.back() == '\t' || line.back() == '\r')) line.pop_back();
+                if (line.rfind("http://", 0) == 0 || line.rfind("https://", 0) == 0) {
+                    core::DownloadManager::Instance().AddDownload(line, "", target_dir);
+                }
             }
-            std::cout << "[C++ Engine] Creating download task: " << g_new_url_input << " (Name: " << g_new_custom_name << ")" << std::endl;
-            core::DownloadManager::Instance().AddDownload(g_new_url_input.c_str(), g_new_custom_name.c_str());
-            g_new_url_input.clear();
-            g_new_custom_name.clear();
-            g_new_archive_password.clear();
+            g_new_batch_urls.clear();
+        } else if (g_add_modal_tab == "media") {
+            std::string url = g_media_url_input.c_str();
+            if (!url.empty()) {
+                core::DownloadManager::Instance().AddDownload(url, g_media_title.c_str(), target_dir, 2, true, g_media_format.c_str());
+            }
+        } else {
+            // Direct link
+            if (!g_new_url_input.empty()) {
+                std::string pwd = g_new_archive_password.c_str();
+                if (!pwd.empty()) {
+                    core::ConfigManager::Instance().AddArchivePassword(pwd);
+                }
+                core::DownloadManager::Instance().AddDownload(g_new_url_input.c_str(), g_new_custom_name.c_str(), target_dir);
+                g_new_url_input.clear();
+                g_new_custom_name.clear();
+                g_new_archive_password.clear();
+            }
         }
         g_is_add_modal_open = false;
         RefreshModelData();
     });
 
+    // Modals: Settings
     constructor.BindEventCallback("open_settings_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
         g_is_settings_modal_open = true;
-        std::cout << "[UI] Opened Settings Modal" << std::endl;
+        auto cfg = core::ConfigManager::Instance().GetConfig();
+        g_settings_save_path = cfg.download_directory.c_str();
+        g_settings_max_concurrent = std::to_string(cfg.max_concurrent_downloads).c_str();
+        g_settings_max_per_host = std::to_string(cfg.max_concurrent_per_host).c_str();
+        g_settings_default_connections = std::to_string(cfg.default_connections_per_task).c_str();
+        g_settings_auto_extract = cfg.auto_extract_archives;
+        g_settings_delete_archive = cfg.delete_archive_after_extract;
         RefreshModelData();
     });
 
     constructor.BindEventCallback("close_settings_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
         g_is_settings_modal_open = false;
-        std::cout << "[UI] Closed Settings Modal" << std::endl;
         RefreshModelData();
+    });
+
+    constructor.BindEventCallback("save_settings_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto cfg = core::ConfigManager::Instance().GetConfig();
+        if (!g_settings_save_path.empty()) cfg.download_directory = g_settings_save_path.c_str();
+        try { cfg.max_concurrent_downloads = std::max(1, std::stoi(g_settings_max_concurrent.c_str())); } catch (...) {}
+        try { cfg.max_concurrent_per_host = std::max(1, std::stoi(g_settings_max_per_host.c_str())); } catch (...) {}
+        try { cfg.default_connections_per_task = std::max(1, std::stoi(g_settings_default_connections.c_str())); } catch (...) {}
+        cfg.auto_extract_archives = g_settings_auto_extract;
+        cfg.delete_archive_after_extract = g_settings_delete_archive;
+        core::ConfigManager::Instance().UpdateConfig(cfg);
+        g_is_settings_modal_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("browse_settings_folder", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        std::string picked = ShowWin32FolderPicker();
+        if (!picked.empty()) {
+            g_settings_save_path = picked.c_str();
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("settings_change_max_concurrent", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            int delta = args[0].Get<int>();
+            int cur = std::max(1, std::stoi(g_settings_max_concurrent.c_str()) + delta);
+            g_settings_max_concurrent = std::to_string(cur).c_str();
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("settings_change_max_per_host", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            int delta = args[0].Get<int>();
+            int cur = std::max(1, std::stoi(g_settings_max_per_host.c_str()) + delta);
+            g_settings_max_per_host = std::to_string(cur).c_str();
+            RefreshModelData();
+        }
     });
 
     constructor.BindEventCallback("set_settings_tab", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             g_settings_tab = args[0].Get<Rml::String>();
-            std::cout << "[UI] Settings Tab: " << g_settings_tab << std::endl;
             RefreshModelData();
         }
     });
 
+    constructor.BindEventCallback("add_vault_password", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        if (!g_new_vault_password.empty()) {
+            core::ConfigManager::Instance().AddArchivePassword(g_new_vault_password.c_str());
+            g_new_vault_password.clear();
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("remove_vault_password", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            std::string pwd = args[0].Get<Rml::String>().c_str();
+            core::ConfigManager::Instance().RemoveArchivePassword(pwd);
+            RefreshModelData();
+        }
+    });
+
+    // Modals: Speed Limiter
     constructor.BindEventCallback("open_limiter_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
-        g_is_limiter_modal_open = !g_is_limiter_modal_open;
-        std::cout << "[UI] Toggled Speed Limiter Modal: " << g_is_limiter_modal_open << std::endl;
+        g_is_limiter_modal_open = true;
         RefreshModelData();
+    });
+
+    constructor.BindEventCallback("close_limiter_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        g_is_limiter_modal_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("toggle_speed_limit", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        bool cur = core::ConfigManager::Instance().IsSpeedLimitEnabled();
+        core::ConfigManager::Instance().SetSpeedLimitEnabled(!cur);
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("set_speed_preset", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            std::string p = args[0].Get<Rml::String>().c_str();
+            if (p == "unlimited") {
+                core::ConfigManager::Instance().SetSpeedLimitEnabled(false);
+            } else {
+                int64_t bps = 5 * 1024 * 1024;
+                if (p == "500k") bps = 500 * 1024;
+                else if (p == "1m") bps = 1024 * 1024;
+                else if (p == "5m") bps = 5 * 1024 * 1024;
+                else if (p == "10m") bps = 10 * 1024 * 1024;
+                else if (p == "20m") bps = 20 * 1024 * 1024;
+                core::ConfigManager::Instance().SetSpeedLimitBps(bps);
+                core::ConfigManager::Instance().SetSpeedLimitEnabled(true);
+            }
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("apply_custom_limit", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        try {
+            double mb = std::stod(g_limiter_custom_input.c_str());
+            if (mb > 0) {
+                int64_t bps = static_cast<int64_t>(mb * 1024.0 * 1024.0);
+                core::ConfigManager::Instance().SetSpeedLimitBps(bps);
+                core::ConfigManager::Instance().SetSpeedLimitEnabled(true);
+            }
+        } catch (...) {}
+        RefreshModelData();
+    });
+
+    // Task Context Menu Callbacks
+    constructor.BindEventCallback("open_task_menu", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            int id = args[0].Get<int>();
+            auto* t = core::DownloadManager::Instance().GetTaskPtr(id);
+            if (t) {
+                g_context_task_id = id;
+                g_context_task_filename = t->filename.c_str();
+                g_context_task_info = (t->GetStatusString() + " • " + t->GetDownloadedFormatted() + " / " + t->GetTotalFormatted()).c_str();
+                g_is_context_menu_open = true;
+                RefreshModelData();
+            }
+        }
+    });
+
+    constructor.BindEventCallback("close_context_menu", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_open_file", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_context_task_id);
+        if (t && !t->save_path.empty()) {
+            ShellExecuteA(nullptr, "open", t->save_path.c_str(), nullptr, nullptr, SW_SHOW);
+        }
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_open_folder", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_context_task_id);
+        if (t && !t->save_path.empty()) {
+            std::string param = "/select,\"" + t->save_path + "\"";
+            ShellExecuteA(nullptr, "open", "explorer.exe", param.c_str(), nullptr, SW_SHOW);
+        }
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_open_extracted", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_context_task_id);
+        if (t && !t->save_path.empty()) {
+            std::string parent = t->save_path.substr(0, t->save_path.find_last_of("\\/"));
+            ShellExecuteA(nullptr, "open", parent.c_str(), nullptr, nullptr, SW_SHOW);
+        }
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_extract_now", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_context_task_id);
+        if (t && !t->save_path.empty()) {
+            std::string path = t->save_path;
+            std::thread([path]() {
+                std::string parent = path.substr(0, path.find_last_of("\\/"));
+                std::string err;
+                core::ArchiveEngine::Instance().UnpackArchive(path, parent, core::ConfigManager::Instance().GetArchivePasswords(), false, {path}, [](float){}, err);
+            }).detach();
+        }
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_verify_hash", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_context_task_id);
+        if (t && !t->save_path.empty()) {
+            t->sha256_hash = "Computing...";
+            int task_id = g_context_task_id;
+            std::string path = t->save_path;
+            std::thread([task_id, path]() {
+                std::string hash = core::ChunkEngine::CalculateSha256(path);
+                auto* task = core::DownloadManager::Instance().GetTaskPtr(task_id);
+                if (task) {
+                    task->sha256_hash = hash;
+                    core::DownloadManager::Instance().NotifyUpdate();
+                }
+            }).detach();
+        }
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_copy_link", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_context_task_id);
+        if (t) {
+            SetWin32ClipboardText(t->url);
+        }
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_move_top", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        core::DownloadManager::Instance().MoveTaskTop(g_context_task_id);
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_move_up", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        core::DownloadManager::Instance().MoveTaskUp(g_context_task_id);
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_move_down", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        core::DownloadManager::Instance().MoveTaskDown(g_context_task_id);
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_move_bottom", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        core::DownloadManager::Instance().MoveTaskBottom(g_context_task_id);
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_delete_list", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        core::DownloadManager::Instance().DeleteDownload(g_context_task_id, false);
+        g_selected_task_ids.erase(g_context_task_id);
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("context_delete_disk", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        core::DownloadManager::Instance().DeleteDownload(g_context_task_id, true);
+        g_selected_task_ids.erase(g_context_task_id);
+        g_is_context_menu_open = false;
+        RefreshModelData();
+    });
+
+    // Batch Selection Callbacks
+    constructor.BindEventCallback("toggle_task_selection", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            int id = args[0].Get<int>();
+            if (g_selected_task_ids.count(id)) {
+                g_selected_task_ids.erase(id);
+            } else {
+                g_selected_task_ids.insert(id);
+            }
+            RefreshModelData();
+        }
+    });
+
+    constructor.BindEventCallback("select_all_tasks", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto tasks = core::DownloadManager::Instance().GetTasks();
+        if (g_selected_task_ids.size() == tasks.size()) {
+            g_selected_task_ids.clear();
+        } else {
+            for (const auto& t : tasks) g_selected_task_ids.insert(t.id);
+        }
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("batch_deselect", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        g_selected_task_ids.clear();
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("batch_resume", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        for (int id : g_selected_task_ids) {
+            core::DownloadManager::Instance().ResumeDownload(id);
+        }
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("batch_pause", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        for (int id : g_selected_task_ids) {
+            core::DownloadManager::Instance().PauseDownload(id);
+        }
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("batch_delete", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        for (int id : g_selected_task_ids) {
+            core::DownloadManager::Instance().DeleteDownload(id, false);
+        }
+        g_selected_task_ids.clear();
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("sort_queue", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            std::string mode = args[0].Get<Rml::String>().c_str();
+            if (mode == "name") core::DownloadManager::Instance().SortQueue(core::QueueScheduler::SortMode::NameAsc);
+            else if (mode == "size") core::DownloadManager::Instance().SortQueue(core::QueueScheduler::SortMode::SizeDesc);
+            else if (mode == "status") core::DownloadManager::Instance().SortQueue(core::QueueScheduler::SortMode::Status);
+            else core::DownloadManager::Instance().SortQueue(core::QueueScheduler::SortMode::DateDesc);
+            RefreshModelData();
+        }
     });
 
     // Top Command Toolbar Actions
     constructor.BindEventCallback("resume_all", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
-        std::cout << "[C++ Engine] Resume All invoked." << std::endl;
         core::DownloadManager::Instance().ResumeAll();
         RefreshModelData();
     });
 
     constructor.BindEventCallback("pause_all", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
-        std::cout << "[C++ Engine] Pause All invoked." << std::endl;
         core::DownloadManager::Instance().PauseAll();
         RefreshModelData();
     });
 
     constructor.BindEventCallback("clear_completed", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
-        std::cout << "[C++ Engine] Clear Completed invoked." << std::endl;
         core::DownloadManager::Instance().ClearCompleted();
         RefreshModelData();
     });
@@ -431,7 +967,6 @@ void UiManager::SetupDataModel() {
             g_power_action = "None";
         }
         core::ConfigManager::Instance().SetPowerAction(next_action);
-        std::cout << "[UI] Power Action cycled to: " << g_power_action << std::endl;
         RefreshModelData();
     });
 
@@ -439,7 +974,6 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("pause_download", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             int id = args[0].Get<int>();
-            std::cout << "[C++ Engine] Pause task: " << id << std::endl;
             core::DownloadManager::Instance().PauseDownload(id);
             RefreshModelData();
         }
@@ -448,7 +982,6 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("resume_download", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             int id = args[0].Get<int>();
-            std::cout << "[C++ Engine] Resume task: " << id << std::endl;
             core::DownloadManager::Instance().ResumeDownload(id);
             RefreshModelData();
         }
@@ -457,8 +990,8 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("delete_download", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             int id = args[0].Get<int>();
-            std::cout << "[C++ Engine] Delete task: " << id << std::endl;
             core::DownloadManager::Instance().DeleteDownload(id, false);
+            g_selected_task_ids.erase(id);
             RefreshModelData();
         }
     });

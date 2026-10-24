@@ -142,9 +142,21 @@ int ConfigManager::GetMaxConcurrentDownloads() {
     return config_.max_concurrent_downloads;
 }
 
+void ConfigManager::SetMaxConcurrentDownloads(int count) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.max_concurrent_downloads = std::max(1, count);
+    SaveToDb();
+}
+
 int ConfigManager::GetMaxConcurrentPerHost() {
     std::lock_guard<std::mutex> lock(mutex_);
     return config_.max_concurrent_per_host;
+}
+
+void ConfigManager::SetMaxConcurrentPerHost(int count) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.max_concurrent_per_host = std::max(1, count);
+    SaveToDb();
 }
 
 bool ConfigManager::IsSpeedLimitEnabled() {
@@ -152,9 +164,21 @@ bool ConfigManager::IsSpeedLimitEnabled() {
     return config_.speed_limit_enabled;
 }
 
+void ConfigManager::SetSpeedLimitEnabled(bool enabled) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.speed_limit_enabled = enabled;
+    SaveToDb();
+}
+
 int64_t ConfigManager::GetSpeedLimitBps() {
     std::lock_guard<std::mutex> lock(mutex_);
     return config_.speed_limit_bps;
+}
+
+void ConfigManager::SetSpeedLimitBps(int64_t bps) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.speed_limit_bps = std::max<int64_t>(0, bps);
+    SaveToDb();
 }
 
 bool ConfigManager::ShouldAutoExtract() {
@@ -162,9 +186,32 @@ bool ConfigManager::ShouldAutoExtract() {
     return config_.auto_extract_archives;
 }
 
+void ConfigManager::SetAutoExtract(bool val) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.auto_extract_archives = val;
+    SaveToDb();
+}
+
 bool ConfigManager::ShouldDeleteArchiveAfterExtract() {
     std::lock_guard<std::mutex> lock(mutex_);
     return config_.delete_archive_after_extract;
+}
+
+void ConfigManager::SetDeleteArchiveAfterExtract(bool val) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.delete_archive_after_extract = val;
+    SaveToDb();
+}
+
+int ConfigManager::GetDefaultConnectionsPerTask() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return config_.default_connections_per_task;
+}
+
+void ConfigManager::SetDefaultConnectionsPerTask(int count) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.default_connections_per_task = count;
+    SaveToDb();
 }
 
 std::vector<std::string> ConfigManager::GetArchivePasswords() {
@@ -179,6 +226,15 @@ void ConfigManager::AddArchivePassword(const std::string& pwd) {
     }
     config_.archive_passwords.push_back(pwd);
     SaveToDb();
+}
+
+void ConfigManager::RemoveArchivePassword(const std::string& pwd) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = std::remove(config_.archive_passwords.begin(), config_.archive_passwords.end(), pwd);
+    if (it != config_.archive_passwords.end()) {
+        config_.archive_passwords.erase(it, config_.archive_passwords.end());
+        SaveToDb();
+    }
 }
 
 PowerAction ConfigManager::GetPowerAction() {

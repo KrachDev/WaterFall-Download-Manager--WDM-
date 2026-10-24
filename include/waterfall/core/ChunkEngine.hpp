@@ -29,6 +29,9 @@ public:
     // Probe URL to inspect Content-Length, filename, and 206 Partial Content support
     static RemoteFileInfo ProbeUrl(const std::string& url);
 
+    // Compute hardware-accelerated SHA-256 checksum of a file on disk
+    static std::string CalculateSha256(const std::string& file_path);
+
     // Start or resume downloading a task with multi-socket chunking
     void StartTask(DownloadTask& task, ProgressCallback on_progress, CompleteCallback on_complete);
     void PauseTask(int task_id);

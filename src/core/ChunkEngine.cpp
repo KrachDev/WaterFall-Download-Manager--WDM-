@@ -69,6 +69,10 @@ static std::string ComputeFileSha256(const std::string& file_path) {
     return ss.str();
 }
 
+std::string ChunkEngine::CalculateSha256(const std::string& file_path) {
+    return ComputeFileSha256(file_path);
+}
+
 RemoteFileInfo ChunkEngine::ProbeUrl(const std::string& url) {
     RemoteFileInfo info;
     info.redirected_url = url;
