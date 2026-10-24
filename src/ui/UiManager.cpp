@@ -628,6 +628,7 @@ void UiManager::Run() {
 void UiManager::Shutdown() {
     if (is_running_) {
         is_running_ = false;
+        core::DownloadManager::Instance().SetUpdateListener(nullptr);
         if (context_) {
             if (document_) {
                 document_->Close();
