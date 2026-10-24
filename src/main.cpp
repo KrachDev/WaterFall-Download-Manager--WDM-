@@ -5,6 +5,19 @@
 #include <windows.h>
 
 int main(int argc, char* argv[]) {
+    // 0. Single-Instance Mutex Guard
+    HANDLE h_mutex = CreateMutexW(nullptr, TRUE, L"Local\\WaterfallAccelerator_SingleInstance_Mutex");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        std::cout << "[Core] Another instance of Waterfall is already running." << std::endl;
+        HWND existing_hwnd = FindWindowW(nullptr, L"🌊 Waterfall Accelerator v2.0 (Native C++20)");
+        if (existing_hwnd) {
+            ShowWindow(existing_hwnd, SW_RESTORE);
+            SetForegroundWindow(existing_hwnd);
+        }
+        if (h_mutex) CloseHandle(h_mutex);
+        return 0;
+    }
+
     std::cout << "=================================================" << std::endl;
     std::cout << "  🌊 WATERFALL DOWNLOAD ACCELERATOR v2.0 (C++20) " << std::endl;
     std::cout << "=================================================" << std::endl;
@@ -34,6 +47,11 @@ int main(int argc, char* argv[]) {
     std::cout << "[Core] Shutting down extension server..." << std::endl;
     extension_server.Stop();
     std::cout << "[Core] Waterfall exited cleanly." << std::endl;
+
+    if (h_mutex) {
+        ReleaseMutex(h_mutex);
+        CloseHandle(h_mutex);
+    }
 
     return 0;
 }
