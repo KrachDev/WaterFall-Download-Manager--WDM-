@@ -49,6 +49,8 @@ static Rml::String g_ui_total_speed = "0 B/s";
 static Rml::String g_ui_completed_count = "0";
 static Rml::String g_ui_paused_count = "0";
 static Rml::String g_ui_grabber_count = "0";
+static bool g_has_tasks = false;
+static bool g_has_grabber = false;
 
 // Views & Modals state
 static Rml::String g_current_view = "downloads"; // "downloads" | "grabber" | "media"
@@ -145,6 +147,8 @@ static void RefreshModelData() {
         g_ui_grabber_packages.push_back(p);
     }
     g_ui_grabber_count = std::to_string(g_ui_grabber_packages.size()).c_str();
+    g_has_tasks = !g_ui_tasks.empty();
+    g_has_grabber = !g_ui_grabber_packages.empty();
 
     // Update inspector data if an active task is selected
     if (g_selected_task_id > 0) {
@@ -161,6 +165,8 @@ static void RefreshModelData() {
     if (g_model_handle) {
         g_model_handle.DirtyVariable("tasks");
         g_model_handle.DirtyVariable("grabber_packages");
+        g_model_handle.DirtyVariable("has_tasks");
+        g_model_handle.DirtyVariable("has_grabber");
         g_model_handle.DirtyVariable("active_count");
         g_model_handle.DirtyVariable("paused_count");
         g_model_handle.DirtyVariable("completed_count");
@@ -268,6 +274,8 @@ void UiManager::SetupDataModel() {
     constructor.Bind("grabber_packages", &g_ui_grabber_packages);
 
     // Bind dashboard telemetry variables
+    constructor.Bind("has_tasks", &g_has_tasks);
+    constructor.Bind("has_grabber", &g_has_grabber);
     constructor.Bind("active_count", &g_ui_active_count);
     constructor.Bind("total_speed", &g_ui_total_speed);
     constructor.Bind("completed_count", &g_ui_completed_count);

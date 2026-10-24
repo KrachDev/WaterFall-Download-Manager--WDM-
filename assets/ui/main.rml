@@ -3,7 +3,7 @@
     <title>Waterfall Download Accelerator</title>
     <link type="text/rcss" href="style.rcss"/>
 </head>
-<body data-model="downloads">
+<body data-model="downloads_model">
 
     <!-- Top Command Toolbar -->
     <div id="header">
@@ -95,14 +95,14 @@
 
                 <div class="tasks-scroll-container">
                     <!-- Clean Empty-State When Queue is Empty -->
-                    <div class="empty-state-card" data-if="active_count == '0' &amp;&amp; completed_count == '0' &amp;&amp; paused_count == '0'">
+                    <div class="empty-state-card" data-if="!has_tasks">
                         <span class="empty-title">Queue is Empty</span>
                         <span class="empty-desc">Paste a download URL or click '+ Add Download' to start accelerating.</span>
                         <button class="tool-btn primary empty-action" data-event-click="open_add_modal()">+ Add Download Now</button>
                     </div>
 
                     <!-- Dynamic Task Cards Loop (Only shown when queue has items) -->
-                    <div class="tasks-list" data-if="active_count != '0' || completed_count != '0' || paused_count != '0'">
+                    <div class="tasks-list" data-if="has_tasks">
                         <div data-for="task:tasks">
                             <div class="task-card">
                                 <div class="card-top">
@@ -157,19 +157,27 @@
                 </div>
 
                 <div class="tasks-scroll-container">
-                    <div class="grabber-card" data-for="pkg:grabber_packages">
-                        <div class="grabber-card-header">
-                            <span class="pkg-name">{{pkg.name}}</span>
-                            <span class="pkg-hoster">{{pkg.hoster}}</span>
-                        </div>
-                        <div class="grabber-card-body">
-                            <span class="pkg-meta">Files: {{pkg.file_count}} Items</span>
-                            <span class="pkg-meta">Total Size: {{pkg.total_size}}</span>
-                            <span class="pkg-meta emerald">Status: {{pkg.status}}</span>
-                        </div>
-                        <div class="grabber-card-footer">
-                            <button class="btn-action primary" data-event-click="grabber_add_package(pkg.id)">⚡ Transfer to Downloads</button>
-                            <button class="btn-action danger" data-event-click="grabber_clear()">Remove Package</button>
+                    <div class="empty-state-card" data-if="!has_grabber">
+                        <span class="empty-title">LinkGrabber is Empty</span>
+                        <span class="empty-desc">Copy links to clipboard and click 'Deep Crawl' or click '+ Add Links'.</span>
+                        <button class="tool-btn primary empty-action" data-event-click="grabber_crawl()">Deep Crawl Clipboard</button>
+                    </div>
+
+                    <div class="tasks-list" data-if="has_grabber">
+                        <div class="grabber-card" data-for="pkg:grabber_packages">
+                            <div class="grabber-card-header">
+                                <span class="pkg-name">{{pkg.name}}</span>
+                                <span class="pkg-hoster">{{pkg.hoster}}</span>
+                            </div>
+                            <div class="grabber-card-body">
+                                <span class="pkg-meta">Files: {{pkg.file_count}} Items</span>
+                                <span class="pkg-meta">Total Size: {{pkg.total_size}}</span>
+                                <span class="pkg-meta emerald">Status: {{pkg.status}}</span>
+                            </div>
+                            <div class="grabber-card-footer">
+                                <button class="btn-action primary" data-event-click="grabber_add_package(pkg.id)">⚡ Transfer to Downloads</button>
+                                <button class="btn-action danger" data-event-click="grabber_clear()">Remove Package</button>
+                            </div>
                         </div>
                     </div>
                 </div>
