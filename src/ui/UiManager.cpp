@@ -595,8 +595,11 @@ void UiManager::RequestDataUpdate() {
 }
 
 void UiManager::Run() {
+    auto last_frame = std::chrono::steady_clock::now();
+    const auto target_frame_time = std::chrono::microseconds(16666); // ~60 FPS cap
+
     while (is_running_) {
-        bool running = Backend::ProcessEvents(context_, nullptr);
+        bool running = Backend::ProcessEvents(context_, nullptr, true);
         if (!running) {
             break;
         }
@@ -611,6 +614,14 @@ void UiManager::Run() {
         Backend::BeginFrame();
         context_->Render();
         Backend::PresentFrame();
+
+        // 60 FPS frame pacing for near-zero idle CPU consumption
+        auto now = std::chrono::steady_clock::now();
+        auto frame_duration = now - last_frame;
+        if (frame_duration < target_frame_time) {
+            std::this_thread::sleep_for(target_frame_time - frame_duration);
+        }
+        last_frame = std::chrono::steady_clock::now();
     }
 }
 
@@ -622,9 +633,11 @@ void UiManager::Shutdown() {
                 document_->Close();
                 document_ = nullptr;
             }
-            Rml::Shutdown();
+            context_->RemoveDataModel("downloads_model");
+            Rml::RemoveContext("main");
             context_ = nullptr;
         }
+        Rml::Shutdown();
         Backend::Shutdown();
     }
 }
