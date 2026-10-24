@@ -121,9 +121,17 @@ struct UiGrabberPackage {
     Rml::String status;
 };
 
+struct UiChunk {
+    int id = 0;
+    Rml::String state; // "done", "active", "pending"
+    Rml::String text;
+    Rml::String progress_str;
+};
+
 // Global DataModel State
 static Rml::Vector<UiTask> g_ui_tasks;
 static Rml::Vector<UiGrabberPackage> g_ui_grabber_packages;
+static Rml::Vector<UiChunk> g_inspector_chunks_list;
 
 static Rml::String g_ui_active_count = "0";
 static Rml::String g_ui_total_speed = "0 B/s";
@@ -167,7 +175,11 @@ static Rml::String g_inspector_filename = "--";
 static Rml::String g_inspector_url = "--";
 static Rml::String g_inspector_path = "--";
 static Rml::String g_inspector_status = "--";
+static Rml::String g_inspector_speed = "--";
+static Rml::String g_inspector_progress_text = "--";
+static Rml::String g_inspector_eta = "--";
 static Rml::String g_inspector_hash = "SHA-256: --";
+static Rml::String g_inspector_priority = "Normal";
 static int g_inspector_chunks = 16;
 static bool g_inspector_auto_extract = true;
 
@@ -290,7 +302,49 @@ static void RefreshModelData() {
             g_inspector_url = t->url.c_str();
             g_inspector_path = t->save_path.c_str();
             g_inspector_status = t->GetStatusString().c_str();
-            g_inspector_hash = t->sha256_hash.empty() ? "Calculating..." : ("SHA-256: " + t->sha256_hash).c_str();
+            g_inspector_speed = t->GetSpeedFormatted().c_str();
+            g_inspector_progress_text = (t->GetDownloadedFormatted() + " / " + t->GetTotalFormatted() + " (" + std::to_string(static_cast<int>(t->GetProgressPercent())) + "%)").c_str();
+            g_inspector_eta = t->GetEtaFormatted().c_str();
+            g_inspector_hash = t->sha256_hash.empty() ? "Not Computed" : ("SHA-256: " + t->sha256_hash).c_str();
+            g_inspector_priority = (t->priority == 3 ? "High" : (t->priority == 1 ? "Low" : "Normal"));
+
+            g_inspector_chunks_list.clear();
+            if (!t->chunks.empty()) {
+                for (size_t i = 0; i < t->chunks.size(); ++i) {
+                    const auto& c = t->chunks[i];
+                    UiChunk uc;
+                    uc.id = static_cast<int>(i + 1);
+                    uc.text = std::to_string(uc.id).c_str();
+                    if (c.is_completed || c.GetProgress() >= 99.9f) {
+                        uc.state = "done";
+                    } else if (c.is_active) {
+                        uc.state = "active";
+                    } else {
+                        uc.state = "pending";
+                    }
+                    uc.progress_str = (std::to_string(static_cast<int>(c.GetProgress())) + "%").c_str();
+                    g_inspector_chunks_list.push_back(uc);
+                }
+            } else {
+                float pct = t->GetProgressPercent();
+                int done_blocks = static_cast<int>((pct / 100.0f) * 16.0f);
+                for (int i = 1; i <= 16; ++i) {
+                    UiChunk uc;
+                    uc.id = i;
+                    uc.text = std::to_string(i).c_str();
+                    if (i <= done_blocks) {
+                        uc.state = "done";
+                        uc.progress_str = "100%";
+                    } else if (i == done_blocks + 1 && (t->status == core::TaskStatus::Downloading || t->status == core::TaskStatus::Probing)) {
+                        uc.state = "active";
+                        uc.progress_str = "Active";
+                    } else {
+                        uc.state = "pending";
+                        uc.progress_str = "0%";
+                    }
+                    g_inspector_chunks_list.push_back(uc);
+                }
+            }
         }
     }
 
@@ -321,6 +375,16 @@ static void RefreshModelData() {
         g_model_handle.DirtyVariable("limiter_display_text");
         g_model_handle.DirtyVariable("limiter_status_text");
         g_model_handle.DirtyVariable("limiter_custom_input");
+        g_model_handle.DirtyVariable("inspector_filename");
+        g_model_handle.DirtyVariable("inspector_url");
+        g_model_handle.DirtyVariable("inspector_path");
+        g_model_handle.DirtyVariable("inspector_status");
+        g_model_handle.DirtyVariable("inspector_speed");
+        g_model_handle.DirtyVariable("inspector_progress_text");
+        g_model_handle.DirtyVariable("inspector_eta");
+        g_model_handle.DirtyVariable("inspector_hash");
+        g_model_handle.DirtyVariable("inspector_priority");
+        g_model_handle.DirtyVariable("inspector_chunks_list");
         g_model_handle.DirtyVariable("add_modal_tab");
         g_model_handle.DirtyVariable("new_url");
         g_model_handle.DirtyVariable("new_custom_name");
@@ -430,6 +494,16 @@ void UiManager::SetupDataModel() {
     constructor.RegisterArray<Rml::Vector<UiGrabberPackage>>();
     constructor.Bind("grabber_packages", &g_ui_grabber_packages);
 
+    // Bind chunk array for inspector
+    if (auto chunk_handle = constructor.RegisterStruct<UiChunk>()) {
+        chunk_handle.RegisterMember("id", &UiChunk::id);
+        chunk_handle.RegisterMember("state", &UiChunk::state);
+        chunk_handle.RegisterMember("text", &UiChunk::text);
+        chunk_handle.RegisterMember("progress_str", &UiChunk::progress_str);
+    }
+    constructor.RegisterArray<Rml::Vector<UiChunk>>();
+    constructor.Bind("inspector_chunks_list", &g_inspector_chunks_list);
+
     // Bind password vault array
     constructor.RegisterArray<Rml::Vector<Rml::String>>();
     constructor.Bind("vault_passwords", &g_vault_passwords);
@@ -473,7 +547,11 @@ void UiManager::SetupDataModel() {
     constructor.Bind("inspector_url", &g_inspector_url);
     constructor.Bind("inspector_path", &g_inspector_path);
     constructor.Bind("inspector_status", &g_inspector_status);
+    constructor.Bind("inspector_speed", &g_inspector_speed);
+    constructor.Bind("inspector_progress_text", &g_inspector_progress_text);
+    constructor.Bind("inspector_eta", &g_inspector_eta);
     constructor.Bind("inspector_hash", &g_inspector_hash);
+    constructor.Bind("inspector_priority", &g_inspector_priority);
     constructor.Bind("inspector_chunks", &g_inspector_chunks);
     constructor.Bind("inspector_auto_extract", &g_inspector_auto_extract);
 
@@ -1014,21 +1092,14 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("toggle_inspector", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             int id = args[0].Get<int>();
-            auto tasks = core::DownloadManager::Instance().GetTasks();
-            for (const auto& t : tasks) {
-                if (t.id == id) {
-                    g_selected_task_id = id;
-                    g_inspector_filename = t.filename.c_str();
-                    g_inspector_url = t.url.c_str();
-                    g_inspector_path = t.save_path.c_str();
-                    g_inspector_status = t.GetStatusString().c_str();
-                    g_inspector_hash = t.sha256_hash.empty() ? "Calculating..." : ("SHA-256: " + t.sha256_hash).c_str();
-                    g_is_inspector_open = true;
-                    std::cout << "[UI] Opened Inspector for task: " << t.filename << std::endl;
-                    RefreshModelData();
-                    return;
-                }
+            if (g_is_inspector_open && g_selected_task_id == id) {
+                g_is_inspector_open = false;
+            } else {
+                g_selected_task_id = id;
+                g_is_inspector_open = true;
             }
+            RefreshModelData();
+            return;
         }
         g_is_inspector_open = false;
         RefreshModelData();
@@ -1038,6 +1109,70 @@ void UiManager::SetupDataModel() {
         g_is_inspector_open = false;
         std::cout << "[UI] Closed Inspector" << std::endl;
         RefreshModelData();
+    });
+
+    constructor.BindEventCallback("inspector_open_file", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_selected_task_id);
+        if (t && !t->save_path.empty()) {
+            ShellExecuteA(nullptr, "open", t->save_path.c_str(), nullptr, nullptr, SW_SHOW);
+        }
+    });
+
+    constructor.BindEventCallback("inspector_open_folder", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_selected_task_id);
+        if (t && !t->save_path.empty()) {
+            std::string param = "/select,\"" + t->save_path + "\"";
+            ShellExecuteA(nullptr, "open", "explorer.exe", param.c_str(), nullptr, SW_SHOW);
+        }
+    });
+
+    constructor.BindEventCallback("inspector_verify_hash", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_selected_task_id);
+        if (t && !t->save_path.empty()) {
+            t->sha256_hash = "Computing...";
+            int task_id = g_selected_task_id;
+            std::string path = t->save_path;
+            std::thread([task_id, path]() {
+                std::string hash = core::ChunkEngine::CalculateSha256(path);
+                auto* task = core::DownloadManager::Instance().GetTaskPtr(task_id);
+                if (task) {
+                    task->sha256_hash = hash;
+                    core::DownloadManager::Instance().NotifyUpdate();
+                }
+            }).detach();
+        }
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("inspector_copy_link", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_selected_task_id);
+        if (t) {
+            SetWin32ClipboardText(t->url);
+        }
+    });
+
+    constructor.BindEventCallback("inspector_extract_now", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        auto* t = core::DownloadManager::Instance().GetTaskPtr(g_selected_task_id);
+        if (t && !t->save_path.empty()) {
+            std::string path = t->save_path;
+            std::thread([path]() {
+                std::string parent = path.substr(0, path.find_last_of("\\/"));
+                std::string err;
+                core::ArchiveEngine::Instance().UnpackArchive(path, parent, core::ConfigManager::Instance().GetArchivePasswords(), false, {path}, [](float){}, err);
+            }).detach();
+        }
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("inspector_set_priority", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            int prio = args[0].Get<int>();
+            auto* t = core::DownloadManager::Instance().GetTaskPtr(g_selected_task_id);
+            if (t) {
+                t->priority = prio;
+                RefreshModelData();
+            }
+        }
     });
 
     // LinkGrabber Specific Callbacks

@@ -237,6 +237,7 @@
         </div>
 
         <!-- =================================================================== -->
+        <!-- =================================================================== -->
         <!-- SLIDE-OUT TASK INSPECTOR DRAWER                                     -->
         <!-- =================================================================== -->
         <div id="inspector-drawer" data-if="is_inspector_open">
@@ -250,6 +251,18 @@
                     <span class="ins-val bold">{{inspector_filename}}</span>
                 </div>
                 <div class="inspector-item">
+                    <span class="ins-label">STATUS &amp; SPEED</span>
+                    <span class="ins-val cyan bold">{{inspector_status}} • {{inspector_speed}}</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="ins-label">DOWNLOAD PROGRESS</span>
+                    <span class="ins-val">{{inspector_progress_text}}</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="ins-label">ESTIMATED TIME REMAINING</span>
+                    <span class="ins-val">{{inspector_eta}}</span>
+                </div>
+                <div class="inspector-item">
                     <span class="ins-label">ORIGIN URL</span>
                     <span class="ins-val monospace">{{inspector_url}}</span>
                 </div>
@@ -258,28 +271,37 @@
                     <span class="ins-val monospace">{{inspector_path}}</span>
                 </div>
                 <div class="inspector-item">
-                    <span class="ins-label">CHECKSUM</span>
+                    <span class="ins-label">CHECKSUM (SHA-256)</span>
                     <span class="ins-val cyan monospace">{{inspector_hash}}</span>
                 </div>
 
-                <!-- 16-Segment Visualizer Grid -->
+                <!-- Live Multi-Socket Segment Visualizer Grid -->
                 <div class="segment-grid-section">
-                    <span class="ins-label">16-STREAM IN-PLACE CHUNK MAP</span>
+                    <span class="ins-label">MULTI-SOCKET STREAM SEGMENT MAP</span>
                     <div class="segment-cells">
-                        <div class="seg-cell done">1</div><div class="seg-cell done">2</div>
-                        <div class="seg-cell done">3</div><div class="seg-cell done">4</div>
-                        <div class="seg-cell active">5</div><div class="seg-cell active">6</div>
-                        <div class="seg-cell active">7</div><div class="seg-cell active">8</div>
-                        <div class="seg-cell pending">9</div><div class="seg-cell pending">10</div>
-                        <div class="seg-cell pending">11</div><div class="seg-cell pending">12</div>
-                        <div class="seg-cell pending">13</div><div class="seg-cell pending">14</div>
-                        <div class="seg-cell pending">15</div><div class="seg-cell pending">16</div>
+                        <div data-for="chunk:inspector_chunks_list">
+                            <div class="seg-cell" data-class-done="chunk.state == 'done'" data-class-active="chunk.state == 'active'" data-class-pending="chunk.state == 'pending'">{{chunk.text}}</div>
+                        </div>
                     </div>
                 </div>
 
+                <!-- Priority Selector -->
                 <div class="inspector-item">
-                    <span class="ins-label">POST-ACTION AUTOMATION</span>
-                    <span class="ins-val">Auto-Decompress Archive: Enabled (7-Zip)</span>
+                    <span class="ins-label">QUEUE PRIORITY</span>
+                    <div class="priority-row">
+                        <button class="priority-chip" data-class-active="inspector_priority == 'Low'" data-event-click="inspector_set_priority(1)">Low</button>
+                        <button class="priority-chip" data-class-active="inspector_priority == 'Normal'" data-event-click="inspector_set_priority(2)">Normal</button>
+                        <button class="priority-chip" data-class-active="inspector_priority == 'High'" data-event-click="inspector_set_priority(3)">High</button>
+                    </div>
+                </div>
+
+                <!-- Inspector Quick Actions -->
+                <div class="inspector-actions">
+                    <button class="ins-action-btn" data-event-click="inspector_open_file()">▶ Open File</button>
+                    <button class="ins-action-btn" data-event-click="inspector_open_folder()">📁 Open Containing Folder</button>
+                    <button class="ins-action-btn" data-event-click="inspector_verify_hash()">🔒 Recompute SHA-256 Hash</button>
+                    <button class="ins-action-btn" data-event-click="inspector_copy_link()">📋 Copy Download Link</button>
+                    <button class="ins-action-btn" data-event-click="inspector_extract_now()">⚡ Extract Archive Now</button>
                 </div>
             </div>
         </div>
