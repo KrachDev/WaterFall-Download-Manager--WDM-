@@ -631,6 +631,27 @@
     }
   }, true);
 
+  // Intercept download clicks on <a> tags with download attribute or blob:/data: links
+  document.addEventListener('click', (e) => {
+    try {
+      const target = e.target;
+      const anchor = target && target.closest ? target.closest('a[download], a[href^="blob:"], a[href^="data:"]') : null;
+      if (!anchor) return;
+
+      const href = anchor.href || '';
+      const downloadAttr = anchor.getAttribute('download') || anchor.download || '';
+      if (href.startsWith('blob:') || href.startsWith('data:') || downloadAttr) {
+        chrome.runtime.sendMessage({
+          action: 'REGISTER_BLOB_INTENT',
+          url: href,
+          filename: downloadAttr,
+          pageUrl: window.location.href,
+          pageTitle: document.title
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  }, true);
+
   // In-Page Toast Display
   function showToast(title, message, type = 'info') {
     let container = document.getElementById('hydra-toast-container');

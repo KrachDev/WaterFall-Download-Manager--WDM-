@@ -468,7 +468,8 @@
       text-align: center;
       gap: 12px;
       padding: 14px;
-      height: 100%;
+      min-height: 100%;
+      margin: auto 0;
     }
 
     .finish-icon-wrap {
@@ -576,6 +577,9 @@
       <div id="dlg-file-name" class="file-name">Checking file...</div>
       <div id="dlg-file-url" class="file-url">Connecting to server...</div>
     </div>
+    <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-open-when-done" style="padding: 4px 10px; font-size: 0.74rem;" title="Automatically open file when download finishes">
+      ⚡ Open when finished
+    </button>
     <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-copy-url" style="padding: 4px 8px; font-size: 0.72rem;" title="Copy Download URL">
       📋 Copy URL
     </button>
@@ -853,6 +857,36 @@
           <div id="finish-extract-fill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #9333ea, #a855f7, #c084fc); transition: width 0.2s ease;"></div>
         </div>
         <div id="finish-extract-dest" style="font-size: 0.7rem; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+
+        <!-- Inline Password Input and Retry Box -->
+        <div id="finish-password-box" style="display: none; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; text-align: left;">
+          <div style="display: flex; align-items: center; gap: 6px; color: #fbbf24; font-size: 0.78rem; font-weight: 700;">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0110 0v4"></path></svg>
+            <span id="finish-password-label">Password Required to Extract Archive</span>
+          </div>
+          <div style="display: flex; gap: 6px; position: relative;">
+            <input type="password" id="finish-password-input" class="text-input" placeholder="Enter archive password..." style="padding-right: 36px; font-size: 0.8rem; background: #070b14; border-color: rgba(245, 158, 11, 0.4);">
+            <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-finish-pwd-toggle" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 3px 8px; font-size: 0.72rem;" title="Show/Hide Password">
+              👁️
+            </button>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+            <label style="font-size: 0.72rem; color: #94a3b8; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+              <input type="checkbox" id="finish-password-remember" checked style="accent-color: #a855f7; cursor: pointer;">
+              Remember password
+            </label>
+            <button type="button" class="btn-dlg btn-dlg-primary" id="btn-finish-password-submit" style="background: linear-gradient(135deg, #7c3aed, #9333ea); border-color: #a855f7; font-size: 0.76rem; padding: 5px 14px;">
+              🔓 Unlock & Extract
+            </button>
+          </div>
+        </div>
+
+        <!-- General Extraction Retry Box (for non-password extract failures) -->
+        <div id="finish-extract-retry-box" style="display: none; justify-content: flex-end; margin-top: 4px;">
+          <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-finish-extract-retry" style="font-size: 0.75rem; padding: 4px 10px;">
+            🔄 Retry Extraction
+          </button>
+        </div>
       </div>
 
       <div class="finish-actions">
@@ -886,6 +920,10 @@
       <button id="btn-cancel" class="btn-dlg btn-dlg-danger">
         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         Cancel
+      </button>
+      <button type="button" class="btn-dlg btn-dlg-secondary" id="btn-footer-open-when-done" title="Automatically open file when download finishes">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
+        <span>Open when finished</span>
       </button>
     </div>
     <div style="display: flex; gap: 8px; align-items: center;">

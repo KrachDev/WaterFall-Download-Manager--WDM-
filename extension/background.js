@@ -10,10 +10,12 @@ const DEFAULT_SETTINGS = {
   autostart: true,
   interceptDownloads: true,
   interceptExtensions: [
-    '.zip', '.rar', '.7z', '.tar', '.gz', '.iso', '.exe', '.msi', '.bin',
-    '.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.m4v', '.ts',
+    '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.iso', '.exe', '.msi', '.bin',
+    '.apk', '.dmg', '.pkg', '.pdf', '.docx', '.xlsx', '.pptx', '.csv', '.tsv', '.json',
+    '.xml', '.txt', '.log', '.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.m4v', '.ts',
     '.mp3', '.flac', '.wav', '.aac', '.m4a', '.ogg', '.opus',
-    '.apk', '.dmg', '.pkg', '.pdf', '.docx', '.xlsx'
+    '.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif',
+    '.epub', '.torrent'
   ],
   interceptMinSizeKB: 500,
   enableVideoPanel: true,
@@ -37,6 +39,8 @@ let cachedSettings = { ...DEFAULT_SETTINGS };
 const interceptedDownloadIds = new Set();
 const recentlyInterceptedUrls = new Map();
 const bypassedUrls = new Map();
+const pendingBlobDownloads = new Map(); // id -> { id, url, filename, referrer, timestamp }
+let lastBlobIntent = null;
 let lastBypassTimestamp = 0;
 
 /**
@@ -543,7 +547,38 @@ async function handleDownloadInterception(downloadItem, candidateFilename) {
   if (interceptedDownloadIds.has(downloadItem.id)) return true;
 
   const url = downloadItem.url || '';
-  if (!url || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('chrome-extension:')) {
+  if (!url || url.startsWith('chrome-extension:')) {
+    return false;
+  }
+
+  // Handle in-memory blob: and data: client-side downloads (e.g. dummyfiles.com, Mega, client-side generators)
+  if (url.startsWith('blob:') || url.startsWith('data:')) {
+    const rawName = candidateFilename || downloadItem.filename || (lastBlobIntent ? lastBlobIntent.filename : '') || 'download';
+    const cleanName = rawName.split(/[\\/]/).pop().split('?')[0];
+    const ext = ('.' + cleanName.split('.').pop()).toLowerCase();
+
+    // Check if matches extension or archive/media MIME
+    const isMatchedExt = (cachedSettings.interceptExtensions || []).some(e => e.toLowerCase() === ext);
+    const isSpecialMime = downloadItem.mime && (
+      downloadItem.mime.startsWith('video/') ||
+      downloadItem.mime.startsWith('audio/') ||
+      downloadItem.mime.includes('zip') ||
+      downloadItem.mime.includes('compressed') ||
+      downloadItem.mime.includes('tar') ||
+      downloadItem.mime.includes('7z') ||
+      downloadItem.mime.includes('octet-stream')
+    );
+
+    if (isMatchedExt || isSpecialMime || cleanName.includes('.')) {
+      pendingBlobDownloads.set(downloadItem.id, {
+        id: downloadItem.id,
+        url,
+        filename: cleanName,
+        referrer: downloadItem.referrer || (lastBlobIntent ? lastBlobIntent.pageUrl : ''),
+        timestamp: Date.now()
+      });
+    }
+    // Return false so Chrome successfully completes writing the blob data from RAM to disk!
     return false;
   }
 
@@ -588,7 +623,7 @@ async function handleDownloadInterception(downloadItem, candidateFilename) {
     downloadItem.mime.includes('iso') ||
     downloadItem.mime.includes('x-rar') ||
     downloadItem.mime.includes('7z') ||
-    downloadItem.mime.includes('application/octet-stream') && isMatchedExt
+    downloadItem.mime.includes('application/octet-stream')
   );
 
   if (!isMatchedExt && !isMediaOrArchiveMime) return false;
@@ -632,6 +667,48 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
   return true;
 });
 
+// Watch for completed blob downloads written to disk by Chrome
+chrome.downloads.onChanged.addListener(async (delta) => {
+  if (!delta || !delta.id) return;
+
+  if (delta.state && delta.state.current === 'complete') {
+    if (pendingBlobDownloads.has(delta.id)) {
+      const blobMeta = pendingBlobDownloads.get(delta.id);
+      pendingBlobDownloads.delete(delta.id);
+
+      try {
+        const items = await chrome.downloads.search({ id: delta.id });
+        if (items && items.length > 0 && items[0].filename) {
+          const item = items[0];
+          const cleanName = item.filename.split(/[\\/]/).pop();
+          const host = (cachedSettings.hydraHost || 'http://127.0.0.1:4567').replace(/\/+$/, '');
+
+          const res = await fetch(`${host}/api/downloads/import-completed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filePath: item.filename,
+              filename: cleanName,
+              totalBytes: item.fileSize || 0,
+              sourceUrl: item.referrer || blobMeta.referrer || '',
+              url: item.url || blobMeta.referrer || '',
+              autoExtract: true
+            })
+          });
+
+          if (res.ok) {
+            notifySuccess(1, cleanName, 'Caught download & transferred to Waterfall');
+          }
+        }
+      } catch (err) {
+        console.warn('[Waterfall Ext] Failed to import completed blob download:', err);
+      }
+    }
+  } else if (delta.state && delta.state.current === 'interrupted') {
+    pendingBlobDownloads.delete(delta.id);
+  }
+});
+
 /**
  * Message Handler
  */
@@ -662,6 +739,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = message.tabId || (sender.tab && sender.tab.id);
     const media = tabId ? (tabMediaMap.get(tabId) || []) : [];
     sendResponse({ media });
+    return false;
+  }
+
+  if (action === 'REGISTER_BLOB_INTENT') {
+    lastBlobIntent = {
+      url: message.url,
+      filename: message.filename,
+      pageUrl: message.pageUrl,
+      pageTitle: message.pageTitle,
+      timestamp: Date.now()
+    };
+    sendResponse({ ok: true });
     return false;
   }
 

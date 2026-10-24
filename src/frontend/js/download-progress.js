@@ -18,6 +18,8 @@
   const dlgFileName = document.getElementById('dlg-file-name');
   const dlgFileUrl = document.getElementById('dlg-file-url');
   const btnCopyUrl = document.getElementById('btn-copy-url');
+  const btnOpenWhenDone = document.getElementById('btn-open-when-done');
+  const btnFooterOpenWhenDone = document.getElementById('btn-footer-open-when-done');
 
   // --- Tabs Navigation ---
   const tabButtons = document.querySelectorAll('.dlg-tab-btn');
@@ -77,6 +79,14 @@
   const finishExtractPct = document.getElementById('finish-extract-pct');
   const finishExtractFill = document.getElementById('finish-extract-fill');
   const finishExtractDest = document.getElementById('finish-extract-dest');
+  const finishPasswordBox = document.getElementById('finish-password-box');
+  const finishPasswordLabel = document.getElementById('finish-password-label');
+  const finishPasswordInput = document.getElementById('finish-password-input');
+  const finishPasswordRemember = document.getElementById('finish-password-remember');
+  const btnFinishPwdToggle = document.getElementById('btn-finish-pwd-toggle');
+  const btnFinishPasswordSubmit = document.getElementById('btn-finish-password-submit');
+  const finishExtractRetryBox = document.getElementById('finish-extract-retry-box');
+  const btnFinishExtractRetry = document.getElementById('btn-finish-extract-retry');
   const btnFinishOpen = document.getElementById('btn-finish-open');
   const btnFinishFolder = document.getElementById('btn-finish-folder');
   const btnFinishExtractedFolder = document.getElementById('btn-finish-extracted-folder');
@@ -163,6 +173,53 @@
       const targetPane = document.getElementById(targetTabId);
       if (targetPane) targetPane.classList.add('active');
     });
+  });
+
+  // --- Open When Finished Toggle Action ---
+  let isOpenWhenDone = false;
+  function updateOpenWhenDoneUI(active, syncBackend = true) {
+    isOpenWhenDone = Boolean(active);
+    const buttons = [btnOpenWhenDone, btnFooterOpenWhenDone].filter(Boolean);
+    buttons.forEach(btn => {
+      if (isOpenWhenDone) {
+        btn.innerHTML = '✓ Open when finished: ON';
+        btn.style.color = '#38bdf8';
+        btn.style.borderColor = 'rgba(56, 189, 248, 0.6)';
+        btn.style.background = 'rgba(56, 189, 248, 0.2)';
+        btn.style.boxShadow = '0 0 10px rgba(56, 189, 248, 0.25)';
+        btn.title = 'Open when finished is ON (Click to turn OFF)';
+      } else {
+        btn.innerHTML = '⚡ Open when finished';
+        btn.style.color = '#94a3b8';
+        btn.style.borderColor = '';
+        btn.style.background = '';
+        btn.style.boxShadow = '';
+        btn.title = 'Automatically open file when finished (Click to turn ON)';
+      }
+    });
+
+    if (optCompleteAction) {
+      optCompleteAction.value = isOpenWhenDone ? 'openFile' : 'none';
+    }
+
+    if (syncBackend && currentTaskId) {
+      fetch(`${apiBase}/api/downloads/${currentTaskId}/options`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          onCompleteAction: isOpenWhenDone ? 'openFile' : 'none',
+          openWhenFinished: isOpenWhenDone
+        })
+      }).catch(() => {});
+    }
+  }
+
+  [btnOpenWhenDone, btnFooterOpenWhenDone].forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', () => {
+        updateOpenWhenDoneUI(!isOpenWhenDone, true);
+      });
+    }
   });
 
   // --- Copy URL Action ---
@@ -484,6 +541,9 @@
     if (task.onCompleteAction && optCompleteAction) {
       optCompleteAction.value = task.onCompleteAction;
     }
+    if (task.openWhenFinished || task.onCompleteAction === 'openFile') {
+      updateOpenWhenDoneUI(true, false);
+    }
     if (task.triggerAtPercent && optTriggerPercent) {
       optTriggerPercent.value = String(task.triggerAtPercent);
     }
@@ -519,6 +579,11 @@
     updateProgressMetrics(task);
   }
 
+  function isPasswordRequiredError(str = '') {
+    if (!str || typeof str !== 'string') return false;
+    return /password|encrypted|protect|crypto|data error in encrypted/i.test(str);
+  }
+
   function updateExtractionUI(data) {
     if (!finishExtractSection) return;
     if (data && currentTask && currentTask !== data) {
@@ -526,29 +591,101 @@
     } else if (data && !currentTask) {
       currentTask = data;
     }
-    const extractStatus = data.extractStatus || (currentTask && currentTask.extractStatus) || null;
-    const savePath = data.savePath || (currentTask && currentTask.savePath) || '';
+    const extractStatus = (data && data.extractStatus) || (currentTask && currentTask.extractStatus) || null;
+    const savePath = (data && data.savePath) || (currentTask && currentTask.savePath) || '';
     const candidatePath = savePath ? resolveExtractedDir(savePath) : null;
-    const confirmedExtractedPath = data.extractedPath || (currentTask && currentTask.extractedPath) || null;
+    const confirmedExtractedPath = (data && data.extractedPath) || (currentTask && currentTask.extractedPath) || null;
     const targetFolder = confirmedExtractedPath || candidatePath;
-    const extractProgress = data.extractProgress !== undefined
+    const extractProgress = (data && data.extractProgress !== undefined)
       ? data.extractProgress
       : ((currentTask && currentTask.extractProgress !== undefined)
           ? currentTask.extractProgress
           : (extractStatus === 'extracted' ? 100 : 0));
     const isArchive = Boolean(
-      (data.isArchive !== undefined ? data.isArchive : (currentTask && currentTask.isArchive)) ||
-      isArchiveFilename(data.filename || data.name || savePath || '')
+      ((data && data.isArchive !== undefined) ? data.isArchive : (currentTask && currentTask.isArchive)) ||
+      isArchiveFilename((data && (data.filename || data.name)) || (currentTask && (currentTask.filename || currentTask.name)) || savePath || '')
+    );
+    const autoExtract = (data && data.autoExtract !== undefined)
+      ? data.autoExtract
+      : ((currentTask && currentTask.autoExtract !== undefined)
+          ? currentTask.autoExtract
+          : (optEnableExtract ? optEnableExtract.checked : true));
+
+    if (!isArchive || autoExtract === false) {
+      finishExtractSection.style.display = 'none';
+      if (finishPasswordBox) finishPasswordBox.style.display = 'none';
+      if (finishExtractRetryBox) finishExtractRetryBox.style.display = 'none';
+      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+      return;
+    }
+
+    if (extractStatus === 'extracted' || extractStatus === 'extracting') {
+      if (currentTask) {
+        currentTask.extractPasswordRequired = false;
+        if (extractStatus === 'extracted') currentTask.extractError = null;
+      }
+    }
+
+    const rawError = (data && (data.extractError || data.error)) || (currentTask && (currentTask.extractError || currentTask.error)) || '';
+    const passwordRequired = (extractStatus !== 'extracted' && extractStatus !== 'extracting' && extractStatus !== 'extract_queued') && (
+      extractStatus === 'extract_password_required' ||
+      extractStatus === 'password_required' ||
+      Boolean((data && data.extractPasswordRequired) || (currentTask && currentTask.extractPasswordRequired)) ||
+      (extractStatus === 'extract_failed' && isPasswordRequiredError(rawError))
     );
 
-    if (!isArchive) {
-      finishExtractSection.style.display = 'none';
-      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
+    if (passwordRequired) {
+      finishExtractSection.style.display = 'flex';
+      if (finishExtractTitle) {
+        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#f59e0b" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0110 0v4"></path></svg> Password Required to Extract Archive`;
+        finishExtractTitle.style.color = '#f59e0b';
+      }
+      if (finishExtractPct) finishExtractPct.textContent = '🔒';
+      if (finishExtractFill) {
+        finishExtractFill.style.width = '100%';
+        finishExtractFill.style.background = '#f59e0b';
+      }
+      if (finishExtractDest) {
+        finishExtractDest.textContent = 'Archive is password-protected. Enter password below to extract:';
+      }
+      if (finishPasswordBox) {
+        finishPasswordBox.style.display = 'flex';
+      }
+      if (finishExtractRetryBox) {
+        finishExtractRetryBox.style.display = 'none';
+      }
+      if (btnFinishPasswordSubmit) {
+        btnFinishPasswordSubmit.disabled = false;
+        btnFinishPasswordSubmit.innerHTML = '🔓 Unlock & Extract';
+      }
+      if (finishPasswordLabel) {
+        const isRetryAttempt = rawError && isPasswordRequiredError(rawError);
+        if (isRetryAttempt) {
+          finishPasswordLabel.textContent = 'Incorrect password! Please try again:';
+          finishPasswordLabel.style.color = '#f87171';
+        } else {
+          finishPasswordLabel.textContent = 'Password Required to Extract Archive:';
+          finishPasswordLabel.style.color = '#fbbf24';
+        }
+      }
+      if (btnFinishExtractedFolder) {
+        btnFinishExtractedFolder.style.display = 'none';
+      }
+      if (finishPasswordInput && document.activeElement !== finishPasswordInput) {
+        setTimeout(() => {
+          if (finishPasswordInput) {
+            finishPasswordInput.focus();
+            if (finishPasswordInput.value) finishPasswordInput.select();
+          }
+        }, 100);
+      }
       return;
     }
 
     if (extractStatus === 'extracting') {
       finishExtractSection.style.display = 'flex';
+      if (finishPasswordBox) finishPasswordBox.style.display = 'none';
+      if (finishExtractRetryBox) finishExtractRetryBox.style.display = 'none';
       if (finishExtractTitle) {
         finishExtractTitle.innerHTML = `<svg width="14" height="14" class="spin-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Extracting Archive...`;
         finishExtractTitle.style.color = '#c084fc';
@@ -566,6 +703,8 @@
       }
     } else if (extractStatus === 'extract_queued') {
       finishExtractSection.style.display = 'flex';
+      if (finishPasswordBox) finishPasswordBox.style.display = 'none';
+      if (finishExtractRetryBox) finishExtractRetryBox.style.display = 'none';
       if (finishExtractTitle) {
         finishExtractTitle.innerHTML = `<svg width="14" height="14" class="spin-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Extraction Queued...`;
         finishExtractTitle.style.color = '#a855f7';
@@ -581,6 +720,8 @@
       }
     } else if (extractStatus === 'waiting_all_parts') {
       finishExtractSection.style.display = 'flex';
+      if (finishPasswordBox) finishPasswordBox.style.display = 'none';
+      if (finishExtractRetryBox) finishExtractRetryBox.style.display = 'none';
       if (finishExtractTitle) {
         finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#38bdf8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Waiting for remaining parts...`;
         finishExtractTitle.style.color = '#38bdf8';
@@ -594,8 +735,10 @@
       if (btnFinishExtractedFolder) {
         btnFinishExtractedFolder.style.display = 'none';
       }
-    } else if (extractStatus === 'extracted' || (confirmedExtractedPath && extractStatus !== 'extract_failed' && extractStatus !== 'extract_password_required')) {
+    } else if (extractStatus === 'extracted' || (confirmedExtractedPath && extractStatus !== 'extract_failed')) {
       finishExtractSection.style.display = 'flex';
+      if (finishPasswordBox) finishPasswordBox.style.display = 'none';
+      if (finishExtractRetryBox) finishExtractRetryBox.style.display = 'none';
       if (finishExtractTitle) {
         finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#34d399" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Archive Extracted Successfully ✓`;
         finishExtractTitle.style.color = '#34d399';
@@ -613,7 +756,7 @@
         btnFinishExtractedFolder.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v6m-3-3l3-3 3 3"></path></svg> Open Extracted Folder`;
         btnFinishExtractedFolder.title = targetFolder ? `Open Extracted Directory (${targetFolder})` : 'Open Extracted Directory';
         btnFinishExtractedFolder.onclick = async () => {
-          const finalTarget = (currentTask && currentTask.extractedPath) || data.extractedPath || targetFolder;
+          const finalTarget = (currentTask && currentTask.extractedPath) || (data && data.extractedPath) || targetFolder;
           if (!finalTarget) return;
           if (window.waterfallDesktop && window.waterfallDesktop.openFolder) {
             await window.waterfallDesktop.openFolder(finalTarget);
@@ -625,10 +768,16 @@
             }).catch(() => {});
           }
         };
+
+        if (isOpenWhenDone) {
+          setTimeout(() => {
+            if (btnFinishExtractedFolder) btnFinishExtractedFolder.click();
+          }, 600);
+        }
       }
     } else if (extractStatus === 'extract_failed') {
       finishExtractSection.style.display = 'flex';
-      const errMsg = data.extractError || (currentTask && currentTask.extractError) || 'Failed to unpack archive';
+      const errMsg = rawError || 'Failed to unpack archive';
       if (finishExtractTitle) {
         finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#f85149" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Extraction Failed`;
         finishExtractTitle.style.color = '#f85149';
@@ -639,22 +788,13 @@
         finishExtractFill.style.background = '#ef4444';
       }
       if (finishExtractDest) finishExtractDest.textContent = errMsg;
+      if (finishPasswordBox) finishPasswordBox.style.display = 'none';
+      if (finishExtractRetryBox) finishExtractRetryBox.style.display = 'flex';
       if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
-    } else if (extractStatus === 'extract_password_required') {
+    } else {
       finishExtractSection.style.display = 'flex';
-      if (finishExtractTitle) {
-        finishExtractTitle.innerHTML = `<svg width="14" height="14" fill="none" stroke="#f59e0b" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0110 0v4"></path></svg> Password Required to Extract Archive`;
-        finishExtractTitle.style.color = '#f59e0b';
-      }
-      if (finishExtractPct) finishExtractPct.textContent = '🔒';
-      if (finishExtractFill) {
-        finishExtractFill.style.width = '100%';
-        finishExtractFill.style.background = '#f59e0b';
-      }
-      if (finishExtractDest) finishExtractDest.textContent = 'Encrypted archive — enter password in main app or extraction tab';
-      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
-    } else if (data.autoExtract !== false && (optEnableExtract ? optEnableExtract.checked : true)) {
-      finishExtractSection.style.display = 'flex';
+      if (finishPasswordBox) finishPasswordBox.style.display = 'none';
+      if (finishExtractRetryBox) finishExtractRetryBox.style.display = 'none';
       if (finishExtractTitle) {
         finishExtractTitle.innerHTML = `<svg width="14" height="14" class="spin-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Extraction Queued...`;
         finishExtractTitle.style.color = '#a855f7';
@@ -666,10 +806,113 @@
       }
       if (finishExtractDest) finishExtractDest.textContent = targetFolder ? `Target: ${targetFolder}` : 'Preparing archive extraction...';
       if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
-    } else {
-      finishExtractSection.style.display = 'none';
-      if (btnFinishExtractedFolder) btnFinishExtractedFolder.style.display = 'none';
     }
+  }
+
+  // --- Finish View Password Submission and Extraction Retry Handlers ---
+  async function submitFinishPassword() {
+    if (!currentTaskId || !finishPasswordInput) return;
+    const pwd = finishPasswordInput.value.trim();
+    if (!pwd) {
+      finishPasswordInput.focus();
+      finishPasswordInput.style.borderColor = '#ef4444';
+      setTimeout(() => {
+        if (finishPasswordInput) finishPasswordInput.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+      }, 1500);
+      return;
+    }
+
+    const remember = finishPasswordRemember ? finishPasswordRemember.checked : true;
+
+    if (btnFinishPasswordSubmit) {
+      btnFinishPasswordSubmit.disabled = true;
+      btnFinishPasswordSubmit.innerHTML = `<svg width="14" height="14" class="spin-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Retrying...`;
+    }
+    if (finishPasswordLabel) {
+      finishPasswordLabel.textContent = 'Submitting password & retrying extraction...';
+      finishPasswordLabel.style.color = '#c084fc';
+    }
+
+    try {
+      await fetch(`${apiBase}/api/downloads/${currentTaskId}/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd, remember })
+      });
+      await fetch(`${apiBase}/api/downloads/${currentTaskId}/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd })
+      });
+
+      if (currentTask) {
+        currentTask.extractStatus = 'extracting';
+        currentTask.extractProgress = 0;
+        currentTask.archivePassword = pwd;
+        currentTask.extractPasswordRequired = false;
+        currentTask.extractError = null;
+      }
+      updateExtractionUI(currentTask);
+    } catch (err) {
+      console.warn('Failed to submit extraction password:', err);
+      if (btnFinishPasswordSubmit) {
+        btnFinishPasswordSubmit.disabled = false;
+        btnFinishPasswordSubmit.innerHTML = '🔓 Unlock & Extract';
+      }
+      if (finishPasswordLabel) {
+        finishPasswordLabel.textContent = `Error: ${err.message || 'Failed to submit'}`;
+        finishPasswordLabel.style.color = '#ef4444';
+      }
+    }
+  }
+
+  if (btnFinishPasswordSubmit) {
+    btnFinishPasswordSubmit.addEventListener('click', submitFinishPassword);
+    btnFinishPasswordSubmit.onclick = submitFinishPassword;
+  }
+
+  if (finishPasswordInput) {
+    finishPasswordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitFinishPassword();
+      }
+    });
+  }
+
+  if (btnFinishPwdToggle && finishPasswordInput) {
+    btnFinishPwdToggle.addEventListener('click', () => {
+      const isPwd = (finishPasswordInput.type === 'password');
+      finishPasswordInput.type = isPwd ? 'text' : 'password';
+      btnFinishPwdToggle.textContent = isPwd ? '🔒' : '👁️';
+    });
+  }
+
+  if (btnFinishExtractRetry) {
+    btnFinishExtractRetry.addEventListener('click', async () => {
+      if (!currentTaskId) return;
+      btnFinishExtractRetry.disabled = true;
+      btnFinishExtractRetry.textContent = 'Retrying...';
+      try {
+        await fetch(`${apiBase}/api/downloads/${currentTaskId}/extract`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (currentTask) {
+          currentTask.extractStatus = 'extracting';
+          currentTask.extractProgress = 0;
+          currentTask.extractError = null;
+        }
+        updateExtractionUI(currentTask);
+      } catch (_) {}
+      setTimeout(() => {
+        if (btnFinishExtractRetry) {
+          btnFinishExtractRetry.disabled = false;
+          btnFinishExtractRetry.textContent = '🔄 Retry Extraction';
+        }
+      }, 2000);
+    });
   }
 
   function updateProgressMetrics(data) {
@@ -779,6 +1022,11 @@
     const name = task.name || task.filename || 'Downloaded File';
     document.title = `Waterfall — Complete: ${name}`;
 
+    // Force to top on completion
+    if (window.waterfallDesktop && typeof window.waterfallDesktop.forceTop === 'function') {
+      try { window.waterfallDesktop.forceTop(true); } catch (_) {}
+    }
+
     // Auto close dialog if configured
     if (task.onCompleteAction === 'closeDialog' || (optCompleteAction && optCompleteAction.value === 'closeDialog')) {
       closeWindow();
@@ -812,6 +1060,16 @@
 
     // Extraction progress / state in finish view
     updateExtractionUI(task);
+
+    // Auto-open file if "Open when finished" is active (unless archive is currently auto-extracting)
+    if (isOpenWhenDone || task.openWhenFinished || task.onCompleteAction === 'openFile') {
+      const isArchive = savePath && isArchiveFilename(savePath);
+      if (!isArchive || task.autoExtract === false) {
+        setTimeout(() => {
+          if (btnFinishOpen) btnFinishOpen.click();
+        }, 500);
+      }
+    }
 
     // Action buttons in finish view
     if (btnFinishOpen) {
@@ -954,6 +1212,15 @@
             if (msg.task.id === currentTaskId) showCompletionView(msg.task);
           } else if (msg.type === 'taskUpdated' && msg.task) {
             if (msg.task.id === currentTaskId) applyTaskData(msg.task);
+          } else if (msg.type === 'extractPasswordRequired' && msg.data) {
+            if (!currentTaskId || msg.data.taskId === currentTaskId) {
+              if (currentTask) {
+                currentTask.extractStatus = 'extract_password_required';
+                currentTask.extractPasswordRequired = true;
+                currentTask.extractError = 'Password required or incorrect.';
+                updateExtractionUI(currentTask);
+              }
+            }
           }
         } catch (_) {}
       };

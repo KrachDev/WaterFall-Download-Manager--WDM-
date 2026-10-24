@@ -7,6 +7,7 @@ const pixeldrainHoster = require('./pixeldrain');
 const archiveOrgHoster = require('./archiveOrg');
 const krakenfilesHoster = require('./krakenfiles');
 const buzzheavierHoster = require('./buzzheavier');
+const dummyfilesHoster = require('./dummyfiles');
 
 class HosterManager {
   constructor() {
@@ -23,6 +24,7 @@ class HosterManager {
     this.register(archiveOrgHoster);
     this.register(krakenfilesHoster);
     this.register(buzzheavierHoster);
+    this.register(dummyfilesHoster);
 
     // 0. YouTube & Streaming Audio/Video
     this.register({

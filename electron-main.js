@@ -60,14 +60,52 @@ app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('disable-speech-api');
 app.commandLine.appendSwitch('disable-print-preview');
 app.commandLine.appendSwitch('disable-dev-shm-usage');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService,CalculateNativeWinOcclusion,SpareRendererForSitePerProcess,AudioServiceOutOfProcess');
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService,CalculateNativeWinOcclusion,SpareRendererForSitePerProcess,AudioServiceOutOfProcess,NetworkServiceOutOfProcess');
 
-// 5. Periodic idle GC
-setInterval(() => {
+// 5. Native Windows Working Set Memory Purger & Idle GC (< 20 MB idle, < 60 MB active)
+function getTrimExecutable() {
+  const diskCandidates = [
+    'C:\\Waterfall\\bin\\waterfall-trim.exe',
+    path.join(__dirname, 'bin', 'waterfall-trim.exe'),
+    path.join(path.dirname(process.execPath), 'bin', 'waterfall-trim.exe'),
+    path.join(os.tmpdir(), 'waterfall-trim.exe')
+  ];
+  for (const p of diskCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  try {
+    const assetPath = path.join(__dirname, 'assets', 'waterfall-trim.exe');
+    if (fs.existsSync(assetPath)) {
+      const target = path.join(os.tmpdir(), 'waterfall-trim.exe');
+      fs.writeFileSync(target, fs.readFileSync(assetPath));
+      return target;
+    }
+  } catch (_) {}
+  return null;
+}
+
+let lastTrimTime = 0;
+function trimProcessMemory(force = false) {
+  const now = Date.now();
+  if (!force && (now - lastTrimTime < 4000)) return;
+  lastTrimTime = now;
+
   if (global.gc) {
     try { global.gc(); } catch (_) {}
   }
-}, 15000);
+
+  if (process.platform === 'win32') {
+    const trimExe = getTrimExecutable();
+    if (trimExe) {
+      try {
+        execFile(trimExe, ['Waterfall'], { windowsHide: true }, () => {});
+      } catch (_) {}
+    }
+  }
+}
+
+// Periodic working set compaction (every 10s)
+setInterval(() => trimProcessMemory(false), 10000);
 
 // ============================================================================
 // SINGLE INSTANCE LOCK
@@ -96,10 +134,11 @@ const APP_URL = `http://localhost:${PORT}`;
 
 function getAppIconPath() {
   const candidates = [
-    path.join(__dirname, 'assets', 'icon.ico'),
-    path.join(path.dirname(process.execPath), 'assets', 'icon.ico'),
     path.join(__dirname, 'assets', 'icon.png'),
     path.join(path.dirname(process.execPath), 'assets', 'icon.png'),
+    path.join(__dirname, 'assets', 'icon.ico'),
+    path.join(path.dirname(process.execPath), 'assets', 'icon.ico'),
+    'C:\\Waterfall\\assets\\icon.png',
     'C:\\Waterfall\\assets\\icon.ico'
   ];
   for (const c of candidates) {
@@ -115,9 +154,13 @@ function openConfirmWindow(probeData) {
   const windowIcon = getAppIconPath();
 
   if (confirmWindow && !confirmWindow.isDestroyed()) {
+    pendingConfirmData = probeData;
     if (confirmWindow.isMinimized()) confirmWindow.restore();
     if (!confirmWindow.isVisible()) confirmWindow.show();
+    confirmWindow.setAlwaysOnTop(true, 'screen-saver');
+    confirmWindow.moveTop();
     confirmWindow.focus();
+    confirmWindow.flashFrame(true);
     if (probeData) {
       try {
         confirmWindow.webContents.send('set-confirm-data', probeData);
@@ -147,6 +190,7 @@ function openConfirmWindow(probeData) {
   });
 
   confirmWindow.setMenuBarVisibility(false);
+  confirmWindow.setAlwaysOnTop(true, 'screen-saver');
 
   const deliverData = () => {
     if (pendingConfirmData && confirmWindow && !confirmWindow.isDestroyed()) {
@@ -162,8 +206,11 @@ function openConfirmWindow(probeData) {
 
   confirmWindow.once('ready-to-show', () => {
     if (confirmWindow && !confirmWindow.isDestroyed()) {
+      confirmWindow.setAlwaysOnTop(true, 'screen-saver');
       confirmWindow.show();
+      confirmWindow.moveTop();
       confirmWindow.focus();
+      confirmWindow.flashFrame(true);
       deliverData();
     }
   });
@@ -171,8 +218,11 @@ function openConfirmWindow(probeData) {
   // Safety fallback: ensure window shows even if ready-to-show is delayed
   setTimeout(() => {
     if (confirmWindow && !confirmWindow.isDestroyed() && !confirmWindow.isVisible()) {
+      confirmWindow.setAlwaysOnTop(true, 'screen-saver');
       confirmWindow.show();
+      confirmWindow.moveTop();
       confirmWindow.focus();
+      confirmWindow.flashFrame(true);
       deliverData();
     }
   }, 600);
@@ -180,7 +230,7 @@ function openConfirmWindow(probeData) {
   confirmWindow.on('closed', () => {
     confirmWindow = null;
     pendingConfirmData = null;
-    if (global.gc) try { global.gc(); } catch (_) {}
+    trimProcessMemory(true);
   });
 
   confirmWindow.loadURL(`${APP_URL}/confirm.html`).catch((err) => {
@@ -206,7 +256,9 @@ function openProgressWindow(task) {
   if (sharedProgressWindow && !sharedProgressWindow.isDestroyed()) {
     if (sharedProgressWindow.isMinimized()) sharedProgressWindow.restore();
     if (!sharedProgressWindow.isVisible()) sharedProgressWindow.show();
+    sharedProgressWindow.moveTop();
     sharedProgressWindow.focus();
+    sharedProgressWindow.flashFrame(true);
     sharedProgressWindow.setTitle(`Waterfall — ${task.name || task.filename || 'Downloading'}`);
     try {
       sharedProgressWindow.webContents.send('set-progress-data', task);
@@ -253,7 +305,9 @@ function openProgressWindow(task) {
   pWin.once('ready-to-show', () => {
     if (pWin && !pWin.isDestroyed()) {
       pWin.show();
+      pWin.moveTop();
       pWin.focus();
+      pWin.flashFrame(true);
       deliverTask();
     }
   });
@@ -262,7 +316,9 @@ function openProgressWindow(task) {
   setTimeout(() => {
     if (pWin && !pWin.isDestroyed() && !pWin.isVisible()) {
       pWin.show();
+      pWin.moveTop();
       pWin.focus();
+      pWin.flashFrame(true);
       deliverTask();
     }
   }, 600);
@@ -270,7 +326,7 @@ function openProgressWindow(task) {
   pWin.on('closed', () => {
     sharedProgressWindow = null;
     currentInspectedTaskId = null;
-    if (global.gc) try { global.gc(); } catch (_) {}
+    trimProcessMemory(true);
   });
 
   const progressUrl = `${APP_URL}/download-progress.html?taskId=${encodeURIComponent(taskId)}`;
@@ -579,6 +635,20 @@ function handleTaskCompletion(task) {
       '-savePath', savePath
     ], { windowsHide: true }, () => {});
   }
+
+  // Open when finished support
+  if (task.openWhenFinished || task.onCompleteAction === 'openFile') {
+    const isArchive = savePath && /\.(zip|rar|7z|tar|gz|bz2|xz|iso)$/i.test(savePath);
+    if (!isArchive || task.autoExtract === false) {
+      if (savePath && fs.existsSync(savePath)) {
+        try {
+          shell.openPath(savePath);
+        } catch (_) {}
+      }
+    }
+  }
+
+  trimProcessMemory(true);
 }
 
 function handleTaskFailure(data) {
@@ -657,18 +727,42 @@ function connectBackendWebSocket() {
             if (sharedProgressWindow && !sharedProgressWindow.isDestroyed() && currentInspectedTaskId === msg.task.id) {
               if (sharedProgressWindow.isMinimized()) sharedProgressWindow.restore();
               if (!sharedProgressWindow.isVisible()) sharedProgressWindow.show();
+              sharedProgressWindow.setAlwaysOnTop(true, 'screen-saver');
+              sharedProgressWindow.moveTop();
               sharedProgressWindow.focus();
+              sharedProgressWindow.flashFrame(true);
               sharedProgressWindow.webContents.send('task-completed', msg.task);
             } else {
               const cfg = getAppConfig();
               if (cfg.showDownloadCompleteDialog !== false) {
-                openProgressWindow(msg.task);
+                const win = openProgressWindow(msg.task);
+                if (win && !win.isDestroyed()) {
+                  win.setAlwaysOnTop(true, 'screen-saver');
+                  win.moveTop();
+                  win.focus();
+                  win.flashFrame(true);
+                }
               }
             }
           }
         } else if (msg.type === 'taskUpdated' && msg.task) {
           if (msg.task.id && sharedProgressWindow && !sharedProgressWindow.isDestroyed() && currentInspectedTaskId === msg.task.id) {
             sharedProgressWindow.webContents.send('set-progress-data', msg.task);
+          }
+        } else if (msg.type === 'extractPasswordRequired' && msg.data) {
+          if (sharedProgressWindow && !sharedProgressWindow.isDestroyed() && currentInspectedTaskId === msg.data.taskId) {
+            if (sharedProgressWindow.isMinimized()) sharedProgressWindow.restore();
+            if (!sharedProgressWindow.isVisible()) sharedProgressWindow.show();
+            sharedProgressWindow.setAlwaysOnTop(true, 'screen-saver');
+            sharedProgressWindow.moveTop();
+            sharedProgressWindow.focus();
+            sharedProgressWindow.flashFrame(true);
+            sharedProgressWindow.webContents.send('set-progress-data', {
+              id: msg.data.taskId,
+              extractStatus: 'extract_password_required',
+              extractPasswordRequired: true,
+              extractError: 'Password required or incorrect.'
+            });
           }
         } else if (msg.type === 'taskFailed') {
           handleTaskFailure(msg);
@@ -883,12 +977,13 @@ function createWindow() {
     if (cfg && cfg.alwaysOnTop) {
       mainWindow.setAlwaysOnTop(true, 'floating');
     }
-    const isHiddenStart = process.argv.includes('--hidden') || process.argv.includes('--minimized') || (cfg && cfg.startWithWindow !== true);
+    const isWindowsStartup = process.argv.includes('--hidden') || process.argv.includes('--minimized');
+    const isHiddenStart = isWindowsStartup && (cfg && cfg.startWithWindow !== true);
     if (!isHiddenStart) {
       mainWindow.show();
       mainWindow.focus();
     } else {
-      console.log('[Waterfall Electron] Starting silently minimized to system tray (startWithWindow is OFF by default).');
+      console.log('[Waterfall Electron] Starting silently minimized to system tray (launched with --hidden on Windows boot).');
     }
   });
 
@@ -901,12 +996,9 @@ function createWindow() {
   mainWindow.on('move', triggerSaveState);
   mainWindow.on('maximize', triggerSaveState);
   mainWindow.on('unmaximize', triggerSaveState);
-  mainWindow.on('minimize', () => {
-    if (global.gc) try { global.gc(); } catch (_) {}
-  });
-  mainWindow.on('hide', () => {
-    if (global.gc) try { global.gc(); } catch (_) {}
-  });
+  mainWindow.on('minimize', () => trimProcessMemory(true));
+  mainWindow.on('hide', () => trimProcessMemory(true));
+  mainWindow.on('blur', () => trimProcessMemory(false));
 
   function loadApp() {
     mainWindow.loadURL(APP_URL).catch(() => {
@@ -1001,7 +1093,10 @@ function createTray() {
     const iconPath = getAppIconPath();
     if (!iconPath) return;
 
-    const trayImage = nativeImage.createFromPath(iconPath);
+    let trayImage = nativeImage.createFromPath(iconPath);
+    if (!trayImage.isEmpty()) {
+      trayImage = trayImage.resize({ width: 16, height: 16 });
+    }
     tray = new Tray(trayImage);
     tray.setToolTip('Waterfall — Modern IDM & JDownloader Suite');
 
@@ -1198,55 +1293,70 @@ ipcMain.handle('select-file', async (event, options = {}) => {
   }
 });
 
-function forceWindowToTop(keepPinned = false) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+function forceTargetWindowToTop(targetWin, keepPinned = false) {
+  if (!targetWin || targetWin.isDestroyed()) return;
 
   try {
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
+    if (targetWin.isMinimized()) {
+      targetWin.restore();
     }
-    if (!mainWindow.isVisible()) {
-      mainWindow.show();
+    if (!targetWin.isVisible()) {
+      targetWin.show();
     }
 
-    // Force window to front through Windows foreground lock
-    mainWindow.setAlwaysOnTop(true, 'screen-saver');
-    mainWindow.moveTop();
-    mainWindow.show();
-    mainWindow.focus();
-    mainWindow.flashFrame(true);
+    targetWin.setAlwaysOnTop(true, 'screen-saver');
+    targetWin.moveTop();
+    targetWin.show();
+    targetWin.focus();
+    targetWin.flashFrame(true);
 
-    let isAlwaysOnTopEnabled = keepPinned;
-    try {
-      const cfg = getAppConfig();
-      if (cfg && cfg.alwaysOnTop) isAlwaysOnTopEnabled = true;
-    } catch (_) {}
+    const isSpecialModal = (targetWin === confirmWindow);
+
+    let isAlwaysOnTopEnabled = keepPinned || isSpecialModal;
+    if (!isSpecialModal && targetWin === mainWindow) {
+      try {
+        const cfg = getAppConfig();
+        if (cfg && cfg.alwaysOnTop) isAlwaysOnTopEnabled = true;
+      } catch (_) {}
+    }
 
     setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
+      if (targetWin && !targetWin.isDestroyed()) {
         if (!isAlwaysOnTopEnabled) {
-          mainWindow.setAlwaysOnTop(false);
+          targetWin.setAlwaysOnTop(false);
         } else {
-          mainWindow.setAlwaysOnTop(true, 'floating');
+          targetWin.setAlwaysOnTop(true, 'screen-saver');
         }
       }
     }, 1200);
   } catch (err) {
-    console.warn('[Waterfall Electron] forceWindowToTop error:', err.message);
+    console.warn('[Waterfall Electron] forceTargetWindowToTop error:', err.message);
   }
 }
 
-ipcMain.on('window-focus', () => {
-  forceWindowToTop();
+function forceWindowToTop(keepPinned = false) {
+  forceTargetWindowToTop(mainWindow, keepPinned);
+}
+
+ipcMain.on('window-focus', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.moveTop();
+    win.focus();
+  }
 });
 
 ipcMain.on('window-force-top', (event, keepPinned) => {
-  forceWindowToTop(keepPinned);
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  forceTargetWindowToTop(win, keepPinned);
 });
 
 ipcMain.on('window-set-always-on-top', (event, flag) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setAlwaysOnTop(!!flag, 'floating');
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (win && !win.isDestroyed()) {
+    win.setAlwaysOnTop(!!flag, 'screen-saver');
   }
 });
 

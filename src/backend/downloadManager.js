@@ -775,7 +775,8 @@ class DownloadManager extends EventEmitter {
       // Speed Limiter & Post-Actions
       speedLimitEnabled: Boolean(options.speedLimitEnabled),
       speedLimitBytesPerSec: options.speedLimitBytesPerSec ? Math.max(0, parseInt(options.speedLimitBytesPerSec, 10)) : 0,
-      onCompleteAction: options.onCompleteAction || 'none', // 'none' | 'closeDialog' | 'openFile' | 'openFolder' | 'sleep' | 'shutdown'
+      openWhenFinished: Boolean(options.openWhenFinished),
+      onCompleteAction: options.onCompleteAction || (options.openWhenFinished ? 'openFile' : 'none'), // 'none' | 'closeDialog' | 'openFile' | 'openFolder' | 'sleep' | 'shutdown'
       triggerAtPercent: options.triggerAtPercent ? Number(options.triggerAtPercent) : null
     };
 
@@ -1435,6 +1436,15 @@ class DownloadManager extends EventEmitter {
 
     const config = getConfig();
 
+    if (password) {
+      task.archivePassword = password;
+    }
+    task.extractPasswordRequired = false;
+    task.extractStatus = 'extract_queued';
+    task.extractError = null;
+    this.emit('taskUpdated', task);
+    this.saveState();
+
     // Check if multipart
     if (task.multipart && task.multipart.isMultipart && task.multipart.groupKey) {
       const groupKey = task.multipart.groupKey;
@@ -1472,20 +1482,32 @@ class DownloadManager extends EventEmitter {
   }
 
   submitExtractionPassword(taskIdOrGroupKey, password, remember = false) {
-    const job = extractionQueue.submitPassword(taskIdOrGroupKey, password, remember);
-    if (job) {
-      // Also update task state if found
-      const task = this.tasks.get(taskIdOrGroupKey);
-      if (task) {
-        task.archivePassword = password;
-        task.extractPasswordRequired = false;
-        task.extractStatus = 'extract_queued';
-        this.emit('taskUpdated', task);
-        this.saveState();
-      }
-      return { success: true, job };
+    let job = extractionQueue.submitPassword(taskIdOrGroupKey, password, remember);
+    if (!job) {
+      const extractRes = this.extractTask(taskIdOrGroupKey, password);
+      job = extractRes ? extractRes.job : null;
     }
-    return { success: false, error: 'Extraction job not found' };
+    const task = this.tasks.get(taskIdOrGroupKey);
+    if (task) {
+      task.archivePassword = password;
+      task.extractPasswordRequired = false;
+      task.extractStatus = 'extract_queued';
+      task.extractError = null;
+      this.emit('taskUpdated', task);
+      this.saveState();
+    }
+    if (remember && password) {
+      try {
+        const { getConfig, saveConfig } = require('./config');
+        const cfg = getConfig();
+        const existingPwds = Array.isArray(cfg.archivePasswords) ? [...cfg.archivePasswords] : [];
+        if (!existingPwds.includes(password)) {
+          existingPwds.push(password);
+          saveConfig({ archivePasswords: existingPwds });
+        }
+      } catch (_) {}
+    }
+    return { success: true, job };
   }
 
   updateTaskOptions(taskId, options = {}) {
@@ -1974,8 +1996,18 @@ class DownloadManager extends EventEmitter {
       downloader.setSpeedLimit(activeCap);
     }
 
+    if (options.openWhenFinished !== undefined) {
+      task.openWhenFinished = Boolean(options.openWhenFinished);
+      if (task.openWhenFinished && (!task.onCompleteAction || task.onCompleteAction === 'none')) {
+        task.onCompleteAction = 'openFile';
+      }
+    }
+
     if (options.onCompleteAction !== undefined) {
       task.onCompleteAction = options.onCompleteAction;
+      if (task.onCompleteAction === 'openFile') {
+        task.openWhenFinished = true;
+      }
     }
 
     if (options.triggerAtPercent !== undefined) {
@@ -2023,6 +2055,50 @@ class DownloadManager extends EventEmitter {
 
     this.saveState();
     this.emit('taskUpdated', task);
+    return task;
+  }
+
+  importCompletedDownload(data = {}) {
+    const filePath = data.filePath;
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error(`File does not exist on disk: ${filePath}`);
+    }
+
+    const stat = fs.statSync(filePath);
+    const filename = data.filename || path.basename(filePath);
+    const config = getConfig();
+
+    const taskId = crypto.randomUUID();
+    const sourceUrl = data.sourceUrl || data.url || 'blob:download';
+
+    const task = {
+      id: taskId,
+      url: sourceUrl,
+      directUrl: sourceUrl,
+      filename: filename,
+      name: filename,
+      packageName: data.packageName || 'Browser Downloads',
+      savePath: filePath,
+      finalPath: filePath,
+      path: filePath,
+      status: 'completed',
+      progress: 100,
+      totalBytes: stat.size,
+      downloadedBytes: stat.size,
+      completedAt: Date.now(),
+      createdAt: Date.now(),
+      autoExtract: (data.autoExtract !== undefined) ? !!data.autoExtract : (config.autoExtractArchives !== false),
+      deleteAfterExtract: (data.deleteAfterExtract !== undefined) ? !!data.deleteAfterExtract : (config.deleteArchiveAfterExtract === true),
+      isArchive: isArchiveFile(filePath),
+      category: getCategoryFromFilename ? getCategoryFromFilename(filename) : 'Downloads',
+      resumable: false,
+      speed: 0,
+      avgSpeed: stat.size,
+      source: sourceUrl
+    };
+
+    this.tasks.set(taskId, task);
+    this.handleCompletion(task);
     return task;
   }
 

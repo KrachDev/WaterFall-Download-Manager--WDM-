@@ -18,6 +18,7 @@ const { linkGrabber } = require('./src/backend/linkGrabber');
 const { probeMedia, isMediaUrl } = require('./src/backend/mediaDownloader');
 const { testRunScript } = require('./src/backend/scriptRunner');
 const binaryResolver = require('./src/backend/binaryResolver');
+const { createDummyFileBuffer, parseSizeString } = require('./src/backend/dummyFileGenerator');
 
 const app = express();
 const server = http.createServer(app);
@@ -115,7 +116,7 @@ setInterval(() => {
   wasIdle = false;
   const activeList = downloadManager.getAllTasks().filter(t =>
     t.status === 'downloading' || t.status === 'assembling' || t.status === 'retrying' ||
-    t.extractStatus === 'extracting' || t.extractStatus === 'extract_queued' || t.status === 'extracting'
+    t.extractStatus === 'extracting' || t.extractStatus === 'extract_queued' || t.extractStatus === 'extract_password_required' || t.status === 'extracting'
   );
   const tasks = activeList.map(t => ({
     id: t.id,
@@ -129,7 +130,9 @@ setInterval(() => {
     segments: t.segments || [],
     extractStatus: t.extractStatus || null,
     extractProgress: t.extractProgress !== undefined ? t.extractProgress : (t.extractStatus === 'extracted' ? 100 : 0),
-    extractedPath: t.extractedPath || null
+    extractedPath: t.extractedPath || null,
+    extractError: t.extractError || null,
+    extractPasswordRequired: Boolean(t.extractPasswordRequired)
   }));
 
   broadcast({
@@ -241,6 +244,59 @@ app.post('/api/downloads', async (req, res) => {
     autoStart: autoStart !== false
   });
   res.json(task);
+});
+
+// Import Completed Download (for client-side blob/data downloads or browser-finished items)
+app.post('/api/downloads/import-completed', (req, res) => {
+  try {
+    const task = downloadManager.importCompletedDownload(req.body);
+    broadcast({ type: 'taskCompleted', task });
+    res.json({ success: true, task });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Stream exact dummy files with full HTTP Range resume support
+app.get('/api/dummy-generator', (req, res) => {
+  const format = (req.query.format || 'bin').toLowerCase().replace('.', '');
+  const size = parseSizeString(req.query.size || '10mb');
+  const filename = req.query.filename || `dummy_${req.query.size || '10mb'}.${format}`;
+
+  let mimeType = 'application/octet-stream';
+  if (format === 'zip') mimeType = 'application/zip';
+  else if (format === 'pdf') mimeType = 'application/pdf';
+  else if (format === 'csv') mimeType = 'text/csv';
+  else if (format === 'json') mimeType = 'application/json';
+  else if (format === 'txt') mimeType = 'text/plain';
+
+  const range = req.headers.range;
+  const fullBuf = createDummyFileBuffer(format, size);
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : (size - 1);
+    const chunksize = (end - start) + 1;
+
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`
+    });
+
+    res.end(fullBuf.subarray(start, end + 1));
+  } else {
+    res.writeHead(200, {
+      'Content-Length': size,
+      'Content-Type': mimeType,
+      'Accept-Ranges': 'bytes',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`
+    });
+    res.end(fullBuf);
+  }
 });
 
 // URL Probe & ETA Metadata for IDM Confirmation Window

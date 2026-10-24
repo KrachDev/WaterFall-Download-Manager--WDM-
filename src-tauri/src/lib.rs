@@ -79,6 +79,7 @@ fn ensure_backend_running() {
 fn open_confirm_window(app: AppHandle) -> Result<(), String> {
   if let Some(win) = app.get_webview_window("confirm") {
     let _ = win.show();
+    let _ = win.set_always_on_top(true);
     let _ = win.set_focus();
     return Ok(());
   }
@@ -104,6 +105,7 @@ fn open_progress_window(app: AppHandle, task_id: String) -> Result<(), String> {
   let win_label = format!("progress_{}", clean_id);
   if let Some(win) = app.get_webview_window(&win_label) {
     let _ = win.show();
+    let _ = win.set_always_on_top(true);
     let _ = win.set_focus();
     return Ok(());
   }
@@ -114,6 +116,7 @@ fn open_progress_window(app: AppHandle, task_id: String) -> Result<(), String> {
       .title("Waterfall — Download Progress")
       .inner_size(640.0, 560.0)
       .min_inner_size(540.0, 460.0)
+      .always_on_top(true)
       .resizable(true)
       .build()
       .map_err(|e| e.to_string())?;

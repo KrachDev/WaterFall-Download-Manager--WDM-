@@ -23,15 +23,19 @@ function getGitHubToken() {
 
   // Retrieve token from Git Credential Manager
   try {
+    const { spawnSync } = require('child_process');
     const gitDir = 'C:\\Program Files\\Git\\cmd';
     const env = { ...process.env, PATH: `${gitDir};${process.env.PATH || ''}` };
-    const output = execSync(
-      'printf "protocol=https\\nhost=github.com\\n\\n" | "C:\\Program Files\\Git\\mingw64\\bin\\git-credential-manager.exe" get',
-      { env, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }
-    );
-    const passMatch = output.match(/password=([^\r\n]+)/);
-    if (passMatch && passMatch[1]) {
-      return passMatch[1].trim();
+    const res = spawnSync('C:\\Program Files\\Git\\mingw64\\bin\\git-credential-manager.exe', ['get'], {
+      input: 'protocol=https\nhost=github.com\n\n',
+      env,
+      encoding: 'utf-8'
+    });
+    if (res.stdout) {
+      const passMatch = res.stdout.match(/password=([^\r\n]+)/);
+      if (passMatch && passMatch[1]) {
+        return passMatch[1].trim();
+      }
     }
   } catch (err) {
     console.warn('[Release] Could not retrieve token from GCM:', err.message);

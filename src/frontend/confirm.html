@@ -281,6 +281,9 @@
         <div class="subtitle">Waterfall Download Accelerator • Fast Multi-Stream Engine</div>
       </div>
       <div id="confirm-category-badge" class="type-badge badge-other" style="padding: 4px 10px; font-size: 0.72rem; border-radius: 4px;">General</div>
+      <button type="button" id="btn-pin-confirm" style="padding: 4px 8px; font-size: 0.72rem; color: #38bdf8; background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.4); border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Always on Top (Top Window): ON">
+        📌 Top
+      </button>
     </header>
 
     <!-- Window Body -->
@@ -400,6 +403,12 @@
             <span>Delete archive after</span>
           </label>
         </div>
+      <!-- Open When Finished Option -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; margin-top: 2px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.78rem; font-weight: 500; color: #cbd5e1; user-select: none;">
+          <input type="checkbox" id="confirm-open-when-done" style="accent-color: #38bdf8; cursor: pointer;">
+          <span>⚡ Open when finished (launch file or folder upon completion)</span>
+        </label>
       </div>
 
     </main>

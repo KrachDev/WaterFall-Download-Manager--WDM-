@@ -52,6 +52,8 @@
   const btnLater = document.getElementById('btn-action-later');
   const btnStart = document.getElementById('btn-action-start');
   const btnCloseWindow = document.getElementById('btn-close-window');
+  const btnPinConfirm = document.getElementById('btn-pin-confirm');
+  const confirmOpenWhenDone = document.getElementById('confirm-open-when-done');
 
   // Format Helpers
   function formatBytes(bytes) {
@@ -372,6 +374,8 @@
           autoExtract,
           archivePassword,
           deleteAfterExtract,
+          openWhenFinished: Boolean(confirmOpenWhenDone && confirmOpenWhenDone.checked),
+          onCompleteAction: (confirmOpenWhenDone && confirmOpenWhenDone.checked) ? 'openFile' : 'none',
           allowDuplicate: Boolean(currentProbeData.allowDuplicate),
           confirmed: true
         })
@@ -389,6 +393,46 @@
       btnStart.disabled = false;
       btnStart.textContent = 'Start Download Now';
       alert('Could not start download: ' + err.message);
+    }
+  }
+
+  // Pin / Always on Top Window Control
+  let isConfirmTop = true;
+  function updateConfirmPinUI(pinned) {
+    isConfirmTop = pinned;
+    if (!btnPinConfirm) return;
+    if (pinned) {
+      btnPinConfirm.innerHTML = '📌 Top';
+      btnPinConfirm.style.color = '#38bdf8';
+      btnPinConfirm.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+      btnPinConfirm.style.background = 'rgba(56, 189, 248, 0.15)';
+      btnPinConfirm.title = 'Always on Top (Top Window): ON';
+    } else {
+      btnPinConfirm.innerHTML = '📍 Normal';
+      btnPinConfirm.style.color = '#94a3b8';
+      btnPinConfirm.style.borderColor = '#1e293b';
+      btnPinConfirm.style.background = '';
+      btnPinConfirm.title = 'Always on Top (Top Window): OFF';
+    }
+  }
+
+  if (btnPinConfirm) {
+    btnPinConfirm.addEventListener('click', () => {
+      const nextState = !isConfirmTop;
+      updateConfirmPinUI(nextState);
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.setAlwaysOnTop === 'function') {
+        window.waterfallDesktop.setAlwaysOnTop(nextState);
+      }
+    });
+  }
+
+  // Ensure confirm window is topmost upon initialization
+  if (window.waterfallDesktop) {
+    if (typeof window.waterfallDesktop.setAlwaysOnTop === 'function') {
+      try { window.waterfallDesktop.setAlwaysOnTop(true); } catch (_) {}
+    }
+    if (typeof window.waterfallDesktop.forceTop === 'function') {
+      try { window.waterfallDesktop.forceTop(true); } catch (_) {}
     }
   }
 

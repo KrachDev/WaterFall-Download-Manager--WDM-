@@ -24,7 +24,7 @@ function isArchiveFile(filePath) {
 
 function isPasswordRequiredError(output) {
   if (!output || typeof output !== 'string') return false;
-  return /Wrong password|Data Error in encrypted file|Can not open encrypted archive|Enter password/i.test(output);
+  return /Wrong password|Data Error in encrypted file|Can not open encrypted archive|Enter password|encrypted archive|CRC Failed in encrypted file|Cannot open encrypted/i.test(output);
 }
 
 /**

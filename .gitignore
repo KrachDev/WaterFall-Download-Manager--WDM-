@@ -9,6 +9,7 @@ build/
 Publish/
 publish/
 src-tauri/target/
+target/
 *.exe
 *.dll
 *.node
