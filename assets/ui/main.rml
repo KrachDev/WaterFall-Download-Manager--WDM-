@@ -8,7 +8,6 @@
     <!-- Top Command Toolbar -->
     <div id="header">
         <div class="header-left">
-            <span class="logo-icon">🌊</span>
             <span class="app-title">WATERFALL</span>
             <span class="app-badge">NATIVE C++20</span>
         </div>
@@ -18,9 +17,9 @@
             <button class="tb-btn primary" data-event-click="open_add_modal()">+ Add Download</button>
             <button class="tb-btn" data-event-click="resume_all()">▶ Resume All</button>
             <button class="tb-btn" data-event-click="pause_all()">⏸ Pause All</button>
-            <button class="tb-btn" data-event-click="clear_completed()">🧹 Clear Done</button>
+            <button class="tb-btn" data-event-click="clear_completed()">✕ Clear Done</button>
             <button class="tb-btn" data-event-click="open_limiter_modal()">⚡ Speed Cap</button>
-            <button class="tb-btn" data-event-click="open_settings_modal()">⚙️ Settings</button>
+            <button class="tb-btn" data-event-click="open_settings_modal()">⚙ Settings</button>
             <button class="tb-btn power" data-event-click="cycle_power_action()">Power: {{power_action}}</button>
         </div>
 
@@ -44,9 +43,9 @@
         <div id="sidebar">
             <div class="sidebar-section">
                 <span class="section-title">WORKSPACES</span>
-                <button class="sidebar-btn" data-class-active="current_view == 'downloads'" data-event-click="set_view('downloads')">⚡ Downloads ({{active_count}})</button>
-                <button class="sidebar-btn" data-class-active="current_view == 'grabber'" data-event-click="set_view('grabber')">🧲 LinkGrabber ({{grabber_count}})</button>
-                <button class="sidebar-btn" data-class-active="current_view == 'media'" data-event-click="set_view('media')">🎬 Media Studio</button>
+                <button class="sidebar-btn" data-class-active="current_view == 'downloads'" data-event-click="set_view('downloads')">● Downloads ({{active_count}})</button>
+                <button class="sidebar-btn" data-class-active="current_view == 'grabber'" data-event-click="set_view('grabber')">● LinkGrabber ({{grabber_count}})</button>
+                <button class="sidebar-btn" data-class-active="current_view == 'media'" data-event-click="set_view('media')">● Media Studio</button>
             </div>
 
             <div class="sidebar-section">
@@ -59,11 +58,11 @@
 
             <div class="sidebar-section">
                 <span class="section-title">CATEGORIES</span>
-                <button class="sidebar-btn" data-event-click="set_category('compressed')">📁 Compressed Archives</button>
-                <button class="sidebar-btn" data-event-click="set_category('videos')">🎬 Video Files</button>
-                <button class="sidebar-btn" data-event-click="set_category('audio')">🎵 Audio & Music</button>
-                <button class="sidebar-btn" data-event-click="set_category('documents')">📄 Documents</button>
-                <button class="sidebar-btn" data-event-click="set_category('software')">📦 Executables & ISO</button>
+                <button class="sidebar-btn" data-event-click="set_category('compressed')">■ Compressed Archives</button>
+                <button class="sidebar-btn" data-event-click="set_category('videos')">■ Video Files</button>
+                <button class="sidebar-btn" data-event-click="set_category('audio')">■ Audio &amp; Music</button>
+                <button class="sidebar-btn" data-event-click="set_category('documents')">■ Documents</button>
+                <button class="sidebar-btn" data-event-click="set_category('software')">■ Executables &amp; ISO</button>
             </div>
 
             <!-- Telemetry Monitor Box -->
@@ -95,11 +94,17 @@
                 </div>
 
                 <div class="tasks-scroll-container">
-                    <!-- Task Cards Feed -->
-                    <div class="task-card" data-for="task : tasks">
+                    <!-- Clean Empty-State When Queue is Empty -->
+                    <div class="empty-state-card" data-if="active_count == '0' &amp;&amp; completed_count == '0' &amp;&amp; paused_count == '0'">
+                        <span class="empty-title">Queue is Empty</span>
+                        <span class="empty-desc">Paste a download URL or click '+ Add Download' to start accelerating.</span>
+                        <button class="tool-btn primary empty-action" data-event-click="open_add_modal()">+ Add Download Now</button>
+                    </div>
+
+                    <!-- Dynamic Task Cards Loop -->
+                    <div class="task-card" data-for="task:tasks">
                         <div class="card-top">
                             <div class="file-info">
-                                <span class="file-icon">📦</span>
                                 <span class="file-name">{{task.filename}}</span>
                             </div>
                             <div class="card-badges">
@@ -108,7 +113,7 @@
                             </div>
                         </div>
 
-                        <!-- 8-Segment Dynamic Visualizer Bar -->
+                        <!-- Progress Bar Track -->
                         <div class="progress-track">
                             <div class="progress-fill" data-style-width="task.progress + '%'"></div>
                         </div>
@@ -140,17 +145,16 @@
                 <div class="view-header">
                     <span class="view-title">LINKGRABBER BATCH CRAWLER</span>
                     <div class="view-tools">
-                        <button class="tool-btn primary" data-event-click="open_add_modal()">➕ Add Links</button>
-                        <button class="tool-btn" data-event-click="grabber_crawl()">🕷️ Deep Crawl</button>
-                        <button class="tool-btn" data-event-click="grabber_transfer_all()">▶ Transfer All to Queue</button>
-                        <button class="tool-btn danger" data-event-click="grabber_clear()">🧹 Clear Staged</button>
+                        <button class="tool-btn primary" data-event-click="open_add_modal()">+ Add Links</button>
+                        <button class="tool-btn" data-event-click="grabber_crawl()">Deep Crawl</button>
+                        <button class="tool-btn" data-event-click="grabber_transfer_all()">▶ Transfer All</button>
+                        <button class="tool-btn danger" data-event-click="grabber_clear()">✕ Clear Staged</button>
                     </div>
                 </div>
 
                 <div class="tasks-scroll-container">
-                    <div class="grabber-card" data-for="pkg : grabber_packages">
+                    <div class="grabber-card" data-for="pkg:grabber_packages">
                         <div class="grabber-card-header">
-                            <span class="pkg-icon">🗂️</span>
                             <span class="pkg-name">{{pkg.name}}</span>
                             <span class="pkg-hoster">{{pkg.hoster}}</span>
                         </div>
@@ -172,19 +176,19 @@
             <!-- =============================================================== -->
             <div id="media-view" data-if="current_view == 'media'">
                 <div class="view-header">
-                    <span class="view-title">YOUTUBE & MEDIA STUDIO</span>
+                    <span class="view-title">YOUTUBE &amp; MEDIA STUDIO</span>
                 </div>
 
                 <div class="media-container">
                     <div class="media-input-bar">
                         <input type="text" class="media-url-input" data-value="media_url" placeholder="Paste YouTube, Vimeo, or Stream URL..."/>
-                        <button class="tool-btn primary" data-event-click="media_probe()">🔍 Probe Formats</button>
+                        <button class="tool-btn primary" data-event-click="media_probe()">Probe Formats</button>
                     </div>
 
                     <!-- Media Preview Card -->
                     <div class="media-preview-card">
                         <div class="media-thumb-box">
-                            <span class="media-thumb-placeholder">🎬 4K HDR</span>
+                            <span class="media-thumb-placeholder">4K HDR</span>
                         </div>
                         <div class="media-info-box">
                             <span class="media-video-title">{{media_title}}</span>
@@ -192,10 +196,10 @@
 
                             <span class="format-label">SELECT EXTRACTION FORMAT:</span>
                             <div class="format-chips">
-                                <button class="chip-btn active" data-event-click="set_media_format('mp4_4k')">🎬 4K Video (2160p HDR)</button>
-                                <button class="chip-btn" data-event-click="set_media_format('mp4_1080p')">🎬 1080p Full HD</button>
-                                <button class="chip-btn" data-event-click="set_media_format('mp3_320k')">🎵 MP3 Audio (320kbps)</button>
-                                <button class="chip-btn" data-event-click="set_media_format('flac')">🎵 FLAC Lossless</button>
+                                <button class="chip-btn active" data-event-click="set_media_format('mp4_4k')">4K Video (2160p HDR)</button>
+                                <button class="chip-btn" data-event-click="set_media_format('mp4_1080p')">1080p Full HD</button>
+                                <button class="chip-btn" data-event-click="set_media_format('mp3_320k')">MP3 Audio (320kbps)</button>
+                                <button class="chip-btn" data-event-click="set_media_format('flac')">FLAC Lossless</button>
                             </div>
 
                             <button class="btn-primary-large" data-event-click="media_download()">⚡ Download Media Stream</button>
@@ -320,7 +324,7 @@
                         <input type="text" class="modal-input" value="5"/>
                     </div>
                     <div data-if="settings_tab == 'engine'">
-                        <span class="setting-heading">Native Network & Disk Engine</span>
+                        <span class="setting-heading">Native Network &amp; Disk Engine</span>
                         <span class="input-label">DEFAULT THREADS PER TASK</span>
                         <input type="text" class="modal-input" value="16"/>
                         <span class="input-label">STREAM DISK BUFFER SIZE</span>

@@ -189,8 +189,9 @@ bool UiManager::Initialize(int width, int height) {
         return false;
     }
 
-    Rml::LoadFontFace("C:\\Windows\\Fonts\\segoeui.ttf", true);
-    Rml::LoadFontFace("C:\\Windows\\Fonts\\segoeuib.ttf", true);
+    Rml::LoadFontFace("C:\\Windows\\Fonts\\segoeui.ttf", false);
+    Rml::LoadFontFace("C:\\Windows\\Fonts\\segoeuib.ttf", false);
+    Rml::LoadFontFace("C:\\Windows\\Fonts\\seguisym.ttf", true); // Fallback for symbols/icons
     Rml::LoadFontFace("C:\\Windows\\Fonts\\consola.ttf", false);
 
     context_ = Rml::CreateContext("main", Rml::Vector2i(width, height));

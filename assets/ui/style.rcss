@@ -2,8 +2,25 @@
    Waterfall Download Accelerator - Obsidian Cyber-Fluid RCSS Design System
    ========================================================================== */
 
+@font-face {
+    font-family: "Segoe UI";
+    src: "C:/Windows/Fonts/segoeui.ttf";
+}
+
+@font-face {
+    font-family: "Segoe UI";
+    src: "C:/Windows/Fonts/segoeuib.ttf";
+    font-weight: bold;
+}
+
+@font-face {
+    font-family: "Consolas";
+    src: "C:/Windows/Fonts/consola.ttf";
+}
+
 body {
-    font-family: "Segoe UI", sans-serif;
+    font-family: "Segoe UI";
+    font-size: 13px;
     background-color: #0b0f19;
     color: #e2e8f0;
     margin: 0;
@@ -20,8 +37,8 @@ body {
    -------------------------------------------------------------------------- */
 #header {
     height: 52px;
-    background-color: #101623;
-    border-bottom: 1px solid #1e283d;
+    background-color: #111827;
+    border-bottom: 2px solid #1f293d;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -41,19 +58,19 @@ body {
 }
 
 .app-title {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: bold;
-    color: #f8fafc;
+    color: #ffffff;
     letter-spacing: 1px;
 }
 
 .app-badge {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: bold;
-    background-color: #0369a1;
-    color: #e0f2fe;
-    padding: 2px 6px;
-    margin-left: 8px;
+    background-color: #0284c7;
+    color: #ffffff;
+    padding: 3px 8px;
+    margin-left: 10px;
     border-radius: 4px;
 }
 
@@ -64,26 +81,26 @@ body {
 }
 
 .tb-btn {
-    background-color: #172033;
-    border: 1px solid #27354f;
-    color: #cbd5e1;
-    font-size: 11px;
-    padding: 6px 11px;
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    color: #f1f5f9;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 7px 13px;
     margin-right: 6px;
-    border-radius: 5px;
+    border-radius: 6px;
 }
 
 .tb-btn:hover {
-    background-color: #243350;
-    color: #ffffff;
-    border-color: #3b82f6;
+    background-color: #334155;
+    color: #00e5ff;
+    border-color: #00e5ff;
 }
 
 .tb-btn.primary {
     background-color: #0284c7;
     border: 1px solid #38bdf8;
     color: #ffffff;
-    font-weight: bold;
 }
 
 .tb-btn.primary:hover {
@@ -92,8 +109,8 @@ body {
 }
 
 .tb-btn.power {
-    background-color: #1a2234;
-    border-color: #334155;
+    background-color: #1e293b;
+    border-color: #f59e0b;
     color: #fbbf24;
 }
 
@@ -104,10 +121,10 @@ body {
 }
 
 .stat-pill {
-    background-color: #151d2c;
-    border: 1px solid #24324a;
+    background-color: #1e293b;
+    border: 1px solid #334155;
     border-radius: 6px;
-    padding: 4px 10px;
+    padding: 5px 12px;
     margin-left: 8px;
     display: flex;
     flex-direction: column;
@@ -115,14 +132,14 @@ body {
 }
 
 .stat-label {
-    font-size: 8px;
+    font-size: 9px;
     color: #94a3b8;
     font-weight: bold;
     letter-spacing: 0.5px;
 }
 
 .stat-value {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
 }
 
@@ -141,24 +158,24 @@ body {
 
 /* Sidebar */
 #sidebar {
-    width: 220px;
-    background-color: #0d121c;
-    border-right: 1px solid #1a2334;
-    padding: 12px;
+    width: 230px;
+    background-color: #0f172a;
+    border-right: 1px solid #1e293b;
+    padding: 14px;
     display: flex;
     flex-direction: column;
 }
 
 .sidebar-section {
-    margin-bottom: 14px;
+    margin-bottom: 16px;
 }
 
 .section-title {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: bold;
     color: #64748b;
     letter-spacing: 1px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     display: block;
 }
 
@@ -168,60 +185,61 @@ body {
     background-color: transparent;
     border: none;
     color: #94a3b8;
-    font-size: 11px;
+    font-size: 12px;
     text-align: left;
-    padding: 6px 8px;
-    margin-bottom: 2px;
-    border-radius: 4px;
+    padding: 7px 10px;
+    margin-bottom: 3px;
+    border-radius: 5px;
 }
 
 .sidebar-btn:hover {
-    background-color: #151e2e;
-    color: #f1f5f9;
+    background-color: #1e293b;
+    color: #ffffff;
 }
 
 .sidebar-btn.active {
-    background-color: #19263e;
+    background-color: #1e293b;
     color: #00e5ff;
     font-weight: bold;
-    border-left: 2px solid #00e5ff;
+    border-left: 3px solid #00e5ff;
 }
 
 .telemetry-box {
-    background-color: #111724;
-    border: 1px solid #1e283b;
+    background-color: #1e293b;
+    border: 1px solid #334155;
     border-radius: 6px;
-    padding: 8px;
+    padding: 10px;
     margin-top: auto;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     display: flex;
     flex-direction: column;
 }
 
 .telemetry-title {
-    font-size: 8px;
-    color: #64748b;
+    font-size: 9px;
+    color: #94a3b8;
     font-weight: bold;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 
 .telemetry-stat {
-    font-size: 10px;
+    font-size: 11px;
     color: #cbd5e1;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
 }
 
-.telemetry-stat.cyan { color: #00e5ff; }
+.telemetry-stat.cyan { color: #00e5ff; font-weight: bold; }
 
 .sidebar-footer {
-    padding-top: 6px;
-    border-top: 1px solid #1a2334;
+    padding-top: 8px;
+    border-top: 1px solid #1e293b;
 }
 
 .server-status {
-    font-size: 9px;
+    font-size: 10px;
     color: #10b981;
+    font-weight: bold;
 }
 
 /* --------------------------------------------------------------------------
@@ -229,8 +247,8 @@ body {
    -------------------------------------------------------------------------- */
 #content {
     flex: 1;
-    background-color: #0a0e17;
-    padding: 14px 18px;
+    background-color: #0b0f19;
+    padding: 16px 22px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -241,13 +259,13 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .view-title {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
-    color: #94a3b8;
+    color: #cbd5e1;
     letter-spacing: 1px;
 }
 
@@ -258,28 +276,29 @@ body {
 }
 
 .search-input {
-    background-color: #0f1522;
-    border: 1px solid #202b3e;
-    border-radius: 5px;
-    color: #f1f5f9;
-    padding: 5px 10px;
-    font-size: 11px;
-    width: 260px;
-    margin-right: 8px;
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 7px 12px;
+    font-size: 12px;
+    width: 280px;
+    margin-right: 10px;
 }
 
 .tool-btn {
-    background-color: #172134;
-    border: 1px solid #293750;
-    color: #cbd5e1;
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    color: #f1f5f9;
     font-size: 11px;
-    padding: 5px 10px;
+    font-weight: bold;
+    padding: 6px 12px;
     border-radius: 5px;
     margin-left: 6px;
 }
 
 .tool-btn:hover {
-    background-color: #243350;
+    background-color: #334155;
     color: #ffffff;
 }
 
@@ -287,7 +306,6 @@ body {
     background-color: #0284c7;
     border-color: #38bdf8;
     color: #ffffff;
-    font-weight: bold;
 }
 
 .tool-btn.danger:hover {
@@ -300,15 +318,45 @@ body {
     overflow-y: auto;
 }
 
+.empty-state-card {
+    background-color: #111827;
+    border: 1px dashed #334155;
+    border-radius: 8px;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 24px;
+}
+
+.empty-title {
+    font-size: 15px;
+    font-weight: bold;
+    color: #f8fafc;
+    margin-bottom: 6px;
+}
+
+.empty-desc {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 16px;
+}
+
+.empty-action {
+    padding: 8px 18px;
+    font-size: 12px;
+}
+
 /* --------------------------------------------------------------------------
    Download Task Cards
    -------------------------------------------------------------------------- */
 .task-card {
-    background-color: #111724;
-    border: 1px solid #1c273a;
-    border-radius: 7px;
-    padding: 10px 14px;
-    margin-bottom: 8px;
+    background-color: #111827;
+    border: 1px solid #1f293d;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
 }
 
 .task-card:hover {
@@ -320,7 +368,7 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .file-info {
@@ -330,14 +378,14 @@ body {
 }
 
 .file-icon {
-    font-size: 15px;
-    margin-right: 8px;
+    font-size: 18px;
+    margin-right: 10px;
 }
 
 .file-name {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
-    color: #f8fafc;
+    color: #ffffff;
 }
 
 .card-badges {
@@ -347,32 +395,33 @@ body {
 }
 
 .badge-status {
-    font-size: 9px;
+    font-size: 10px;
+    font-weight: bold;
     background-color: #1e293b;
-    color: #94a3b8;
-    padding: 2px 6px;
+    color: #38bdf8;
+    padding: 3px 8px;
     border-radius: 4px;
-    margin-right: 6px;
+    margin-right: 8px;
 }
 
 .badge-speed {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: bold;
     color: #00e5ff;
 }
 
 .progress-track {
-    height: 5px;
-    background-color: #182233;
-    border-radius: 3px;
-    margin-bottom: 6px;
+    height: 7px;
+    background-color: #1e293b;
+    border-radius: 4px;
+    margin-bottom: 8px;
     overflow: hidden;
 }
 
 .progress-fill {
     height: 100%;
     background-color: #00e5ff;
-    border-radius: 3px;
+    border-radius: 4px;
 }
 
 .card-bottom {
@@ -389,12 +438,12 @@ body {
 }
 
 .meta-text {
-    font-size: 10px;
+    font-size: 11px;
     color: #94a3b8;
 }
 
 .meta-dot {
-    margin: 0 5px;
+    margin: 0 6px;
     color: #475569;
 }
 
@@ -405,17 +454,18 @@ body {
 }
 
 .btn-action {
-    background-color: #1a2336;
-    border: 1px solid #2b3952;
+    background-color: #1e293b;
+    border: 1px solid #334155;
     color: #cbd5e1;
-    font-size: 10px;
-    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 4px 10px;
     border-radius: 4px;
-    margin-left: 5px;
+    margin-left: 6px;
 }
 
 .btn-action:hover {
-    background-color: #2b3952;
+    background-color: #334155;
     color: #ffffff;
 }
 
@@ -434,53 +484,54 @@ body {
    LinkGrabber Package Cards
    -------------------------------------------------------------------------- */
 .grabber-card {
-    background-color: #121827;
-    border: 1px solid #1f2a3f;
+    background-color: #111827;
+    border: 1px solid #1f293d;
     border-radius: 8px;
-    padding: 14px;
-    margin-bottom: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
 }
 
 .grabber-card-header {
     display: flex;
     flex-direction: row;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 .pkg-icon {
-    font-size: 18px;
-    margin-right: 8px;
+    font-size: 20px;
+    margin-right: 10px;
 }
 
 .pkg-name {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: bold;
-    color: #f8fafc;
+    color: #ffffff;
 }
 
 .pkg-hoster {
-    font-size: 9px;
+    font-size: 10px;
+    font-weight: bold;
     background-color: #0369a1;
     color: #e0f2fe;
-    padding: 2px 7px;
+    padding: 3px 8px;
     border-radius: 4px;
-    margin-left: 10px;
+    margin-left: 12px;
 }
 
 .grabber-card-body {
     display: flex;
     flex-direction: row;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .pkg-meta {
-    font-size: 11px;
+    font-size: 12px;
     color: #94a3b8;
-    margin-right: 18px;
+    margin-right: 20px;
 }
 
-.pkg-meta.emerald { color: #10b981; }
+.pkg-meta.emerald { color: #10b981; font-weight: bold; }
 
 .grabber-card-footer {
     display: flex;
@@ -498,25 +549,25 @@ body {
 .media-input-bar {
     display: flex;
     flex-direction: row;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
 }
 
 .media-url-input {
     flex: 1;
-    background-color: #0f1522;
-    border: 1px solid #202b3e;
+    background-color: #1e293b;
+    border: 1px solid #334155;
     border-radius: 6px;
     color: #ffffff;
-    padding: 8px 12px;
-    font-size: 12px;
-    margin-right: 10px;
+    padding: 9px 14px;
+    font-size: 13px;
+    margin-right: 12px;
 }
 
 .media-preview-card {
-    background-color: #111724;
-    border: 1px solid #1f2a3f;
+    background-color: #111827;
+    border: 1px solid #1f293d;
     border-radius: 8px;
-    padding: 16px;
+    padding: 18px;
     display: flex;
     flex-direction: row;
 }
@@ -524,16 +575,17 @@ body {
 .media-thumb-box {
     width: 220px;
     height: 124px;
-    background-color: #1a2336;
+    background-color: #1e293b;
+    border: 1px solid #334155;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-right: 18px;
+    margin-right: 20px;
 }
 
 .media-thumb-placeholder {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: bold;
     color: #38bdf8;
 }
@@ -545,58 +597,58 @@ body {
 }
 
 .media-video-title {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: bold;
-    color: #f8fafc;
-    margin-bottom: 4px;
+    color: #ffffff;
+    margin-bottom: 6px;
 }
 
 .media-video-author {
-    font-size: 11px;
+    font-size: 12px;
     color: #94a3b8;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .format-label {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: bold;
     color: #64748b;
     letter-spacing: 0.5px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .format-chips {
     display: flex;
     flex-direction: row;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
 }
 
 .chip-btn {
-    background-color: #182234;
-    border: 1px solid #273650;
+    background-color: #1e293b;
+    border: 1px solid #334155;
     color: #cbd5e1;
-    font-size: 10px;
-    padding: 5px 9px;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 6px 12px;
     border-radius: 5px;
-    margin-right: 6px;
+    margin-right: 8px;
 }
 
 .chip-btn.active {
-    background-color: #0369a1;
+    background-color: #0284c7;
     border-color: #00e5ff;
     color: #ffffff;
-    font-weight: bold;
 }
 
 .btn-primary-large {
     background-color: #0284c7;
     border: 1px solid #38bdf8;
     color: #ffffff;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
-    padding: 8px 16px;
+    padding: 9px 18px;
     border-radius: 6px;
-    width: 220px;
+    width: 240px;
 }
 
 .btn-primary-large:hover {
@@ -608,11 +660,11 @@ body {
    Inspector Drawer
    -------------------------------------------------------------------------- */
 #inspector-drawer {
+    display: none;
     width: 320px;
-    background-color: #0f1522;
-    border-left: 1px solid #1e283b;
-    padding: 14px;
-    display: flex;
+    background-color: #0f172a;
+    border-left: 2px solid #1e293b;
+    padding: 16px;
     flex-direction: column;
     overflow-y: auto;
 }
@@ -622,13 +674,13 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
-    border-bottom: 1px solid #1e283b;
-    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 10px;
 }
 
 .inspector-title {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: bold;
     color: #00e5ff;
     letter-spacing: 1px;
@@ -638,49 +690,50 @@ body {
     background-color: transparent;
     border: none;
     color: #94a3b8;
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: bold;
 }
 
 .btn-close:hover { color: #ffffff; }
 
 .inspector-item {
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     display: flex;
     flex-direction: column;
 }
 
 .ins-label {
-    font-size: 8px;
+    font-size: 9px;
     font-weight: bold;
     color: #64748b;
     letter-spacing: 0.5px;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
 }
 
 .ins-val {
-    font-size: 10px;
+    font-size: 11px;
     color: #cbd5e1;
 }
 
-.ins-val.bold { font-weight: bold; color: #f8fafc; }
-.ins-val.monospace { font-family: "Consolas", monospace; font-size: 9px; }
+.ins-val.bold { font-weight: bold; color: #ffffff; }
+.ins-val.monospace { font-family: "Consolas"; font-size: 10px; }
 .ins-val.cyan { color: #00e5ff; }
 
 .segment-grid-section {
-    margin: 10px 0;
+    margin: 12px 0;
 }
 
 .segment-cells {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 
 .seg-cell {
     width: 30px;
-    height: 20px;
-    font-size: 9px;
+    height: 22px;
+    font-size: 10px;
     font-weight: bold;
     display: flex;
     align-items: center;
@@ -697,30 +750,30 @@ body {
    Modal Overlays
    -------------------------------------------------------------------------- */
 .modal-backdrop {
+    display: none;
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(5, 8, 14, 0.85);
-    display: flex;
+    background-color: rgba(5, 8, 14, 0.90);
     align-items: center;
     justify-content: center;
 }
 
 .modal-card {
-    width: 480px;
-    background-color: #121826;
-    border: 1px solid #26334d;
+    width: 500px;
+    background-color: #111827;
+    border: 1px solid #334155;
     border-radius: 8px;
-    padding: 18px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
 }
 
 .modal-card.large {
-    width: 680px;
-    height: 440px;
+    width: 720px;
+    height: 480px;
 }
 
 .modal-header {
@@ -728,15 +781,15 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 14px;
-    border-bottom: 1px solid #1e283b;
-    padding-bottom: 8px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 10px;
 }
 
 .modal-title {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: bold;
-    color: #f8fafc;
+    color: #ffffff;
     letter-spacing: 0.5px;
 }
 
@@ -746,21 +799,21 @@ body {
 }
 
 .input-label {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: bold;
     color: #64748b;
     letter-spacing: 0.5px;
-    margin-top: 10px;
-    margin-bottom: 4px;
+    margin-top: 12px;
+    margin-bottom: 6px;
 }
 
 .modal-input {
-    background-color: #0a0e17;
-    border: 1px solid #202b3e;
-    border-radius: 5px;
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
     color: #ffffff;
-    padding: 7px 10px;
-    font-size: 11px;
+    padding: 8px 12px;
+    font-size: 12px;
 }
 
 .modal-input:focus { border-color: #00e5ff; }
@@ -768,30 +821,30 @@ body {
 .engine-chips {
     display: flex;
     flex-direction: row;
-    margin-top: 4px;
-    margin-bottom: 10px;
+    margin-top: 6px;
+    margin-bottom: 12px;
 }
 
 .checkbox-row {
     display: flex;
     flex-direction: row;
     align-items: center;
-    margin-top: 10px;
+    margin-top: 12px;
 }
 
 .checkbox-label {
-    font-size: 11px;
+    font-size: 12px;
     color: #cbd5e1;
-    margin-left: 6px;
+    margin-left: 8px;
 }
 
 .modal-footer {
     display: flex;
     flex-direction: row;
     justify-content: flex-end;
-    margin-top: 16px;
-    border-top: 1px solid #1e283b;
-    padding-top: 12px;
+    margin-top: 20px;
+    border-top: 1px solid #1e293b;
+    padding-top: 14px;
 }
 
 /* Settings Layout */
@@ -802,9 +855,9 @@ body {
 }
 
 .settings-sidebar {
-    width: 140px;
-    border-right: 1px solid #1e283b;
-    padding-right: 10px;
+    width: 150px;
+    border-right: 1px solid #1e293b;
+    padding-right: 12px;
     display: flex;
     flex-direction: column;
 }
@@ -813,29 +866,29 @@ body {
     background-color: transparent;
     border: none;
     color: #94a3b8;
-    font-size: 11px;
+    font-size: 12px;
     text-align: left;
-    padding: 6px 8px;
+    padding: 7px 10px;
     margin-bottom: 4px;
-    border-radius: 4px;
+    border-radius: 5px;
 }
 
 .settings-tab-btn.active {
-    background-color: #19263e;
+    background-color: #1e293b;
     color: #00e5ff;
     font-weight: bold;
 }
 
 .settings-panel {
     flex: 1;
-    padding-left: 16px;
+    padding-left: 18px;
 }
 
 .setting-heading {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
-    color: #f8fafc;
-    margin-bottom: 10px;
+    color: #ffffff;
+    margin-bottom: 12px;
     display: block;
 }
 
@@ -843,22 +896,23 @@ body {
    Bottom Status Bar
    -------------------------------------------------------------------------- */
 #statusbar {
-    height: 24px;
-    background-color: #0d121c;
-    border-top: 1px solid #182233;
-    padding: 0 14px;
+    height: 26px;
+    background-color: #0f172a;
+    border-top: 1px solid #1e293b;
+    padding: 0 16px;
     display: flex;
     flex-direction: row;
     align-items: center;
 }
 
 .status-item {
-    font-size: 9px;
+    font-size: 10px;
     color: #64748b;
-    margin-right: 18px;
+    margin-right: 20px;
 }
 
 .status-item.right {
     margin-left: auto;
     color: #00e5ff;
+    font-weight: bold;
 }
