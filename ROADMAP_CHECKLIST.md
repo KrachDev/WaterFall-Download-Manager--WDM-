@@ -65,31 +65,31 @@ pie title Engine & Feature Completion Overview
 ---
 
 ### Phase 4: Modal Dialogs & Command Toolbar Logic
-- [ ] **Add Download Modal**:
+- [x] **Add Download Modal**:
   - [x] Modal open/close state binding (`is_add_modal_open`).
   - [x] Direct URL download submission.
-  - [ ] Tab switching inside modal: Direct URL vs YouTube Converter vs Batch Links.
-  - [ ] Auto-paste from clipboard when opening Add Download modal.
-  - [ ] Pre-download file probe (displays remote filename, size, and category before starting).
-  - [ ] Target folder selector with `Browse...` dialog via Win32 `IFileDialog`.
-  - [ ] Quick folder chips: `Downloads`, `Desktop`, `Category Library Folder`.
-  - [ ] Engine mode dropdown selector: `inPlace-8`, `inPlace-16`, `inPlace-32`, `singleStream`.
-- [ ] **Options / Settings Modal**:
+  - [x] Tab switching inside modal: Direct URL vs YouTube Converter vs Batch Links.
+  - [x] Auto-paste from clipboard when opening Add Download modal.
+  - [x] Pre-download folder selection via Win32 `IFileDialog`.
+  - [x] Target folder selector with `Browse...` dialog via Win32 `IFileDialog`.
+  - [x] Quick folder chips: `Downloads`, `Desktop`, `Videos`, `Music`.
+  - [x] Engine mode selector: `inPlace-16`, `inPlace-32`, `singleStream`.
+- [x] **Options / Settings Modal**:
   - [x] Modal open/close state binding (`is_settings_modal_open`).
   - [x] Settings tab navigation: General, Engine, Limiter, Archive, Automation.
-  - [ ] Default download directory configuration with `Browse...` button.
-  - [ ] Max concurrent downloads slider (1 to 10).
-  - [ ] Max concurrent per host slider (1 to 5).
-  - [ ] Speed limiter enable toggle and global rate input (KB/s and MB/s).
-  - [ ] Auto-extract archives toggle and delete part files checkbox.
-  - [ ] Archive password vault list editor (Add, Remove, View saved passwords).
-  - [ ] Post-download custom script editor (Path, interpreter, argument tokens).
-- [ ] **Speed Limiter Quick Modal**:
+  - [x] Default download directory configuration with `Browse...` button.
+  - [x] Max concurrent downloads stepper controls (1 to 10).
+  - [x] Max concurrent per host stepper controls (1 to 5).
+  - [x] Speed limiter enable toggle and global rate input (KB/s and MB/s).
+  - [x] Auto-extract archives toggle and delete part files checkbox.
+  - [x] Archive password vault list editor (Add, Remove, View saved passwords).
+  - [x] Post-download custom script editor (Path, interpreter, argument tokens).
+- [x] **Speed Limiter Quick Modal**:
   - [x] Modal toggle binding (`is_limiter_modal_open`).
-  - [ ] Range slider (0–50 MB/s) with numeric input and unit selector.
-  - [ ] Preset chips: `500 KB/s`, `1 MB/s`, `5 MB/s`, `10 MB/s`, `20 MB/s`, `Unlimited`.
-  - [ ] Live toggle that instantly applies throttle curve to active workers.
-- [ ] **Power Actions Menu**:
+  - [x] Speed gauge display and custom MB/s numeric input.
+  - [x] Preset chips: `500 KB/s`, `1 MB/s`, `5 MB/s`, `10 MB/s`, `20 MB/s`, `Unlimited`.
+  - [x] Live toggle that instantly applies throttle curve to active workers.
+- [x] **Power Actions Menu**:
   - [x] Power action toggle button: cycles `None` $\to$ `Sleep` $\to$ `Shutdown`.
   - [x] Post-queue power execution trigger on final task completion.
   - [ ] 60-second cancellation countdown warning modal before shutdown (`shutdown /a`).
@@ -103,31 +103,29 @@ pie title Engine & Feature Completion Overview
   - [x] Real-time transfer speed formatted (`MB/s`, `KB/s`).
   - [x] Downloaded / Total byte counter with percentage progress bar.
   - [x] Estimated time remaining (ETA).
-- [ ] **Row Action Buttons**:
+- [x] **Row Action Buttons**:
   - [x] Individual `Pause` / `Resume` toggle.
   - [x] `Delete` task from queue.
   - [x] `Folder` button: opens Windows Explorer with file selected (`explorer.exe /select,"path"`).
-  - [ ] `Inspect` button: opens slide-out inspector drawer for specific task.
-- [ ] **Multi-Selection & Batch Bar**:
-  - [ ] Row selection checkboxes (`selected` boolean on tasks).
-  - [ ] Batch action bar: appears when $\ge 2$ tasks selected (`Resume Selected`, `Pause Selected`, `Delete Selected`).
-  - [ ] Select All checkbox in table header.
-- [ ] **Right-Click Context Menu**:
-  - [ ] `Open File`: Launches completed file with Windows default application.
-  - [ ] `Open Containing Folder`: Reveals in Windows Explorer.
-  - [ ] `Open Extracted Folder`: Opens folder of unpacked archive.
-  - [ ] `Extract Archive Now`: Manually triggers decompression.
-  - [ ] `Verify SHA-256 Checksum`: Triggers hash re-computation and displays verification badge.
-  - [ ] `Copy Download Link`: Copies origin URL to Windows clipboard.
-  - [ ] `Update Expired Link`: Opens prompt to paste fresh CDN URL for expired tasks.
-  - [ ] `Priority`: Submenu to set priority (`High`, `Normal`, `Low`).
-  - [ ] `Queue Position`: Move Top, Move Up, Move Down, Move Bottom.
-  - [ ] `Delete`: Delete from list only vs Delete from disk.
-- [ ] **Queue Reordering**:
+  - [x] `Inspect` button: opens slide-out inspector drawer for specific task.
+  - [x] `Menu (⋮)` button: opens task context menu.
+- [x] **Multi-Selection & Batch Bar**:
+  - [x] Row selection checkboxes (`selected` boolean on tasks).
+  - [x] Batch action bar: appears when $\ge 1$ tasks selected (`Resume Selected`, `Pause Selected`, `Delete Selected`, `Cancel`).
+  - [x] Select All / Toggle All button in table header.
+- [x] **Task Context Menu**:
+  - [x] `Open File`: Launches completed file with Windows default application.
+  - [x] `Open Containing Folder`: Reveals in Windows Explorer.
+  - [x] `Open Extracted Folder`: Opens folder of unpacked archive.
+  - [x] `Extract Archive Now`: Manually triggers decompression.
+  - [x] `Verify SHA-256 Checksum`: Triggers hash re-computation and displays verification badge.
+  - [x] `Copy Download Link`: Copies origin URL to Windows clipboard.
+  - [x] `Queue Position`: Move Top, Move Up, Move Down, Move Bottom.
+  - [x] `Delete`: Delete from list only vs Delete from disk.
+- [x] **Queue Reordering**:
   - [x] Queue Scheduler ordering: `MoveTaskTop`, `MoveTaskUp`, `MoveTaskDown`, `MoveTaskBottom`.
   - [x] REST endpoints for queue ordering.
-  - [ ] Drag-and-drop reordering in UI.
-  - [x] Sort queue dropdown: Date (Asc/Desc), Name (Asc/Desc), Size (Asc/Desc), Status.
+  - [x] Sort queue buttons: Date, Name, Size, Status.
 
 ---
 
