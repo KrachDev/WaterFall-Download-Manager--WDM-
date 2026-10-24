@@ -616,12 +616,16 @@ void UiManager::Run() {
 
 void UiManager::Shutdown() {
     if (is_running_) {
+        is_running_ = false;
         if (context_) {
+            if (document_) {
+                document_->Close();
+                document_ = nullptr;
+            }
             Rml::Shutdown();
             context_ = nullptr;
         }
         Backend::Shutdown();
-        is_running_ = false;
     }
 }
 

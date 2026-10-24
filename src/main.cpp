@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
     if (ui_manager.Initialize(1180, 720)) {
         std::cout << "[UI] Native GPU interface started successfully." << std::endl;
         ui_manager.Run();
+        ui_manager.Shutdown();
     } else {
         std::cerr << "[UI] Failed to start user interface." << std::endl;
     }
