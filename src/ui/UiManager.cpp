@@ -6,6 +6,7 @@
 #include "waterfall/core/ArchiveEngine.hpp"
 #include "waterfall/core/CrawlerEngine.hpp"
 #include "waterfall/core/QueueScheduler.hpp"
+#include "waterfall/core/ShellIntegration.hpp"
 
 #include <RmlUi/Core.h>
 #include "RmlUi_Backend.h"
@@ -157,6 +158,10 @@ static bool g_is_settings_modal_open = false;
 static bool g_is_limiter_modal_open = false;
 static bool g_is_inspector_open = false;
 static bool g_is_context_menu_open = false;
+static bool g_is_password_modal_open = false;
+static int g_password_modal_task_id = 0;
+static Rml::String g_password_modal_filename = "--";
+static Rml::String g_password_modal_input = "";
 
 // Task Context Menu details
 static int g_context_task_id = 0;
@@ -348,6 +353,29 @@ static void RefreshModelData() {
         }
     }
 
+    // Update Windows Taskbar (ITaskbarList3) Progress
+    uint64_t sum_done = 0;
+    uint64_t sum_total = 0;
+    bool has_active = false;
+    bool has_paused = false;
+    for (const auto& t : tasks) {
+        if (t.status == core::TaskStatus::Downloading || t.status == core::TaskStatus::Probing) {
+            has_active = true;
+            sum_done += static_cast<uint64_t>(t.downloaded_bytes);
+            sum_total += static_cast<uint64_t>(t.total_bytes);
+        } else if (t.status == core::TaskStatus::Paused) {
+            has_paused = true;
+        }
+    }
+
+    if (has_active && sum_total > 0) {
+        core::ShellIntegration::Instance().SetTaskbarProgress(sum_done, sum_total, core::TaskbarProgressState::Normal);
+    } else if (has_paused && sum_total > 0) {
+        core::ShellIntegration::Instance().SetTaskbarProgress(sum_done, sum_total, core::TaskbarProgressState::Paused);
+    } else {
+        core::ShellIntegration::Instance().SetTaskbarProgress(0, 0, core::TaskbarProgressState::NoProgress);
+    }
+
     if (g_model_handle) {
         g_model_handle.DirtyVariable("tasks");
         g_model_handle.DirtyVariable("grabber_packages");
@@ -369,6 +397,9 @@ static void RefreshModelData() {
         g_model_handle.DirtyVariable("is_limiter_modal_open");
         g_model_handle.DirtyVariable("is_inspector_open");
         g_model_handle.DirtyVariable("is_context_menu_open");
+        g_model_handle.DirtyVariable("is_password_modal_open");
+        g_model_handle.DirtyVariable("password_modal_filename");
+        g_model_handle.DirtyVariable("password_modal_input");
         g_model_handle.DirtyVariable("context_task_filename");
         g_model_handle.DirtyVariable("context_task_info");
         g_model_handle.DirtyVariable("limiter_enabled");
@@ -455,6 +486,9 @@ bool UiManager::Initialize(int width, int height) {
     // Load main presentation document
     LoadDocument();
 
+    HWND hwnd = FindWindowW(nullptr, L"🌊 Waterfall Accelerator v2.0 (Native C++20)");
+    core::ShellIntegration::Instance().Initialize(hwnd);
+
     is_running_ = true;
     return true;
 }
@@ -531,6 +565,9 @@ void UiManager::SetupDataModel() {
     constructor.Bind("is_limiter_modal_open", &g_is_limiter_modal_open);
     constructor.Bind("is_inspector_open", &g_is_inspector_open);
     constructor.Bind("is_context_menu_open", &g_is_context_menu_open);
+    constructor.Bind("is_password_modal_open", &g_is_password_modal_open);
+    constructor.Bind("password_modal_filename", &g_password_modal_filename);
+    constructor.Bind("password_modal_input", &g_password_modal_input);
 
     // Bind context menu details
     constructor.Bind("context_task_filename", &g_context_task_filename);
@@ -1089,6 +1126,54 @@ void UiManager::SetupDataModel() {
         }
     });
 
+    constructor.BindEventCallback("open_extracted", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            int id = args[0].Get<int>();
+            auto* t = core::DownloadManager::Instance().GetTaskPtr(id);
+            if (t && !t->save_path.empty()) {
+                std::string parent = t->save_path.substr(0, t->save_path.find_last_of("\\/"));
+                ShellExecuteA(nullptr, "open", parent.c_str(), nullptr, nullptr, SW_SHOW);
+            }
+        }
+    });
+
+    constructor.BindEventCallback("open_password_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+        if (!args.empty()) {
+            int id = args[0].Get<int>();
+            auto* t = core::DownloadManager::Instance().GetTaskPtr(id);
+            if (t) {
+                g_password_modal_task_id = id;
+                g_password_modal_filename = t->filename.c_str();
+                g_password_modal_input = "";
+                g_is_password_modal_open = true;
+                RefreshModelData();
+            }
+        }
+    });
+
+    constructor.BindEventCallback("close_password_modal", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        g_is_password_modal_open = false;
+        RefreshModelData();
+    });
+
+    constructor.BindEventCallback("submit_archive_password", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
+        std::string pwd = g_password_modal_input.c_str();
+        if (!pwd.empty()) {
+            core::ConfigManager::Instance().AddArchivePassword(pwd);
+            auto* t = core::DownloadManager::Instance().GetTaskPtr(g_password_modal_task_id);
+            if (t && !t->save_path.empty()) {
+                std::string path = t->save_path;
+                std::thread([path, pwd]() {
+                    std::string parent = path.substr(0, path.find_last_of("\\/"));
+                    std::string err;
+                    core::ArchiveEngine::Instance().UnpackArchive(path, parent, {pwd}, false, {path}, [](float){}, err);
+                }).detach();
+            }
+        }
+        g_is_password_modal_open = false;
+        RefreshModelData();
+    });
+
     constructor.BindEventCallback("toggle_inspector", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             int id = args[0].Get<int>();
@@ -1223,6 +1308,11 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("media_probe", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {
         std::string url = g_media_url_input.c_str();
         std::cout << "[C++ Media Engine] Probing YouTube / yt-dlp metadata for: " << url << std::endl;
+        g_media_title = "Probing video stream metadata with yt-dlp...";
+        g_media_author = "Analyzing...";
+        g_media_duration = "--:--";
+        RefreshModelData();
+
         std::thread([url]() {
             auto meta = core::MediaEngine::Instance().ProbeMedia(url);
             if (meta.is_valid) {
@@ -1230,6 +1320,10 @@ void UiManager::SetupDataModel() {
                 g_media_author = meta.uploader.c_str();
                 g_media_duration = meta.duration.c_str();
                 std::cout << "[C++ Media Engine] Probed title: " << meta.title << std::endl;
+            } else {
+                g_media_title = "Media Probe Error: Stream unavailable or yt-dlp missing";
+                g_media_author = "Error";
+                g_media_duration = "--:--";
             }
             RefreshModelData();
         }).detach();

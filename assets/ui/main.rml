@@ -145,6 +145,7 @@
                                         <button class="btn-action" data-event-click="resume_download(task.id)">Resume</button>
                                         <button class="btn-action" data-event-click="pause_download(task.id)">Pause</button>
                                         <button class="btn-action" data-event-click="open_folder(task.id)">Folder</button>
+                                        <button class="btn-action" data-if="task.category_id == 1" data-event-click="open_extracted(task.id)">📦 Extracted</button>
                                         <button class="btn-action inspect" data-event-click="toggle_inspector(task.id)">Inspect</button>
                                         <button class="btn-action menu-btn" data-event-click="open_task_menu(task.id)">⋮ Menu</button>
                                         <button class="btn-action danger" data-event-click="delete_download(task.id)">Delete</button>
@@ -222,10 +223,10 @@
 
                             <span class="format-label">SELECT EXTRACTION FORMAT:</span>
                             <div class="format-chips">
-                                <button class="chip-btn active" data-event-click="set_media_format('mp4_4k')">4K Video (2160p HDR)</button>
-                                <button class="chip-btn" data-event-click="set_media_format('mp4_1080p')">1080p Full HD</button>
-                                <button class="chip-btn" data-event-click="set_media_format('mp3_320k')">MP3 Audio (320kbps)</button>
-                                <button class="chip-btn" data-event-click="set_media_format('flac')">FLAC Lossless</button>
+                                <button class="chip-btn" data-class-active="media_format == 'mp4-best'" data-event-click="set_media_format('mp4-best')">4K Video (2160p HDR)</button>
+                                <button class="chip-btn" data-class-active="media_format == 'mp4-1080'" data-event-click="set_media_format('mp4-1080')">1080p Full HD</button>
+                                <button class="chip-btn" data-class-active="media_format == 'mp3-320'" data-event-click="set_media_format('mp3-320')">MP3 Audio (320kbps)</button>
+                                <button class="chip-btn" data-class-active="media_format == 'flac'" data-event-click="set_media_format('flac')">FLAC Lossless</button>
                             </div>
 
                             <button class="btn-primary-large" data-event-click="media_download()">⚡ Download Media Stream</button>
@@ -547,6 +548,34 @@
             </div>
             <div class="modal-footer" style="margin-top: 10px; padding-top: 8px;">
                 <button class="tb-btn" data-event-click="close_context_menu()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- MODAL 5: ARCHIVE PASSWORD REQUIRED MODAL                                -->
+    <!-- ======================================================================= -->
+    <div class="modal-backdrop" data-if="is_password_modal_open">
+        <div class="modal-card small">
+            <div class="modal-header">
+                <span class="modal-title">🔐 ARCHIVE PASSWORD REQUIRED</span>
+                <button class="btn-close" data-event-click="close_password_modal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <span class="input-label">ARCHIVE FILE</span>
+                <span class="ins-val bold" style="margin-bottom: 12px;">{{password_modal_filename}}</span>
+
+                <span class="input-label">ENTER DECRYPTION PASSWORD</span>
+                <input type="text" class="modal-input" placeholder="Archive password..." data-value="password_modal_input"/>
+
+                <div class="checkbox-row" style="margin-top: 10px;">
+                    <input type="checkbox" checked="checked"/>
+                    <span class="checkbox-label">Remember password in Vault for future archives</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="tb-btn" data-event-click="close_password_modal()">Cancel</button>
+                <button class="tb-btn primary" data-event-click="submit_archive_password()">⚡ Extract Archive</button>
             </div>
         </div>
     </div>

@@ -27,6 +27,10 @@ ShellIntegration& ShellIntegration::Instance() {
 ShellIntegration::ShellIntegration() = default;
 
 ShellIntegration::~ShellIntegration() {
+    if (taskbar_) {
+        taskbar_->Release();
+        taskbar_ = nullptr;
+    }
     if (tray_initialized_) {
         Shell_NotifyIconW(NIM_DELETE, &nid_);
         tray_initialized_ = false;
@@ -47,6 +51,31 @@ void ShellIntegration::Initialize(HWND hwnd) {
         nid_.uVersion = NOTIFYICON_VERSION_4;
         Shell_NotifyIconW(NIM_SETVERSION, &nid_);
         tray_initialized_ = true;
+    }
+
+    if (!taskbar_) {
+        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        if (SUCCEEDED(CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&taskbar_)))) {
+            taskbar_->HrInit();
+        }
+    }
+}
+
+void ShellIntegration::SetTaskbarProgress(uint64_t completed, uint64_t total, TaskbarProgressState state) {
+    if (!taskbar_ || !hwnd_) return;
+
+    TBPFLAG flag = TBPF_NOPROGRESS;
+    switch (state) {
+        case TaskbarProgressState::Normal: flag = TBPF_NORMAL; break;
+        case TaskbarProgressState::Paused: flag = TBPF_PAUSED; break;
+        case TaskbarProgressState::Error: flag = TBPF_ERROR; break;
+        case TaskbarProgressState::Indeterminate: flag = TBPF_INDETERMINATE; break;
+        default: flag = TBPF_NOPROGRESS; break;
+    }
+
+    taskbar_->SetProgressState(hwnd_, flag);
+    if (flag == TBPF_NORMAL || flag == TBPF_PAUSED) {
+        taskbar_->SetProgressValue(hwnd_, completed, total > 0 ? total : 1);
     }
 }
 

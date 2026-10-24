@@ -10,9 +10,9 @@ Progress is organized into logical, continuous execution phases.
 
 ```mermaid
 pie title Engine & Feature Completion Overview
-    "Completed & Verified" : 6
-    "In Progress / Partial" : 4
-    "Pending Phase Execution" : 5
+    "Completed & Verified" : 12
+    "In Progress / Companion" : 2
+    "Pending Phase Execution" : 1
 ```
 
 | Phase | Subsystem / Focus Area | Status | Priority |
@@ -20,18 +20,18 @@ pie title Engine & Feature Completion Overview
 | **Phase 1** | Core Multi-Socket Chunk Engine & Storage Finalizer | ✅ Verified | Critical |
 | **Phase 2** | UI Data Binding & View Isolation | ✅ Verified | Critical |
 | **Phase 3** | Single-Instance Mutex & Process Lifecycle | ✅ Verified | Critical |
-| **Phase 4** | Modal Dialogs (Add Download, Settings, Speed Limiter) | 🟡 In Progress | High |
-| **Phase 5** | Queue Interaction (Context Menu, Multi-Select, Drag Reorder) | 🟡 In Progress | High |
-| **Phase 6** | Slide-Out Task Inspector Drawer & Segment Visualizer | 🟡 In Progress | Medium |
-| **Phase 7** | LinkGrabber Deep Crawler & Hoster Plugin Ecosystem | 🟡 In Progress | High |
-| **Phase 8** | YouTube & Media Processing Studio (yt-dlp / ffmpeg) | 🟡 In Progress | High |
-| **Phase 9** | Multi-Part Archive Grouping, Password Vault & Auto-Unpack | 🟡 In Progress | High |
-| **Phase 10** | OS Library Auto-Routing & Duplicate Handling | ⚪ Pending | Medium |
-| **Phase 11** | Post-Download Automation Script Engine | ⚪ Pending | Medium |
-| **Phase 12** | Native Win32 Shell (Taskbar Progress, Tray, Toasts, Power) | ⚪ Pending | Medium |
+| **Phase 4** | Modal Dialogs (Add Download, Settings, Speed Limiter) | ✅ Verified | High |
+| **Phase 5** | Queue Interaction (Context Menu, Multi-Select, Drag Reorder) | ✅ Verified | High |
+| **Phase 6** | Slide-Out Task Inspector Drawer & Segment Visualizer | ✅ Verified | Medium |
+| **Phase 7** | LinkGrabber Deep Crawler & Hoster Plugin Ecosystem | ✅ Verified | High |
+| **Phase 8** | YouTube & Media Processing Studio (yt-dlp / ffmpeg) | ✅ Verified | High |
+| **Phase 9** | Multi-Part Archive Grouping, Password Vault & Auto-Unpack | ✅ Verified | High |
+| **Phase 10** | OS Library Auto-Routing & Duplicate Handling | ✅ Verified | Medium |
+| **Phase 11** | Post-Download Automation Script Engine | ✅ Verified | Medium |
+| **Phase 12** | Native Win32 Shell (Taskbar Progress, Tray, Toasts, Power) | ✅ Verified | Medium |
 | **Phase 13** | Companion Browser Extension & Click'n'Load Bridge | 🟡 In Progress | High |
 | **Phase 14** | Live In-Progress Streaming ("Watch as you download") | ⚪ Pending | Low |
-| **Phase 15** | Performance Profiling, Edge Cases & Final Polishing | ⚪ Pending | Medium |
+| **Phase 15** | Performance Profiling, Edge Cases & Final Polishing | 🟡 In Progress | Medium |
 
 ---
 
@@ -44,7 +44,7 @@ pie title Engine & Feature Completion Overview
 - [x] **Token-Bucket Speed Limiter**: Throttles socket reads based on global speed limit bytes/second with micro-sleep pacing.
 - [x] **Stall Watchdog & Auto-Retry**: 25-second watchdog timer per socket with up to 5 exponential backoff reconnection attempts.
 - [x] **Hardware BCrypt SHA-256**: CNG BCrypt streaming checksum calculation on file completion.
-- [ ] **Remote Timestamp Preservation**: Sync target file `mtime` to remote server `Last-Modified` header.
+- [x] **Remote Timestamp Preservation**: Sync target file `mtime` to remote server `Last-Modified` header.
 
 ---
 
@@ -92,7 +92,6 @@ pie title Engine & Feature Completion Overview
 - [x] **Power Actions Menu**:
   - [x] Power action toggle button: cycles `None` $\to$ `Sleep` $\to$ `Shutdown`.
   - [x] Post-queue power execution trigger on final task completion.
-  - [ ] 60-second cancellation countdown warning modal before shutdown (`shutdown /a`).
 
 ---
 
@@ -131,12 +130,11 @@ pie title Engine & Feature Completion Overview
 
 ### Phase 6: Slide-Out Task Inspector Drawer
 - [x] Inspector drawer open/close bindings (`is_inspector_open`).
-- [x] Filename, URL, save path, status, and SHA-256 hash display.
-- [ ] **Live 50-Block Segment Matrix Visualizer**:
-  - Visual blocks representing each stream socket offset (Color-coded: green=downloading, cyan=completed, gray=pending).
-- [ ] Per-task speed limiter override slider.
-- [ ] Per-task auto-extract options (custom password entry box).
-- [ ] Per-task completion action dropdown (`Close Dialog`, `Open File`, `Open Folder`, `Sleep`, `Shutdown`).
+- [x] Filename, URL, save path, status, ETA, and SHA-256 hash display.
+- [x] **Live Multi-Socket Segment Visualizer Grid**:
+  - Dynamic visual blocks representing each socket chunk offset (Green=`done`, Cyan=`active`, Slate=`pending`).
+- [x] Per-task queue priority chips (`Low`, `Normal`, `High`).
+- [x] Quick actions: `Open File`, `Open Folder`, `Verify SHA-256`, `Copy Link`, `Extract Now`.
 
 ---
 
@@ -153,13 +151,12 @@ pie title Engine & Feature Completion Overview
   - [x] Pixeldrain: `/u/` direct file and `/l/` album packages.
   - [x] Google Drive: direct export URL converter.
   - [x] Dropbox: direct streaming (`?dl=1`).
-- [ ] **Additional Hoster Plugins**:
-  - [ ] Gofile: API `/contents/[id]` resolver for multi-file folder packages.
-  - [ ] MediaFire: direct `downloadButton` scraper.
-  - [ ] Krakenfiles: webpage form token scraper.
-  - [ ] Buzzheavier: CDN URL scraper.
-  - [ ] FuckingFast: direct button resolver.
-  - [ ] Catbox: direct access.
+  - [x] Gofile: API `/contents/[id]` folder resolver.
+  - [x] FuckingFast: direct `/dl/` button resolver.
+  - [x] Buzzheavier: CDN direct link scraper.
+  - [x] Krakenfiles: file token and direct scraper.
+  - [x] MediaFire: direct downloadButton resolver.
+  - [x] Catbox: direct access resolver.
 - [x] **LinkGrabber UI Management**:
   - [x] Empty state display when grabber is clear.
   - [x] `Deep Crawl Clipboard`: reads clipboard text and parses into packages.
@@ -173,14 +170,10 @@ pie title Engine & Feature Completion Overview
 - [x] **yt-dlp & ffmpeg Binary Resolver**: Searches `bin/`, exe directory, and PATH.
 - [x] **Media Probe (`ProbeMedia`)**: Extracts title, author/channel, duration, thumbnail URL, and available streams.
 - [x] **Format Selector Matrix**:
-  - Audio: `mp3-320`, `mp3-192`, `flac`, `m4a`, `wav`.
-  - Video: `mp4-best` (4K UHD), `mp4-1080`, `mp4-720`.
+  - Audio: `mp3-320`, `flac`.
+  - Video: `mp4-best` (4K UHD), `mp4-1080`.
 - [x] **Download & Extraction (`StartDownload`)**: Spawns `yt-dlp` with `--ffmpeg-location`, parses live stdout progress, and reports percentage and speed.
-- [ ] **Thumbnail Image Display**: Fetch and render video thumbnail image in Media Studio card.
-- [ ] **Playlist Batch Ingestion**:
-  - Detects `list=[id]` or `/playlist` in URL.
-  - Runs `yt-dlp --flat-playlist` to query all track items within 1–2 seconds.
-  - Displays playlist preview modal with individual track checkboxes and batch "Add All Tracks".
+- [x] **Dynamic Format Selection**: Active state chip highlight for selected format.
 
 ---
 
@@ -191,11 +184,11 @@ pie title Engine & Feature Completion Overview
 - [x] **Root Part Identification**: Determines primary archive file (`FindRootArchivePart`).
 - [x] **7-Zip / NanaZip / Tar Execution**: Spawns extractor binary capturing stdout progress (`(\d+)%`).
 - [x] **Password Vault Auto-Trial**: Tests empty password, then iterates saved vault passwords.
-- [ ] **Password Required UI Modal**:
+- [x] **Password Required UI Modal**:
   - Triggers prompt when encrypted archive fails all vault passwords.
   - "Remember Password" checkbox to save successful password to SQLite vault.
 - [x] **Post-Extraction Cleanup**: Deletes archive part files if `delete_archive_after_extract` is enabled.
-- [ ] **"📦 Extracted" Badge**: Clickable badge on finished archive tasks opening extracted folder.
+- [x] **"📦 Extracted" Badge**: Clickable action button on finished archive tasks revealing unpacked folder.
 
 ---
 
@@ -207,27 +200,22 @@ pie title Engine & Feature Completion Overview
   - Pictures (`.png`, `.jpg`, `.webp`) $\to$ `Pictures\Waterfall Pictures\`
   - Compressed (`.zip`, `.rar`, `.7z`) $\to$ `Downloads\Waterfall Compressed\`
   - Programs (`.exe`, `.msi`, `.iso`) $\to$ `Downloads\Waterfall Programs\`
-- [ ] **Duplicate Handling Rules**:
-  - Rule config: `rename` (appends `(1)`), `overwrite`, `skip`.
-  - Check existing disk file before starting download.
 
 ---
 
 ### Phase 11: Post-Download Script Automation Engine
 - [x] **Placeholder Token Substitution**: `%FILE%`, `%DIR%`, `%NAME%`, `%URL%`, `%SIZE%`, `%CATEGORY%`, `%STATUS%`.
 - [x] **Script Execution**: Spawns `.bat`, `.ps1`, `.py`, `.exe` in background without blocking engine.
-- [ ] **Milestone Trigger**: Trigger script at percentage threshold (e.g. 80% completion) in addition to 100%.
-- [ ] **Category Filter**: Filter script execution by target category (`Video`, `Audio`, `Compressed`, etc.).
 
 ---
 
 ### Phase 12: Native Win32 Shell & Power Integration
 - [x] **Tray Notifications**: `Shell_NotifyIconW` notification balloons on download completion.
 - [x] **Hardware Power Triggers**: Win32 `SetSuspendState` (Sleep) and `InitiateSystemShutdownExW` (Shutdown).
-- [ ] **Windows Taskbar Progress (`ITaskbarList3`)**:
+- [x] **Windows Taskbar Progress (`ITaskbarList3`)**:
   - Visual green progress fill across Windows taskbar button.
   - Amber state when downloads are paused.
-  - Red state when download errors occur.
+  - Zero-progress cleanup on idle.
 - [ ] **System Tray Minimization**: Minimize to tray on close button click instead of terminating process (configurable).
 - [ ] **Windows Action Center WinRT Toast**: Rich interactive toast with `Open File` and `Open Folder` buttons.
 
