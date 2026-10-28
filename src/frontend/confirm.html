@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterfall — Download File Info</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    :root {
+      --bg-dlg: #090e1a;
+      --bg-card: #0f172a;
+      --bg-card-sub: #162035;
+      --border-dlg: #1e293b;
+      --border-accent: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-dlg);
+      color: #f8fafc;
+      font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .confirm-window-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      background: var(--bg-dlg);
+    }
+
+    /* Clean Dialog Header Banner (No duplicate window buttons) */
+    .confirm-header {
+      padding: 12px 18px;
+      background: #080c16;
+      border-bottom: 1px solid var(--border-dlg);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .confirm-header-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-cyan, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .confirm-header-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .confirm-header-titles {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .confirm-header-titles h3 {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+    }
+
+    .confirm-header-titles .subtitle {
+      font-size: 0.72rem;
+      color: #64748b;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .confirm-body {
+      flex: 1;
+      padding: 14px 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scrollbar-width: thin;
+      scrollbar-color: #24324d #090e1a;
+    }
+
+    /* Special Media & YouTube Card */
+    .media-card-box {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+
+    .media-card-top {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .media-thumb-img {
+      width: 64px;
+      height: 48px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      flex-shrink: 0;
+    }
+
+    .media-card-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .media-video-title {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #38bdf8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .media-video-author {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .media-quality-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* Metrics Card */
+    .idm-metrics-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-dlg);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    .idm-metric-col {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .idm-metric-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+
+    .idm-metric-val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: var(--font-mono, monospace);
+      color: #f1f5f9;
+    }
+
+    .idm-metric-val.idm-highlight {
+      color: var(--accent-cyan, #38bdf8);
+    }
+
+    .idm-metric-sub {
+      font-size: 0.70rem;
+      color: #94a3b8;
+    }
+
+    /* Inputs and Forms */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .input-label {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+
+    .text-input {
+      background: #0b1120;
+      border: 1px solid var(--border-dlg);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: #f8fafc;
+      font-size: 0.82rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+      width: 100%;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent-cyan, #38bdf8);
+    }
+
+    .folder-chip {
+      background: #111a2e;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      color: #94a3b8;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .folder-chip:hover {
+      background: #1a2744;
+      color: #f8fafc;
+      border-color: #38bdf8;
+    }
+
+    /* Footer */
+    .confirm-footer {
+      padding: 10px 18px;
+      background: #080c16;
+      border-top: 1px solid var(--border-dlg);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-gradient-primary {
+      background: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%) !important;
+      color: #ffffff !important;
+      font-weight: 700 !important;
+      box-shadow: 0 2px 10px rgba(6, 182, 212, 0.35) !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    }
+
+    .btn-gradient-primary:hover {
+      filter: brightness(1.1);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="confirm-window-wrapper">
+    <!-- Window Dialog Header (Clean, Native OS Topbar Above) -->
+    <header class="confirm-header">
+      <div class="confirm-header-icon">
+        <img src="assets/logo.png" alt="Waterfall Logo">
+      </div>
+      <div class="confirm-header-titles">
+        <h3>Download File Info</h3>
+        <div class="subtitle">Waterfall Download Accelerator • Fast Multi-Stream Engine</div>
+      </div>
+      <div id="confirm-category-badge" class="type-badge badge-other" style="padding: 4px 10px; font-size: 0.72rem; border-radius: 4px;">General</div>
+      <button type="button" id="btn-pin-confirm" style="padding: 4px 8px; font-size: 0.72rem; color: #38bdf8; background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.4); border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Always on Top (Top Window): ON">
+        📌 Top
+      </button>
+    </header>
+
+    <!-- Window Body -->
+    <main class="confirm-body">
+      
+      <!-- Duplicate Detection / In-Progress Update Banner -->
+      <div id="duplicate-alert-banner" class="duplicate-notice-card" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 0.78rem;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="dup-alert-icon" style="font-size: 1.1rem;">⚠️</span>
+          <span id="dup-alert-text" style="font-weight: 500;"></span>
+        </div>
+        <div id="dup-alert-actions" style="display: flex; gap: 6px; margin-top: 4px;"></div>
+      </div>
+
+      <!-- Source Address / Server -->
+      <div class="form-group">
+        <label class="input-label" style="display: flex; justify-content: space-between;">
+          <span>Source Address / URL</span>
+          <span id="confirm-server" style="color: #38bdf8; font-family: var(--font-mono); font-size: 0.72rem;"></span>
+        </label>
+        <input type="text" id="confirm-url" class="text-input" readonly style="font-family: var(--font-mono); font-size: 0.76rem; background: rgba(0,0,0,0.3); color: #94a3b8;">
+      </div>
+
+      <!-- SPECIAL MEDIA & YOUTUBE QUALITY PANEL -->
+      <div class="media-card-box" id="confirm-media-box" style="display: none;">
+        <div class="media-card-top">
+          <img id="media-thumb-img" src="assets/logo.png" alt="Video Thumbnail" class="media-thumb-img">
+          <div class="media-card-info">
+            <div id="media-video-title" class="media-video-title">YouTube / Media Stream</div>
+            <div id="media-video-author" class="media-video-author">Channel / Author: Detecting...</div>
+          </div>
+        </div>
+
+        <div class="media-quality-row">
+          <div class="form-group" style="margin: 0;">
+            <label class="input-label" for="confirm-media-format" style="color: #38bdf8;">Media Format & Quality Preset:</label>
+            <select id="confirm-media-format" class="text-input" style="font-weight: 600; color: #fff; background: #070b14;">
+              <option value="video-1080" selected>🎬 Video — 1080p Full HD (MP4 - Video + Audio)</option>
+              <option value="video-720">🎬 Video — 720p HD (MP4)</option>
+              <option value="video-best">🎬 Video — Best Available / 4K (MP4)</option>
+              <option value="audio-320">🎵 Audio — 320 kbps MP3 (Highest Quality)</option>
+              <option value="audio-192">🎵 Audio — 192 kbps MP3 (Standard)</option>
+              <option value="audio-m4a">🎵 Audio — M4A / AAC (Apple Quality)</option>
+              <option value="audio-flac">🎵 Audio — FLAC Lossless</option>
+            </select>
+          </div>
+          <button type="button" class="tool-btn accent-blue" id="btn-watch-now" style="white-space: nowrap; margin-top: 16px; padding: 6px 12px; font-size: 0.76rem;" title="Stream while downloading">
+            ▶ Watch as Download Starts
+          </button>
+        </div>
+      </div>
+
+      <!-- File Name -->
+      <div class="form-group">
+        <label class="input-label" for="confirm-filename">File Name</label>
+        <input type="text" id="confirm-filename" class="text-input" style="font-weight: 600; font-size: 0.88rem; color: #fff;">
+      </div>
+
+      <!-- Performance Metrics: Size & 10-Download Avg ETA -->
+      <div class="idm-metrics-card">
+        <div class="idm-metric-col">
+          <div class="idm-metric-label">FILE SIZE</div>
+          <div class="idm-metric-val" id="confirm-size">Measuring...</div>
+          <div class="idm-metric-sub" id="confirm-resumable">Checking range support...</div>
+        </div>
+        <div class="idm-metric-col">
+          <div class="idm-metric-label">ESTIMATED TIME</div>
+          <div class="idm-metric-val idm-highlight" id="confirm-eta">Calculating...</div>
+          <div class="idm-metric-sub" id="confirm-avg-speed" title="Calculated from your download speed history">Based on last 10 downloads avg</div>
+        </div>
+      </div>
+
+      <!-- Save To Folder -->
+      <div class="form-group">
+        <label class="input-label" for="confirm-folder">Save Destination Folder</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="confirm-folder" class="text-input" style="flex: 1; font-family: var(--font-mono); font-size: 0.78rem;">
+          <button class="tool-btn" id="btn-browse-folder" style="white-space: nowrap; padding: 6px 14px; font-size: 0.78rem;">
+            Browse...
+          </button>
+        </div>
+        <div class="idm-quick-folders" style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;">
+          <button type="button" class="folder-chip" id="chip-downloads">📥 Downloads</button>
+          <button type="button" class="folder-chip" id="chip-desktop">🖥️ Desktop</button>
+          <button type="button" class="folder-chip" id="chip-category">📂 Category Folder</button>
+        </div>
+      </div>
+
+      <!-- Acceleration & Writing Mode -->
+      <div class="form-group">
+        <label class="input-label" for="confirm-engine-mode">Download Acceleration Mode</label>
+        <select id="confirm-engine-mode" class="text-input">
+          <option value="inPlace-8" selected>⚡ In-Place Direct Writing (8 Sockets - Zero Rebuild Lag)</option>
+          <option value="inPlace-16">🚀 High Speed Direct Writing (16 Sockets - Maximum Acceleration)</option>
+          <option value="singleStream">📦 Single Stream / Whole File (1 Socket - No Chunks)</option>
+          <option value="inPlace-4">⚖️ Balanced Direct Writing (4 Sockets - Low Bandwidth)</option>
+        </select>
+      </div>
+
+      <!-- Archive Decompression Options (Conditional) -->
+      <div class="idm-script-toggle-box" id="confirm-extract-box" style="display: none; padding: 10px; background: var(--bg-card); border-radius: 6px; border: 1px solid var(--border-dlg);">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.78rem; font-weight: 500;">
+            <input type="checkbox" id="confirm-enable-extract" checked>
+            <span>Auto-extract archive upon completion</span>
+          </label>
+          <span style="font-size: 0.68rem; color: #38bdf8;">7z / RAR / ZIP</span>
+        </div>
+
+        <div id="confirm-extract-details" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-dlg); display: flex; gap: 8px; align-items: center;">
+          <div style="position: relative; flex: 1;">
+            <input type="password" id="confirm-archive-password" class="text-input" placeholder="Archive Password (optional)" style="font-size: 0.76rem; padding-right: 30px;">
+            <button type="button" class="icon-btn" id="btn-toggle-pwd" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 0.72rem;" title="Show/Hide Password">👁️</button>
+          </div>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: #94a3b8; cursor: pointer; white-space: nowrap;">
+            <input type="checkbox" id="confirm-delete-archive">
+            <span>Delete archive after</span>
+          </label>
+        </div>
+      <!-- Open When Finished Option -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; margin-top: 2px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.78rem; font-weight: 500; color: #cbd5e1; user-select: none;">
+          <input type="checkbox" id="confirm-open-when-done" style="accent-color: #38bdf8; cursor: pointer;">
+          <span>⚡ Open when finished (launch file or folder upon completion)</span>
+        </label>
+      </div>
+
+    </main>
+
+    <!-- Window Footer Action Buttons -->
+    <footer class="confirm-footer">
+      <button class="tool-btn" id="btn-action-cancel" style="padding: 7px 16px; font-size: 0.8rem;">Cancel</button>
+      <div style="display: flex; gap: 8px;">
+        <button class="tool-btn" id="btn-action-later" style="padding: 7px 16px; font-size: 0.8rem;">
+          Download Later
+        </button>
+        <button class="tool-btn primary btn-gradient-primary" id="btn-action-start" style="padding: 7px 22px; font-size: 0.82rem;">
+          ⚡ Start Download Now
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="js/confirm.js"></script>
+</body>
+</html>

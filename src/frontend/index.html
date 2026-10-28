@@ -1,0 +1,2236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterfall — Modern IDM & JDownloader Suite</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/chunk-inspector.css">
+</head>
+<body>
+
+  <!-- Top IDM Tactile Command Toolbar -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon" title="Waterfall High-Speed Download Accelerator">
+        <img src="assets/logo.png" alt="Waterfall Logo" class="brand-logo-img">
+      </div>
+      <div class="brand-text-block">
+        <div class="brand-title-row">
+          <span class="brand-title">WATERFALL</span>
+          <span class="brand-tag">PRO</span>
+        </div>
+        <div class="brand-sub">HIGH-SPEED DOWNLOAD ACCELERATOR</div>
+      </div>
+    </div>    <!-- Quick Action Command Buttons -->
+    <div class="idm-toolbar">
+      <!-- Unified Add Download with Dropdown Menu -->
+      <div class="add-download-dropdown-wrap">
+        <button class="tool-btn primary add-main-btn" id="btn-add-url" title="Add Download (Ctrl+N)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Add Download</span>
+        </button>
+        <button class="tool-btn primary add-chevron-btn" id="btn-add-dropdown-toggle" title="More download sources">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="add-download-dropdown-menu" id="add-download-dropdown-menu">
+          <div class="add-dropdown-item" id="menu-add-direct">
+            <div class="add-item-icon-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Direct URL Download</span>
+              <span class="add-item-sub">HTTP, HTTPS, mirrors with multi-stream acceleration</span>
+            </div>
+            <kbd class="kbd-shortcut">Ctrl+N</kbd>
+          </div>
+          <div class="add-dropdown-item" id="menu-add-youtube">
+            <div class="add-item-icon-box yt-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">YouTube / Media Converter</span>
+              <span class="add-item-sub">Convert video, playlists, 320kbps MP3 audio</span>
+            </div>
+            <span class="add-item-badge yt">HD</span>
+          </div>
+          <div class="add-dropdown-item" id="menu-add-grabber">
+            <div class="add-item-icon-box grabber-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Batch LinkGrabber & Crawler</span>
+              <span class="add-item-sub">Bulk crawl links, packages & container extraction</span>
+            </div>
+            <kbd class="kbd-shortcut">Ctrl+L</kbd>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar-sep"></div>
+
+      <button class="tool-btn" id="btn-resume-all" title="Resume All Downloads">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        Resume All
+      </button>
+
+      <button class="tool-btn" id="btn-pause-all" title="Pause All Downloads">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+        Pause All
+      </button>
+
+      <button class="tool-btn" id="btn-clear-completed" title="Clear Completed Tasks">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        Clear Done
+      </button>
+
+      <button class="tool-btn btn-danger-subtle" id="btn-toolbar-delete" title="Delete Download (Remove from list or permanently delete from disk)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+        Delete
+      </button>
+
+      <!-- Topbar Queue Sorting (Same split & rich dropdown treatment as Add Download) -->
+      <div class="add-download-dropdown-wrap sort-dropdown-wrap" id="topbar-sort-wrap">
+        <button class="tool-btn sort-btn sort-main-btn" id="btn-topbar-sort" title="Queue Sorting (Change order of downloads)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="11" y2="14"></line><line x1="21" y1="18" x2="15" y2="18"></line></svg>
+          <span id="topbar-sort-label">Sort Queue</span>
+        </button>
+        <button class="tool-btn add-chevron-btn sort-chevron-btn" id="btn-topbar-sort-chevron" title="Sorting options">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="add-download-dropdown-menu sort-dropdown-menu" id="topbar-sort-menu">
+          <div class="add-dropdown-item sort-option selected" data-sort="active-first">
+            <div class="add-item-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Active First (Recommended)</span>
+              <span class="add-item-sub">Downloading & assembling tasks stay at top</span>
+            </div>
+            <span class="sort-check">✓</span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="date-desc">
+            <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Date Added (Newest First)</span>
+              <span class="add-item-sub">Most recently added downloads first</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="date-asc">
+            <div class="add-item-icon-box" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 8 14"></polyline></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Date Added (Oldest First)</span>
+              <span class="add-item-sub">Original queue creation order</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="name-asc">
+            <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="8" y2="18"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Name (A → Z)</span>
+              <span class="add-item-sub">Alphabetical ascending order</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="name-desc">
+            <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="8" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Name (Z → A)</span>
+              <span class="add-item-sub">Alphabetical reverse order</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="size-desc">
+            <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Size (Largest First)</span>
+              <span class="add-item-sub">Heaviest files at top</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="size-asc">
+            <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Size (Smallest First)</span>
+              <span class="add-item-sub">Lightest files at top</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="progress-desc">
+            <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Progress (Highest First)</span>
+              <span class="add-item-sub">Closest to 100% completion</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+          <div class="add-dropdown-item sort-option" data-sort="speed-desc">
+            <div class="add-item-icon-box" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Speed (Fastest First)</span>
+              <span class="add-item-sub">Highest active transfer rate</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar-sep"></div>
+
+      <button class="tool-btn" id="btn-settings" title="Options & Directory Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        Options
+      </button>
+
+      <button class="tool-btn" id="btn-pin-top" title="Pin Waterfall on Top of other windows (Toggle Always-on-Top)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-2l-2-3V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v7l-2 3v2z"></path></svg>
+        <span id="pin-top-label">Pin</span>
+      </button>
+
+      <div class="toolbar-sep"></div>
+
+      <!-- Power Management Dropdown (Classic IDM) -->
+      <div class="power-dropdown-wrap">
+        <button class="tool-btn" id="btn-power-menu" title="Queue Completion Action (Shutdown / Sleep)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+          <span id="power-status-label">Power: Off</span>
+        </button>
+        <div class="power-dropdown-menu" id="power-dropdown-menu">
+          <div class="power-option selected" data-power="none">❌ Do Nothing When Done</div>
+          <div class="power-option" data-power="sleep">💤 Sleep PC When Done</div>
+          <div class="power-option" data-power="shutdown">⚡ Shutdown PC When Done</div>
+        </div>
+      </div>
+    </div>   </div>
+  </header>
+
+  <!-- App Body: Sidebar + Main Workspace -->
+  <div class="app-body">
+    
+    <!-- IDM Categories & Navigation Tree -->
+    <aside class="sidebar">
+      <div>
+        <div class="sidebar-group">
+          <div class="sidebar-group-title">Status Tree</div>
+          <div class="nav-link active" data-filter="all">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              All Downloads
+            </div>
+            <span class="nav-badge" id="badge-all">0</span>
+          </div>
+
+          <div class="nav-link" data-filter="downloading">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+              Downloading
+            </div>
+            <span class="nav-badge active-num" id="badge-downloading">0</span>
+          </div>
+
+          <div class="nav-link" data-filter="paused">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="10" y1="15" x2="10" y2="9"></line><line x1="14" y1="15" x2="14" y2="9"></line></svg>
+              Paused / Queued
+            </div>
+            <span class="nav-badge" id="badge-paused">0</span>
+          </div>
+
+          <div class="nav-link" data-filter="completed">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              Finished
+            </div>
+            <span class="nav-badge" id="badge-completed">0</span>
+          </div>
+
+          <div class="nav-link" data-filter="error">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              Canceled / Failed
+            </div>
+            <span class="nav-badge" id="badge-error">0</span>
+          </div>
+
+          <div class="nav-link" data-filter="extracting">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+              Extracting
+            </div>
+            <span class="nav-badge" id="badge-extracting-tab" style="color: #38bdf8;">0</span>
+          </div>
+
+          <div class="nav-link" data-filter="linkgrabber">
+            <div class="nav-link-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              LinkGrabber Staged
+            </div>
+            <span class="nav-badge" id="badge-grabber" style="color: var(--accent-amber);">0</span>
+          </div>
+        </div>
+
+        <!-- IDM File Categories -->
+        <div class="sidebar-group">
+          <div class="sidebar-group-title">File Types</div>
+          
+          <div class="nav-link" data-category="Compressed">
+            <div class="nav-link-left">
+              <span class="type-badge zip">ZIP</span>
+              Compressed (ZIP/RAR)
+            </div>
+            <span class="nav-badge" id="badge-compressed">0</span>
+          </div>
+
+          <div class="nav-link" data-category="Audio">
+            <div class="nav-link-left">
+              <span class="type-badge mus">MP3</span>
+              Music & Audio
+            </div>
+            <span class="nav-badge" id="badge-audio">0</span>
+          </div>
+
+          <div class="nav-link" data-category="Video">
+            <div class="nav-link-left">
+              <span class="type-badge vid">VID</span>
+              Video & YouTube
+            </div>
+            <span class="nav-badge youtube-badge" id="badge-video">0</span>
+          </div>
+
+          <div class="nav-link" data-category="Programs">
+            <div class="nav-link-left">
+              <span class="type-badge exe">APP</span>
+              Programs & Games
+            </div>
+            <span class="nav-badge" id="badge-programs">0</span>
+          </div>
+
+          <div class="nav-link" data-category="Pictures">
+            <div class="nav-link-left">
+              <span class="type-badge pic">IMG</span>
+              Pictures & Photos
+            </div>
+            <span class="nav-badge" id="badge-pictures">0</span>
+          </div>
+
+          <div class="nav-link" data-category="Documents">
+            <div class="nav-link-left">
+              <span class="type-badge doc">DOC</span>
+              Documents
+            </div>
+            <span class="nav-badge" id="badge-documents">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Speed Chart -->
+      <div class="sidebar-chart-box">
+        <div class="chart-header">
+          <span>SPEED MONITOR</span>
+          <span id="graph-peak-text">PEAK: 0 KB/s</span>
+        </div>
+        <canvas id="speed-canvas" width="210" height="58"></canvas>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="content-area">
+      
+      <!-- Content Toolbar -->
+      <div class="content-toolbar">
+        <div class="content-toolbar-left">
+          <div class="search-input-wrap">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="search-input" placeholder="Filter by name, package, hoster...">
+          </div>
+
+          <!-- Quick Toggle: Hide Finished Downloads -->
+          <button class="tool-btn toggle-finished-btn" id="btn-toggle-finished" title="Toggle finished downloads visibility in All Downloads">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+            <span id="label-toggle-finished">Hide Finished</span>
+            <span class="badge-hidden-count" id="badge-finished-hidden" style="display: none;">0</span>
+          </button>
+
+          <!-- Queue Sorting Dropdown Menu -->
+          <div class="sort-dropdown-wrap">
+            <button class="tool-btn sort-btn" id="btn-sort-menu" title="Queue Sorting Options">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="11" y2="14"></line><line x1="21" y1="18" x2="15" y2="18"></line></svg>
+              <span id="sort-status-label">Sort: Active First</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="sort-chevron-icon"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="add-download-dropdown-menu sort-dropdown-menu" id="sort-dropdown-menu">
+              <div class="add-dropdown-item sort-option selected" data-sort="active-first">
+                <div class="add-item-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Active First (Recommended)</span>
+                  <span class="add-item-sub">Downloading & assembling stay at top</span>
+                </div>
+                <span class="sort-check">✓</span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="date-desc">
+                <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Date Added (Newest First)</span>
+                  <span class="add-item-sub">Most recently added downloads first</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="date-asc">
+                <div class="add-item-icon-box" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 8 14"></polyline></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Date Added (Oldest First)</span>
+                  <span class="add-item-sub">Original queue creation order</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="name-asc">
+                <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="8" y2="18"></line></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Name (A → Z)</span>
+                  <span class="add-item-sub">Alphabetical ascending order</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="name-desc">
+                <div class="add-item-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="8" y2="6"></line><line x1="4" y1="12" x2="14" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Name (Z → A)</span>
+                  <span class="add-item-sub">Alphabetical reverse order</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="size-desc">
+                <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Size (Largest First)</span>
+                  <span class="add-item-sub">Heaviest files at top</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="size-asc">
+                <div class="add-item-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Size (Smallest First)</span>
+                  <span class="add-item-sub">Lightest files at top</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="progress-desc">
+                <div class="add-item-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Progress (Highest First)</span>
+                  <span class="add-item-sub">Closest to 100% completion</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+              <div class="add-dropdown-item sort-option" data-sort="speed-desc">
+                <div class="add-item-icon-box" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+                </div>
+                <div class="add-item-text">
+                  <span class="add-item-title">Speed (Fastest First)</span>
+                  <span class="add-item-sub">Highest active transfer rate</span>
+                </div>
+                <span class="sort-check"></span>
+              </div>
+            </div>
+          </div>
+
+          <button class="tool-btn limiter-inline-btn" id="btn-speed-limiter" title="Bandwidth & Speed Limiter (Throttle download speeds)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span id="limiter-status-label">Speed Limit: Off</span>
+          </button>
+        </div>
+
+        <div class="view-mode-tabs">
+          <div class="view-mode-btn active" id="tab-downloads-view">IDM Downloads Queue</div>
+          <div class="view-mode-btn" id="tab-grabber-view">JDownloader LinkGrabber</div>
+        </div>
+      </div>
+
+      <!-- Interactive Filter Tabs Bar (Status & File Categories - Off by default, togglable in Settings) -->
+      <div class="filter-tabs-bar" id="filter-tabs-bar" style="display: none;">
+        <button class="filter-tab active" data-tab-type="status" data-tab-val="all">
+          <span>All</span>
+          <span class="tab-badge" id="tab-count-all">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="status" data-tab-val="completed">
+          <span>✓ Done</span>
+          <span class="tab-badge" id="tab-count-done">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="status" data-tab-val="downloading">
+          <span>⚡ Downloading</span>
+          <span class="tab-badge" id="tab-count-downloading">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="status" data-tab-val="paused">
+          <span>⏸ Paused</span>
+          <span class="tab-badge" id="tab-count-paused">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="status" data-tab-val="error">
+          <span>✕ Canceled</span>
+          <span class="tab-badge" id="tab-count-canceled">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="status" data-tab-val="extracting">
+          <span>📦 Extracting</span>
+          <span class="tab-badge" id="tab-count-extracting">0</span>
+        </button>
+
+        <div class="filter-tab-sep"></div>
+
+        <button class="filter-tab" data-tab-type="category" data-tab-val="Video">
+          <span>🎬 Videos</span>
+          <span class="tab-badge" id="tab-count-video">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="category" data-tab-val="Pictures">
+          <span>🖼️ Photos</span>
+          <span class="tab-badge" id="tab-count-pictures">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="category" data-tab-val="Audio">
+          <span>🎵 Music</span>
+          <span class="tab-badge" id="tab-count-audio">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="category" data-tab-val="Compressed">
+          <span>📦 Archives</span>
+          <span class="tab-badge" id="tab-count-compressed">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="category" data-tab-val="Programs">
+          <span>💻 Programs</span>
+          <span class="tab-badge" id="tab-count-programs">0</span>
+        </button>
+        <button class="filter-tab" data-tab-type="category" data-tab-val="Documents">
+          <span>📄 Docs</span>
+          <span class="tab-badge" id="tab-count-documents">0</span>
+        </button>
+      </div>
+
+      <!-- VIEW 1: IDM Downloads Data Grid -->
+      <div class="batch-bar" id="batch-bar" style="display: none;">
+        <div class="batch-bar-count">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+          <span id="batch-selected-count">0 items selected</span>
+        </div>
+        <div class="batch-actions">
+          <button class="tool-btn" id="btn-batch-resume" title="Resume Selected Tasks">▶️ Resume</button>
+          <button class="tool-btn" id="btn-batch-pause" title="Pause Selected Tasks">⏸️ Pause</button>
+          <button class="tool-btn danger" id="btn-batch-delete" title="Delete Selected Tasks">🗑️ Delete</button>
+        </div>
+      </div>
+
+      <div class="table-viewport" id="downloads-view-panel">
+        <table class="downloads-table" id="downloads-table">
+          <colgroup id="downloads-colgroup">
+            <col style="width: 36px;" data-col="select">
+            <col style="width: 270px;" data-col="name">
+            <col style="width: 95px;" data-col="size">
+            <col style="width: 105px;" data-col="status">
+            <col style="width: 175px;" data-col="progress">
+            <col style="width: 95px;" data-col="speed">
+            <col style="width: 165px;" data-col="finish">
+            <col style="width: 90px;" data-col="hoster">
+            <col style="width: 145px;" data-col="actions">
+          </colgroup>
+          <thead>
+            <tr>
+              <th style="width: 36px;"><input type="checkbox" id="check-select-all-downloads"></th>
+              <th data-col="name" class="resizable-th sortable-th" title="Click to sort by File Name">
+                <span class="th-content">
+                  <span class="th-title">File Name</span>
+                  <span class="sort-arrow" data-col="name"></span>
+                </span>
+                <div class="col-resize-handle" data-col="name" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="size" class="resizable-th sortable-th" title="Click to sort by Size">
+                <span class="th-content">
+                  <span class="th-title">Size</span>
+                  <span class="sort-arrow" data-col="size"></span>
+                </span>
+                <div class="col-resize-handle" data-col="size" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="status" class="resizable-th sortable-th" title="Click to sort by Status">
+                <span class="th-content">
+                  <span class="th-title">Status</span>
+                  <span class="sort-arrow" data-col="status"></span>
+                </span>
+                <div class="col-resize-handle" data-col="status" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="progress" class="resizable-th sortable-th" title="Click to sort by Progress">
+                <span class="th-content">
+                  <span class="th-title">Progress</span>
+                  <span class="sort-arrow" data-col="progress"></span>
+                </span>
+                <div class="col-resize-handle" data-col="progress" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="speed" class="resizable-th sortable-th" title="Click to sort by Speed">
+                <span class="th-content">
+                  <span class="th-title">Speed</span>
+                  <span class="sort-arrow" data-col="speed"></span>
+                </span>
+                <div class="col-resize-handle" data-col="speed" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="finish" class="resizable-th sortable-th" title="Click to sort by Date Added / Est. Finish">
+                <span class="th-content">
+                  <span class="th-title">Date / Est. Finish</span>
+                  <span class="sort-arrow" data-col="finish"></span>
+                </span>
+                <div class="col-resize-handle" data-col="finish" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="hoster" class="resizable-th sortable-th" title="Click to sort by Hoster">
+                <span class="th-content">
+                  <span class="th-title">Hoster</span>
+                  <span class="sort-arrow" data-col="hoster"></span>
+                </span>
+                <div class="col-resize-handle" data-col="hoster" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+              <th data-col="actions" class="resizable-th" style="text-align: right;">
+                <span class="th-content"><span class="th-title">Actions</span></span>
+                <div class="col-resize-handle" data-col="actions" title="Drag to resize column (Double-click to reset)"></div>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="downloads-table-body">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+
+        <!-- Empty View -->
+        <div class="empty-view" id="empty-downloads-state" style="display: none;">
+          <div class="empty-logo-glow">
+            <img src="assets/logo.png" alt="Waterfall Logo" class="empty-logo-img">
+          </div>
+          <div class="empty-title">Queue is Ready for Downloads</div>
+          <div class="empty-desc">Add direct URLs, download YouTube playlists and audio streams, or crawl links with multi-socket acceleration.</div>
+          <div class="empty-quick-actions">
+            <button class="tool-btn primary" id="empty-btn-add-url">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>Add Download URL</span>
+            </button>
+            <button class="tool-btn" id="empty-btn-yt">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color: #ef4444;"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+              <span>YouTube Converter</span>
+            </button>
+            <button class="tool-btn" id="empty-btn-grabber">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+              <span>Batch LinkGrabber</span>
+            </button>
+          </div>
+          <div class="empty-finished-hint" id="empty-finished-hint" style="display: none; margin-top: 14px; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap;">
+            <button class="tool-btn accent-blue" id="empty-btn-show-finished">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <span>Show Finished Downloads</span>
+            </button>
+            <button class="tool-btn" id="empty-btn-view-finished-tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <span>Go to Finished Tab</span>
+            </button>
+            <button class="tool-btn danger" id="empty-btn-clear-finished">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>Clear Done from List</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 2: JDownloader LinkGrabber Staging Workspace -->
+      <div class="linkgrabber-container" id="grabber-view-panel" style="display: none;">
+        
+        <div class="grabber-input-card">
+          <textarea class="grabber-textarea" id="grabber-raw-text" placeholder="Paste batch links, YouTube videos, MediaFire, Pixeldrain, 1Fichier, raw text containing URLs..."></textarea>
+          
+          <div class="grabber-controls-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="text" class="package-name-input" id="grabber-package-name" placeholder="Package Name (e.g. PS4 Game Pack, Album)">
+              <button class="tool-btn accent-blue" id="btn-crawl-links">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                Analyze & Crawl Links
+              </button>
+            </div>
+
+            <button class="tool-btn" id="btn-paste-clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+              Paste Clipboard
+            </button>
+          </div>
+        </div>
+
+        <div class="grabber-staged-area">
+          <div class="staged-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="checkbox" id="check-grabber-select-all" checked>
+              <span style="font-size: 0.82rem; font-weight: 600;">Crawled & Verified Links</span>
+            </div>
+            <span style="font-size: 0.72rem; color: var(--text-muted);" id="grabber-count-label">0 links staged</span>
+          </div>
+
+          <div class="staged-list" id="grabber-staged-list">
+            <!-- Staged items -->
+          </div>
+
+          <div class="grabber-bottom-bar">
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 0.78rem; color: var(--text-muted);">
+              <span id="grabber-selected-count">0 selected</span>
+              <span id="grabber-total-size">Total: 0 B</span>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="tool-btn" id="btn-grabber-clear">Clear All</button>
+              <button class="tool-btn primary" id="btn-grabber-start-all">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Start All Downloads
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 1: Quick Add URL
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-add-url">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Add Download URL
+        </h3>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-type-tabs" style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 1px solid var(--border-dim); padding-bottom: 10px;">
+          <button class="tool-btn primary" id="add-modal-tab-direct" style="font-size: 0.76rem;">🔗 Direct URL</button>
+          <button class="tool-btn" id="add-modal-tab-youtube" style="font-size: 0.76rem;">🎬 YouTube / MP3</button>
+          <button class="tool-btn" id="add-modal-tab-grabber" style="font-size: 0.76rem;">📋 Batch LinkGrabber</button>
+        </div>
+        <div class="form-group">
+          <label class="input-label" for="input-url">Download Address / URL</label>
+          <input type="text" id="input-url" class="text-input" placeholder="https://example.com/archive.zip">
+        </div>
+        <div class="form-group">
+          <label class="input-label" for="input-filename">Save As (Optional)</label>
+          <input type="text" id="input-filename" class="text-input" placeholder="Auto-detected filename">
+        </div>
+        <div class="form-group">
+          <label class="input-label" for="input-package">Package Group (Optional)</label>
+          <input type="text" id="input-package" class="text-input" placeholder="Package name">
+        </div>
+        <div class="form-group">
+          <label class="input-label" for="select-add-mode">Download Mode & Acceleration</label>
+          <select id="select-add-mode" class="text-input" style="background: var(--bg-surface); color: var(--text-main); cursor: pointer;">
+            <option value="inPlace-8" selected>⚡ In-Place Direct Writing (8 Sockets - Zero Lag, Instant Completion)</option>
+            <option value="singleStream">📦 Single Stream / Whole File (1 Socket - No Chunks, Zero Lag)</option>
+            <option value="inPlace-16">🚀 High Speed Direct Writing (16 Sockets - Instant Completion)</option>
+            <option value="inPlace-4">⚖️ Balanced Direct Writing (4 Sockets - Low Bandwidth)</option>
+            <option value="legacyTemp">⏳ Legacy Staged Chunks (Saves to Temp & Merges)</option>
+          </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="check-auto-start" checked>
+          <label for="check-auto-start" style="font-size: 0.78rem; cursor: pointer;">Start immediately</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="tool-btn modal-close-btn">Cancel</button>
+        <button class="tool-btn primary" id="btn-submit-add-url">Inspect & Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 1B: IDM Download Confirmation Window (File Info & Performance Predictor)
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-idm-confirm">
+    <div class="modal-card idm-confirm-card" style="width: 650px; max-width: 95vw;">
+      <div class="modal-header idm-confirm-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="idm-header-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1rem; color: #fff;">Download File Info</h3>
+            <div style="font-size: 0.70rem; color: var(--text-muted);">Waterfall IDM Acquisition Engine • Confirm details before starting</div>
+          </div>
+        </div>
+        <button class="icon-btn modal-close-btn" title="Cancel">&times;</button>
+      </div>
+
+      <div class="modal-body idm-confirm-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; max-height: 80vh; overflow-y: auto;">
+        
+        <!-- Duplicate / File Update Notification Banner -->
+        <div id="idm-confirm-duplicate-alert" style="display: none; padding: 10px 14px; border-radius: 6px; font-size: 0.78rem; line-height: 1.45;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="idm-duplicate-alert-icon" style="font-size: 1.1rem;">⚠️</span>
+              <span id="idm-duplicate-alert-msg" style="font-weight: 500;"></span>
+            </div>
+            <div style="display: flex; gap: 6px;" id="idm-duplicate-alert-actions"></div>
+          </div>
+        </div>
+
+        <!-- URL Address -->
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="input-label" style="display: flex; justify-content: space-between;">
+            <span>Source Address / URL</span>
+            <span id="idm-confirm-server" style="color: var(--accent-cyan); font-family: var(--font-mono); font-size: 0.70rem;"></span>
+          </label>
+          <input type="text" id="idm-confirm-url" class="text-input" readonly style="font-family: var(--font-mono); font-size: 0.78rem; background: rgba(0,0,0,0.3); color: var(--text-muted);">
+        </div>
+
+        <!-- File Name & Category -->
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: flex-end;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="input-label" for="idm-confirm-filename">File Name</label>
+            <input type="text" id="idm-confirm-filename" class="text-input" style="font-weight: 600;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="input-label">Category</label>
+            <span id="idm-confirm-category-badge" class="type-badge badge-other" style="padding: 6px 12px; font-size: 0.75rem; border-radius: var(--radius-xs); display: inline-block;">General</span>
+          </div>
+        </div>
+
+        <!-- Metrics Card: File Size + 10-Download Avg ETA -->
+        <div class="idm-metrics-card">
+          <div class="idm-metric-col">
+            <div class="idm-metric-label">FILE SIZE</div>
+            <div class="idm-metric-val" id="idm-confirm-size">Measuring...</div>
+            <div class="idm-metric-sub" id="idm-confirm-resumable">Checking range support...</div>
+          </div>
+          <div class="idm-metric-divider"></div>
+          <div class="idm-metric-col">
+            <div class="idm-metric-label">ESTIMATED DOWNLOAD TIME</div>
+            <div class="idm-metric-val idm-highlight" id="idm-confirm-eta">Calculating...</div>
+            <div class="idm-metric-sub" id="idm-confirm-avg-speed" title="Calculated from your completed download history">Based on last 10 downloads avg</div>
+          </div>
+        </div>
+
+        <!-- Save To / Destination Folder -->
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="input-label" for="idm-confirm-folder">Save To (Folder)</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="idm-confirm-folder" class="text-input" style="flex: 1; font-family: var(--font-mono); font-size: 0.8rem;">
+            <button class="tool-btn" id="idm-confirm-btn-browse" style="white-space: nowrap;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              Browse...
+            </button>
+          </div>
+          <div class="idm-quick-folders" style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+            <button type="button" class="folder-chip" id="chip-folder-downloads">📥 Downloads</button>
+            <button type="button" class="folder-chip" id="chip-folder-desktop">🖥️ Desktop</button>
+            <button type="button" class="folder-chip" id="chip-folder-category">📂 Category Folder</button>
+          </div>
+        </div>
+
+        <!-- Download Mode & Sockets -->
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="input-label" for="idm-confirm-engine-mode">Download Mode & Acceleration</label>
+          <select id="idm-confirm-engine-mode" class="text-input">
+            <option value="inPlace-8" selected>⚡ In-Place Direct Writing (8 Sockets - Zero Rebuild Lag)</option>
+            <option value="singleStream">📦 Single Stream / Whole File (1 Socket - No Chunks, Best for Live Watching)</option>
+            <option value="inPlace-16">🚀 High Speed Direct Writing (16 Sockets - Maximum Acceleration)</option>
+            <option value="inPlace-4">⚖️ Balanced Direct Writing (4 Sockets - Low Bandwidth)</option>
+            <option value="legacyTemp">⏳ Legacy Staged Chunks (Saves to Temp & Merges)</option>
+          </select>
+        </div>
+
+        <!-- Media "Watch While Downloading" Card (Conditional) -->
+        <div class="idm-media-stream-card" id="idm-confirm-media-box" style="display: none;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.2rem;">🎬</span>
+              <div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #38bdf8;">Media Stream Detected — Watch While Downloading</div>
+                <div style="font-size: 0.70rem; color: var(--text-muted);">Waterfall can stream the live buffer directly into player or VLC as it downloads.</div>
+              </div>
+            </div>
+            <button class="tool-btn accent-blue" id="idm-confirm-btn-watch-now" style="white-space: nowrap;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Watch as Download Starts
+            </button>
+          </div>
+        </div>
+
+        <!-- Archive Extraction & Password Options -->
+        <div class="idm-script-toggle-box" id="idm-confirm-extract-box">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 500;">
+              <input type="checkbox" id="idm-confirm-enable-extract" checked>
+              <span>Auto-extract archive upon completion</span>
+            </label>
+            <span style="font-size: 0.70rem; color: #38bdf8;">7z / RAR / ZIP / NanaZip</span>
+          </div>
+
+          <div id="idm-confirm-extract-details" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-light); display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <div style="position: relative; flex: 1;">
+                <input type="password" id="idm-confirm-archive-password" class="text-input" placeholder="Archive Password / Unlock Key (optional)" style="font-size: 0.78rem; padding-right: 34px;">
+                <button type="button" class="icon-btn" id="btn-toggle-pwd-confirm" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 0.75rem;" title="Show/Hide Password">👁️</button>
+              </div>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; white-space: nowrap;">
+                <input type="checkbox" id="idm-confirm-delete-archive">
+                <span>Delete archive after extract</span>
+              </label>
+            </div>
+            <div style="font-size: 0.68rem; color: var(--text-muted);">
+              For multipart archives (.part1.rar, .7z.001), Waterfall waits for all parts and extracts all into one unified folder.
+            </div>
+          </div>
+        </div>
+
+        <!-- Post-Download Script Accordion / Checkbox -->
+        <div class="idm-script-toggle-box">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 500;">
+              <input type="checkbox" id="idm-confirm-enable-script">
+              <span>Run custom script when download completes</span>
+            </label>
+            <span style="font-size: 0.70rem; color: var(--text-muted);">Python, PowerShell, Batch</span>
+          </div>
+
+          <div id="idm-confirm-script-details" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-light);">
+            <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 8px;">
+              <select id="idm-confirm-script-type" class="text-input" style="font-size: 0.78rem;">
+                <option value="auto">Auto-Detect</option>
+                <option value="powershell">PowerShell (.ps1)</option>
+                <option value="batch">Batch (.bat)</option>
+                <option value="python">Python (.py)</option>
+                <option value="custom">Custom Command</option>
+              </select>
+              <input type="text" id="idm-confirm-script-path" class="text-input" placeholder="Script path or command (e.g. C:\scripts\process.ps1)" style="font-size: 0.78rem;">
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="idm-confirm-script-args" class="text-input" value='"%FILE%"' placeholder='Arguments (e.g. "%FILE%")' style="flex: 1; font-family: var(--font-mono); font-size: 0.76rem;">
+              <span style="font-size: 0.68rem; color: var(--text-muted); white-space: nowrap;">%FILE% = downloaded path</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer idm-confirm-footer" style="padding: 12px 20px; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-mid); display: flex; justify-content: space-between; align-items: center;">
+        <button class="tool-btn modal-close-btn" id="idm-confirm-btn-cancel">Cancel</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="tool-btn" id="idm-confirm-btn-later">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            Download Later
+          </button>
+          <button class="tool-btn primary" id="idm-confirm-btn-start">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Start Download
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: Archive Password Required Prompt
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-extract-password">
+    <div class="modal-card" style="width: 480px; max-width: 95vw;">
+      <div class="modal-header">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 8px; color: #e3b341;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          Password Required to Extract
+        </div>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.4;">
+          The downloaded archive is encrypted. Please enter the password or unlock key to decompress the contents:
+        </p>
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px;">Archive / Package:</div>
+          <div id="extract-pwd-filename" style="font-size: 0.84rem; font-weight: 600; color: var(--text-primary); word-break: break-all;">--</div>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="input-label" for="input-extract-password">Archive Password / Unlock Key</label>
+          <div style="position: relative;">
+            <input type="password" id="input-extract-password" class="text-input" placeholder="Type or paste archive password..." style="padding-right: 36px;" autofocus>
+            <button type="button" class="icon-btn" id="btn-toggle-pwd-prompt" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%);" title="Show/Hide Password">👁️</button>
+          </div>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.76rem; color: var(--text-secondary); cursor: pointer;">
+          <input type="checkbox" id="check-remember-extract-password" checked>
+          <span>Remember this password for future archives</span>
+        </label>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;">
+        <button class="tool-btn modal-close-btn">Cancel</button>
+        <button class="tool-btn primary" id="btn-submit-extract-password" style="background: #e3b341; color: #000; font-weight: 700; border-color: #d29922;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          Unlock & Extract Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 1C: Cinema Live Streaming Player ("Watch While Downloading")
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-media-player">
+    <div class="modal-card" style="width: 820px; max-width: 95vw; background: #0b0f19;">
+      <div class="modal-header" style="border-bottom: 1px solid var(--border-light);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; width: 32px; height: 32px; border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          </div>
+          <div>
+            <h3 id="player-title" style="margin: 0; font-size: 0.95rem; color: #fff; max-width: 580px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Live Streaming Preview</h3>
+            <div id="player-subtext" style="font-size: 0.70rem; color: var(--text-muted);">Playing directly from downloading buffer over local HTTP 206 stream</div>
+          </div>
+        </div>
+        <button class="icon-btn modal-close-btn" id="btn-close-player" title="Close Player">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; align-items: center; background: #000;">
+        <video id="player-video-el" controls autoplay playsinline style="width: 100%; max-height: 480px; border-radius: var(--radius-xs); background: #000; box-shadow: 0 4px 20px rgba(0,0,0,0.8);"></video>
+        <audio id="player-audio-el" controls autoplay style="width: 100%; display: none; margin: 20px 0;"></audio>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 16px; background: rgba(15, 20, 34, 0.9); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="speed-gauge" style="padding: 4px 10px; background: rgba(0,0,0,0.4); border-radius: var(--radius-xs);">
+            <div class="status-dot"></div>
+            <span id="player-live-stats" style="font-family: var(--font-mono); font-size: 0.75rem; color: #34d399;">Buffering live...</span>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button class="tool-btn" id="player-btn-external" title="Stream in VLC Media Player or default video player">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            Play in VLC / External
+          </button>
+          <button class="tool-btn primary modal-close-btn">Done Watching</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 2: YouTube Downloader & Audio/Video Converter (NEW!)
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-youtube-converter">
+    <div class="modal-card" style="width: 620px;">
+      <div class="modal-header">
+        <h3>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#ff0033"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          YouTube Downloader & Converter
+        </h3>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <div class="form-group">
+          <label class="input-label">YouTube URL</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="yt-input-url" class="text-input" placeholder="https://www.youtube.com/watch?v=..." style="flex: 1;">
+            <button class="tool-btn primary" id="yt-btn-inspect">Inspect</button>
+          </div>
+        </div>
+
+        <!-- Video Metadata Preview Box (Single Video) -->
+        <div class="yt-inspector-card" id="yt-preview-card" style="display: none;">
+          <div class="yt-thumb-box">
+            <img id="yt-thumb-img" class="yt-thumb-img" src="" alt="Thumbnail">
+            <span class="yt-duration-badge" id="yt-duration-badge">00:00</span>
+          </div>
+          <div class="yt-info-col">
+            <div>
+              <div class="yt-title" id="yt-video-title">Video Title</div>
+              <div class="yt-author" id="yt-video-author">Channel Author</div>
+            </div>
+
+            <!-- Conversion Target Selector -->
+            <div>
+              <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">Select Format & Quality:</div>
+              <div class="format-pill-group" id="yt-format-selector">
+                <div class="format-pill selected" data-type="audio" data-format="mp3" data-quality="0">🎵 MP3 (320k HQ)</div>
+                <div class="format-pill" data-type="audio" data-format="mp3" data-quality="2">🎵 MP3 (192k)</div>
+                <div class="format-pill" data-type="audio" data-format="m4a" data-quality="best">🎵 M4A / AAC</div>
+                <div class="format-pill" data-type="audio" data-format="flac" data-quality="0">🎵 FLAC (Lossless)</div>
+                <div class="format-pill" data-type="audio" data-format="wav" data-quality="0">🎵 WAV</div>
+                <div class="format-pill" data-type="video" data-format="mp4" data-quality="1080">🎬 MP4 (1080p FHD)</div>
+                <div class="format-pill" data-type="video" data-format="mp4" data-quality="720">🎬 MP4 (720p HD)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Playlist / Multi-Track Card (YouTube Playlist) -->
+        <div id="yt-playlist-card" style="display: none; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #fff;" id="yt-playlist-title">Playlist Title</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" class="tool-btn" id="yt-playlist-toggle-all" style="padding: 2px 8px; font-size: 0.72rem;">Toggle All</button>
+              <div style="font-size: 0.75rem; color: var(--accent-amber);" id="yt-playlist-count">0 Tracks</div>
+            </div>
+          </div>
+          <div class="yt-playlist-container" id="yt-playlist-items">
+            <!-- Dynamically populated track list -->
+          </div>
+          <div>
+            <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">Convert All Selected Tracks To:</div>
+            <div class="format-pill-group" id="yt-playlist-format-selector">
+              <div class="format-pill selected" data-format="mp3-320">🎵 MP3 (320k HQ)</div>
+              <div class="format-pill" data-format="mp3-192">🎵 MP3 (192k)</div>
+              <div class="format-pill" data-format="m4a-best">🎵 M4A / AAC</div>
+              <div class="format-pill" data-format="flac-lossless">🎵 FLAC (Lossless)</div>
+              <div class="format-pill" data-format="mp4-1080">🎬 MP4 (1080p FHD)</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="yt-check-auto-start" checked>
+          <label for="yt-check-auto-start" style="font-size: 0.78rem; cursor: pointer;">Start conversion immediately upon queueing</label>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="tool-btn modal-close-btn">Cancel</button>
+        <button class="tool-btn youtube-btn" id="yt-btn-download" disabled>Download & Convert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 3: IDM Multi-Segment Visualizer & Memory Matrix
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-segment-inspector">
+    <div class="modal-card inspector-modal-card">
+      <div class="modal-header">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-idm-blue)" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Multi-Segment Download Inspector
+        </h3>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <div>
+          <div style="font-size: 0.95rem; font-weight: 700;" id="insp-filename">filename.zip</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="insp-url">https://...</div>
+        </div>
+
+        <!-- 4-Column IDM Stat Grid -->
+        <div class="inspector-stats-grid">
+          <div class="stat-item">
+            <span class="stat-label">File Size</span>
+            <span class="stat-val" id="insp-total-size">0 MB</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Downloaded</span>
+            <span class="stat-val accent" id="insp-downloaded-size">0 MB</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Transfer Rate</span>
+            <span class="stat-val success" id="insp-speed">0 KB/s</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Estimated Finish</span>
+            <span class="stat-val" id="insp-eta">--:--:--</span>
+          </div>
+        </div>
+
+        <!-- Overall Progress Bar -->
+        <div class="inspector-main-progress">
+          <div style="display: flex; justify-content: space-between; font-size: 0.72rem;">
+            <span>Overall Progress</span>
+            <span id="insp-percent" style="font-family: var(--font-mono); font-weight: 700;">0%</span>
+          </div>
+          <div class="main-progress-bar-wrap">
+            <div class="main-progress-bar-fill" id="insp-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Multipart Archive Micro-Manager Card -->
+        <div class="micromanager-card" id="insp-micromanager-box" style="display: none;">
+          <div class="micromanager-header">
+            <div>
+              <div style="font-weight: 700; font-size: 0.85rem; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                <span>📦 Multipart Package Micro-Manager</span>
+                <span class="group-parts-badge" id="insp-mp-count">0 Parts</span>
+              </div>
+              <div style="font-size: 0.70rem; color: var(--text-muted); margin-top: 2px;">
+                Individual volume manager • Extracts unified into one destination folder when all parts complete
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="tool-btn" id="insp-mp-btn-pause-all" style="padding: 3px 8px; font-size: 0.72rem;">⏸ Pause All</button>
+              <button type="button" class="tool-btn primary" id="insp-mp-btn-resume-all" style="padding: 3px 8px; font-size: 0.72rem;">▶ Resume All</button>
+            </div>
+          </div>
+
+          <div class="micromanager-parts-list" id="insp-mp-parts-container">
+            <!-- Dynamically populated parts -->
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+            <div style="font-size: 0.72rem; color: var(--text-muted);" id="insp-mp-extract-status">Status: Waiting for parts</div>
+            <button type="button" class="tool-btn" id="insp-mp-btn-extract-now" style="font-size: 0.72rem; padding: 3px 10px;">📦 Extract Package Now</button>
+          </div>
+        </div>
+
+        <!-- THE ICONIC IDM FILE ALLOCATION MATRIX (100 BLOCKS) -->
+        <div class="block-matrix-container">
+          <div class="matrix-header">
+            <span>FILE ALLOCATION MATRIX (50 BLOCKS)</span>
+            <span id="insp-matrix-stat">BUFFER: OK</span>
+          </div>
+          <div class="matrix-cells" id="insp-matrix-grid">
+            <!-- 50 hardware allocation cells -->
+          </div>
+        </div>
+
+        <!-- Connection Threads List -->
+        <div class="segments-section-header">
+          <h4>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+            Active Connection Channels (<span id="insp-conn-count">8</span> Parallel Streams)
+          </h4>
+          <span style="font-size: 0.7rem; color: #3fb950;" id="insp-resume-capability">Resume: Supported</span>
+        </div>
+
+        <div class="segments-container" id="insp-segments-list">
+          <!-- Dynamically populated connection strips -->
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="tool-btn" id="insp-btn-open-folder">Open Folder</button>
+        <button class="tool-btn" id="insp-btn-toggle-pause">Pause Download</button>
+        <button class="tool-btn primary modal-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 4: Bandwidth Limiter
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-speed-limiter">
+    <div class="modal-card" style="width: 420px;">
+      <div class="modal-header">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Bandwidth Limiter
+        </h3>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-weight: 600; font-size: 0.85rem;">Enable Global Limiter</span>
+          <input type="checkbox" id="check-enable-limiter" style="transform: scale(1.2);">
+        </div>
+
+        <div class="form-group" style="margin-top: 10px;">
+          <label class="input-label">Speed Cap</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="number" id="input-limiter-val" class="text-input" value="3" min="0.5" step="0.5" style="flex: 1;">
+            <select id="select-limiter-unit" class="text-input" style="width: 100px;">
+              <option value="KB">KB/s</option>
+              <option value="MB" selected>MB/s</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 6px;">
+          <button class="tool-btn" onclick="document.getElementById('input-limiter-val').value=1; document.getElementById('select-limiter-unit').value='MB'">1 MB/s</button>
+          <button class="tool-btn" onclick="document.getElementById('input-limiter-val').value=3; document.getElementById('select-limiter-unit').value='MB'">3 MB/s</button>
+          <button class="tool-btn" onclick="document.getElementById('input-limiter-val').value=5; document.getElementById('select-limiter-unit').value='MB'">5 MB/s</button>
+          <button class="tool-btn" onclick="document.getElementById('input-limiter-val').value=10; document.getElementById('select-limiter-unit').value='MB'">10 MB/s</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="tool-btn modal-close-btn">Cancel</button>
+        <button class="tool-btn primary" id="btn-save-speed-limiter">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 5: Comprehensive Configuration & Settings Center (IDM + JDownloader Pro)
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-settings">
+    <div class="modal-card settings-modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="settings-modal-badge">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 0.96rem;">Waterfall Control Center & Settings</h3>
+            <div style="font-size: 0.68rem; color: var(--text-muted);">Configure engine acceleration, storage routing, media presets, automation & audio</div>
+          </div>
+        </div>
+        <button class="icon-btn modal-close-btn" title="Close">&times;</button>
+      </div>
+
+      <div class="settings-modal-body">
+        <!-- Settings Sidebar Navigation -->
+        <nav class="settings-nav-sidebar">
+          <button class="settings-nav-item active" data-tab="tab-cfg-engine">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            <span>Engine & Network</span>
+          </button>
+          <button class="settings-nav-item" data-tab="tab-cfg-storage">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            <span>Storage & Folders</span>
+          </button>
+          <button class="settings-nav-item" data-tab="tab-cfg-limiter">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span>Speed Limiter</span>
+          </button>
+          <button class="settings-nav-item" data-tab="tab-cfg-media">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            <span>Media & YouTube</span>
+          </button>
+          <button class="settings-nav-item" data-tab="tab-cfg-automation">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+            <span>Archives & Auto</span>
+          </button>
+          <button class="settings-nav-item" data-tab="tab-cfg-notifications">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <span>Alerts & Sound</span>
+          </button>
+          <button class="settings-nav-item" data-tab="tab-cfg-interface">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 0 0 20v-20z"></path></svg>
+            <span>Theme & System</span>
+          </button>
+        </nav>
+
+        <!-- Settings Content Panels -->
+        <div class="settings-tab-viewport">
+          <!-- 1. Engine & Network -->
+          <div class="settings-panel active" id="tab-cfg-engine">
+            <div class="settings-section-title">
+              <h4>Parallel Engine & Acceleration</h4>
+              <p>Configure multi-threaded HTTP/HTTPS socket pooling and high-throughput segmenting.</p>
+            </div>
+
+            <div class="settings-grid">
+              <div class="form-group">
+                <label class="input-label" for="cfg-segments">Parallel Connections Per File (IDM Sockets)</label>
+                <select id="cfg-segments" class="text-input">
+                  <option value="1">1 Connection (Standard Single-Stream)</option>
+                  <option value="2">2 Parallel Sockets</option>
+                  <option value="4">4 Parallel Sockets</option>
+                  <option value="8" selected>8 Parallel Sockets (Recommended Default)</option>
+                  <option value="16">16 Parallel Sockets (Max Acceleration)</option>
+                  <option value="24">24 Parallel Sockets (Extreme Broadband)</option>
+                  <option value="32">32 Parallel Sockets (Aggressive Multi-Gigabit)</option>
+                </select>
+                <span class="settings-help">Partitions the download into independent chunk streams for maximum line saturation.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-engine-mode">Assembly & Writing Engine Mode</label>
+                <select id="cfg-engine-mode" class="text-input">
+                  <option value="inPlace" selected>⚡ In-Place Direct Writing (Zero Lag, Instant Finish - No Chunk Assembly)</option>
+                  <option value="singleStream">📦 Single Stream / Whole File (1 Socket - No Chunks, Zero Merging Overhead)</option>
+                  <option value="legacyTemp">⏳ Legacy Staged Chunks (Saves Chunks to Temp, Concatenates on Finish)</option>
+                </select>
+                <span class="settings-help">In-Place writes chunks directly into the final .part file using sector offsets. When 100% is reached, it renames instantaneously with 0 ms pause and 0 extra disk I/O. Single Stream downloads the entire file sequentially without splitting.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-max-active">Max Concurrent Active Downloads</label>
+                <input type="number" id="cfg-max-active" class="text-input" min="1" max="20" value="3">
+                <span class="settings-help">Number of queued items downloaded simultaneously before queuing remaining tasks.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-buffer-size">Disk Stream I/O Buffer (highWaterMark)</label>
+                <select id="cfg-buffer-size" class="text-input">
+                  <option value="65536">64 KB (Low Memory Footprint)</option>
+                  <option value="262144">256 KB (Balanced)</option>
+                  <option value="524288">512 KB (High Performance)</option>
+                  <option value="1048576" selected>1 MB (Optimized High-Speed - Default)</option>
+                  <option value="2097152">2 MB (Extreme SSD Throughput)</option>
+                  <option value="4194304">4 MB (Maximum Buffer Capacity)</option>
+                </select>
+                <span class="settings-help">Reduces syscall overhead during assembly and 100+ MB/s transfers.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-conn-timeout">Connection Timeout (Seconds)</label>
+                <input type="number" id="cfg-conn-timeout" class="text-input" min="5" max="120" value="15">
+                <span class="settings-help">Abort and retry connection if server stops responding.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-max-retries">Automatic Retries on Failure</label>
+                <input type="number" id="cfg-max-retries" class="text-input" min="0" max="20" value="5">
+                <span class="settings-help">Times to automatically reconnect on network drops before failing task.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-retry-delay">Retry Interval Delay (Seconds)</label>
+                <input type="number" id="cfg-retry-delay" class="text-input" min="1" max="60" value="3">
+              </div>
+
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="input-label" for="cfg-user-agent">Custom HTTP User-Agent String</label>
+                <input type="text" id="cfg-user-agent" class="text-input" value="Mozilla/5.0 (Windows NT 10.0; Win64; x64) WaterfallDL/2.0">
+                <span class="settings-help">Sent with all direct chunk and probe requests to avoid server blocking.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Storage & Folders -->
+          <div class="settings-panel" id="tab-cfg-storage">
+            <div class="settings-section-title">
+              <h4>Storage Architecture & Routing</h4>
+              <p>Configure download destinations, OS library sorting, and duplicate collision policies.</p>
+            </div>
+
+            <div class="settings-stack">
+              <div class="form-group">
+                <label class="input-label" for="cfg-download-dir">Default Root Download Directory</label>
+                <input type="text" id="cfg-download-dir" class="text-input" placeholder="C:\Users\Username\Downloads">
+                <span class="settings-help">Primary root destination folder used when OS routing is bypassed.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-temp-dir">Temporary Chunks / Part Files Directory</label>
+                <input type="text" id="cfg-temp-dir" class="text-input" placeholder="C:\Users\Username\AppData\Local\Temp\Waterfall">
+                <span class="settings-help">Folder used to stage raw .part segment streams before final merge.</span>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Organize into Native OS Library Folders (IDM Style)</div>
+                  <div class="toggle-desc">Automatically routes files into Videos, Music, Documents, Pictures, and Downloads/Compressed based on detected MIME extension.</div>
+                </div>
+                <input type="checkbox" id="cfg-use-os-folders" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">JDownloader Package Subfolders</div>
+                  <div class="toggle-desc">Creates a dedicated subfolder only for multi-item LinkGrabber packages (single video streams will never create redundant folders).</div>
+                </div>
+                <input type="checkbox" id="cfg-create-pkg-subfolders" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Preserve Server Timestamps & Metadata</div>
+                  <div class="toggle-desc">Sets local file creation/modified dates to match remote server Last-Modified headers and saves companion metadata (.meta.json) in Windows Temp storage.</div>
+                </div>
+                <input type="checkbox" id="cfg-preserve-meta" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-dup-action">File Name Collision Policy</label>
+                <select id="cfg-dup-action" class="text-input">
+                  <option value="rename" selected>Auto-Rename (Append (1), (2), etc. - Recommended)</option>
+                  <option value="overwrite">Overwrite Existing File on Disk</option>
+                  <option value="skip">Skip Download if File Already Exists</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Speed Limiter -->
+          <div class="settings-panel" id="tab-cfg-limiter">
+            <div class="settings-section-title">
+              <h4>Bandwidth & Speed Throttle</h4>
+              <p>Control overall network saturation to prevent lag in games, calls, or video streams.</p>
+            </div>
+
+            <div class="settings-stack">
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Enable Global Bandwidth Cap</div>
+                  <div class="toggle-desc">Throttles total aggregate incoming transfer rates across all active download threads.</div>
+                </div>
+                <input type="checkbox" id="cfg-limiter-enabled" class="toggle-checkbox">
+              </div>
+
+              <div class="form-group">
+                <label class="input-label">Speed Cap Ceiling</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="number" id="cfg-limiter-val" class="text-input" value="5" min="0.5" step="0.5" style="flex: 1;">
+                  <select id="cfg-limiter-unit" class="text-input" style="width: 120px;">
+                    <option value="KB">KB/s</option>
+                    <option value="MB" selected>MB/s</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="settings-quick-presets">
+                <span class="settings-help" style="margin-bottom: 6px; display: block;">Quick Presets:</span>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="tool-btn" onclick="document.getElementById('cfg-limiter-val').value=1; document.getElementById('cfg-limiter-unit').value='MB'">1 MB/s</button>
+                  <button type="button" class="tool-btn" onclick="document.getElementById('cfg-limiter-val').value=3; document.getElementById('cfg-limiter-unit').value='MB'">3 MB/s</button>
+                  <button type="button" class="tool-btn" onclick="document.getElementById('cfg-limiter-val').value=5; document.getElementById('cfg-limiter-unit').value='MB'">5 MB/s</button>
+                  <button type="button" class="tool-btn" onclick="document.getElementById('cfg-limiter-val').value=10; document.getElementById('cfg-limiter-unit').value='MB'">10 MB/s</button>
+                  <button type="button" class="tool-btn" onclick="document.getElementById('cfg-limiter-val').value=25; document.getElementById('cfg-limiter-unit').value='MB'">25 MB/s</button>
+                  <button type="button" class="tool-btn" onclick="document.getElementById('cfg-limiter-val').value=0; document.getElementById('cfg-limiter-enabled').checked=false">Unlimited (Off)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Media & YouTube / yt-dlp -->
+          <div class="settings-panel" id="tab-cfg-media">
+            <div class="settings-section-title">
+              <h4>Media Extractor & yt-dlp Presets</h4>
+              <p>Configure default audio/video transcoding formats, quality targets, and tag embedding.</p>
+            </div>
+
+            <div class="settings-grid">
+              <div class="form-group">
+                <label class="input-label" for="cfg-video-quality">Default Video Download Quality</label>
+                <select id="cfg-video-quality" class="text-input">
+                  <option value="best">Highest Available (Up to 8K / 4K)</option>
+                  <option value="2160">4K Ultra HD (2160p)</option>
+                  <option value="1080" selected>Full HD (1080p - Recommended)</option>
+                  <option value="720">HD (720p - Fast Download)</option>
+                  <option value="480">Standard Definition (480p - Compact)</option>
+                </select>
+                <span class="settings-help">Waterfall merges best video + audio streams automatically via FFmpeg.</span>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-audio-format">Default Audio Conversion Format</label>
+                <select id="cfg-audio-format" class="text-input">
+                  <option value="mp3" selected>MP3 (Universal Compatibility)</option>
+                  <option value="m4a">M4A / AAC (High Efficiency)</option>
+                  <option value="flac">FLAC (Lossless Studio Quality)</option>
+                  <option value="wav">WAV (Uncompressed PCM)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-audio-quality">MP3 Bitrate / Audio Quality</label>
+                <select id="cfg-audio-quality" class="text-input">
+                  <option value="0" selected>320 kbps / Best VBR 0 (Audiophile)</option>
+                  <option value="256k">256 kbps (High Fidelity)</option>
+                  <option value="192k">192 kbps (Standard Quality)</option>
+                  <option value="128k">128 kbps (Compact File Size)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-media-node-accel">Node.js JavaScript Decipher Engine</label>
+                <select id="cfg-media-node-accel" class="text-input">
+                  <option value="true" selected>Enabled (Accelerated Signature Decryption)</option>
+                  <option value="false">Disabled (Fallback yt-dlp internal)</option>
+                </select>
+                <span class="settings-help">Passes --js-runtimes node to yt-dlp for reliable YouTube n-token deciphering.</span>
+              </div>
+            </div>
+
+            <div class="settings-stack" style="margin-top: 14px;">
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Embed Media Metadata & ID3 Tags</div>
+                  <div class="toggle-desc">Automatically tags title, artist, uploader, date, description, and genres.</div>
+                </div>
+                <input type="checkbox" id="cfg-media-embed-meta" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Embed High-Resolution Thumbnail as Album Artwork</div>
+                  <div class="toggle-desc">Embeds cover art directly into the MP3/MP4 container file.</div>
+                </div>
+                <input type="checkbox" id="cfg-media-embed-thumb" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Embed Video Chapters & Markers</div>
+                  <div class="toggle-desc">Integrates YouTube chapter timestamps into the final MP4/MKV video tracks.</div>
+                </div>
+                <input type="checkbox" id="cfg-media-embed-chapters" class="toggle-checkbox" checked>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Archives & Automation -->
+          <div class="settings-panel" id="tab-cfg-automation">
+            <div class="settings-section-title">
+              <h4>Post-Processing, Unpacking & Power</h4>
+              <p>Configure automated archive extraction, completion commands, and energy saving actions.</p>
+            </div>
+
+            <div class="settings-stack">
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Automatically Extract Compressed Archives (ZIP / RAR / 7Z / TAR)</div>
+                  <div class="toggle-desc">Uses 7-Zip, NanaZip, or native Windows tar engine to unpack files upon completion.</div>
+                </div>
+                <input type="checkbox" id="cfg-auto-extract" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Delete Compressed Archive File After Successful Unpack</div>
+                  <div class="toggle-desc">Saves storage space by removing the source archive once contents are extracted.</div>
+                </div>
+                <input type="checkbox" id="cfg-delete-archive" class="toggle-checkbox">
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-power-action">Queue Completion Action (Classic IDM Power Action)</label>
+                <select id="cfg-power-action" class="text-input">
+                  <option value="none" selected>Do Nothing (Keep PC Running)</option>
+                  <option value="sleep">Put Computer to Sleep When Queue Finishes</option>
+                  <option value="shutdown">Shut Down Computer Completely When Queue Finishes</option>
+                </select>
+                <span class="settings-help">Automatically activates safe shutdown/sleep once all active downloads finish.</span>
+              </div>
+
+              <!-- Post-Download Script Execution Engine -->
+              <div style="margin-top: 10px; padding: 14px; background: #090e18; border: 1px solid var(--border-dim); border-radius: var(--radius-sm);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                      Post-Download Script Execution Engine
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">
+                      Run Python (.py), PowerShell (.ps1), Batch (.bat/.cmd), Node (.js), or custom tools upon completion.
+                    </div>
+                  </div>
+                  <input type="checkbox" id="cfg-script-enabled" class="toggle-checkbox">
+                </div>
+
+                <div id="cfg-script-container" style="display: flex; flex-direction: column; gap: 12px;">
+                  <div class="settings-grid">
+                    <div class="form-group">
+                      <label class="input-label" for="cfg-script-type">Script Engine / Interpreter Mode</label>
+                      <select id="cfg-script-type" class="text-input">
+                        <option value="auto" selected>Auto-Detect (by File Extension)</option>
+                        <option value="python">Python Script (python.exe / custom)</option>
+                        <option value="powershell">PowerShell Script (.ps1)</option>
+                        <option value="batch">Windows Command Batch (.bat / .cmd)</option>
+                        <option value="node">Node.js JavaScript (.js)</option>
+                        <option value="custom">Custom Compiler / Tool Executable</option>
+                      </select>
+                      <span class="settings-help">Select language or let Waterfall auto-detect (.py, .ps1, .bat, .cmd, .js).</span>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="input-label" for="cfg-script-condition">Trigger Condition</label>
+                      <select id="cfg-script-condition" class="text-input">
+                        <option value="all" selected>All Successful Downloads</option>
+                        <option value="video">Only for Video Files</option>
+                        <option value="audio">Only for Audio Files</option>
+                        <option value="compressed">Only for Compressed Archives</option>
+                        <option value="programs">Only for Programs / Executables</option>
+                        <option value="documents">Only for Documents</option>
+                      </select>
+                      <span class="settings-help">Optionally filter by downloaded content category.</span>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="input-label" for="cfg-script-path">Script File Path</label>
+                    <input type="text" id="cfg-script-path" class="text-input" placeholder="e.g. C:\Scripts\notify.py or C:\Scripts\extract.ps1">
+                    <span class="settings-help">Path to the script or program to be executed.</span>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="input-label" for="cfg-script-compiler">Custom Compiler / Interpreter Executable (Optional)</label>
+                    <input type="text" id="cfg-script-compiler" class="text-input" placeholder="e.g. C:\Python312\python.exe, py.exe, or custom CLI compiler">
+                    <span class="settings-help">Leave empty to use system PATH defaults (python, powershell, cmd, node).</span>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="input-label" for="cfg-script-args">Script Arguments & Parameters</label>
+                    <input type="text" id="cfg-script-args" class="text-input" value='"%FILE%"' placeholder='"%FILE%" "%NAME%" "%DIR%"'>
+                    <div style="margin-top: 6px;">
+                      <span class="settings-help" style="margin-bottom: 4px; display: inline-block;">Click any placeholder token to append it:</span>
+                      <div class="script-pills-container">
+                        <span class="script-placeholder-pill" data-token='"%FILE%"'>%FILE% <span class="pill-desc">Full Path</span></span>
+                        <span class="script-placeholder-pill" data-token='"%DIR%"'>%DIR% <span class="pill-desc">Directory</span></span>
+                        <span class="script-placeholder-pill" data-token='"%NAME%"'>%NAME% <span class="pill-desc">Filename</span></span>
+                        <span class="script-placeholder-pill" data-token='"%URL%"'>%URL% <span class="pill-desc">Source URL</span></span>
+                        <span class="script-placeholder-pill" data-token='%SIZE%'>%SIZE% <span class="pill-desc">File Bytes</span></span>
+                        <span class="script-placeholder-pill" data-token='"%CATEGORY%"'>%CATEGORY% <span class="pill-desc">Category</span></span>
+                        <span class="script-placeholder-pill" data-token='%STATUS%'>%STATUS% <span class="pill-desc">Status</span></span>
+                      </div>
+                    </div>
+                    <span class="settings-help" style="margin-top: 6px;">Environment variables <code>WATERFALL_FILE_PATH</code>, <code>WATERFALL_FILE_NAME</code>, etc. are also passed to the process.</span>
+                  </div>
+
+                  <!-- Test Run Script Action -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid var(--border-dim); margin-top: 4px;">
+                    <button type="button" class="tool-btn" id="btn-test-script" style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; border-color: rgba(56, 139, 253, 0.4);">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                      <span>Test Run Script Now</span>
+                    </button>
+                    <span style="font-size: 0.69rem; color: var(--text-muted);">Spawns script with simulated task parameters</span>
+                  </div>
+
+                  <div class="script-test-console" id="script-test-console">
+                    <div class="console-header">
+                      <span>Test Execution Output</span>
+                      <span id="script-test-status" style="font-weight: 700;"></span>
+                    </div>
+                    <div id="script-test-body" style="font-size: 0.72rem;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Alerts & Sound -->
+          <div class="settings-panel" id="tab-cfg-notifications">
+            <div class="settings-section-title">
+              <h4>Notifications, Visual Toasts & Audio Chimes</h4>
+              <p>Configure IDM-style sound chimes and OS native completion notifications.</p>
+            </div>
+
+            <div class="settings-stack">
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Windows OS Native Desktop Notification (Toast)</div>
+                  <div class="toggle-desc">Displays a system notification banner with file name, size, and category icon.</div>
+                </div>
+                <input type="checkbox" id="cfg-native-notif" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">In-App Tactile Completion Notification Cards</div>
+                  <div class="toggle-desc">Shows an IDM-style floating completion card with "Open File" and "Open Folder" action buttons.</div>
+                </div>
+                <input type="checkbox" id="cfg-inapp-notif" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Play Audio Chime When Download Finishes</div>
+                  <div class="toggle-desc">Plays a pleasant acoustic chime via HTML5 Web Audio API synthesizer.</div>
+                </div>
+                <input type="checkbox" id="cfg-sound-chime" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label class="input-label" style="margin: 0;">Chime Volume Level</label>
+                  <span id="cfg-volume-label" style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; color: var(--accent-idm-blue);">80%</span>
+                </div>
+                <input type="range" id="cfg-sound-volume" min="0" max="1" step="0.05" value="0.8" style="width: 100%; accent-color: var(--accent-idm-blue);">
+              </div>
+
+              <div style="margin-top: 6px;">
+                <button type="button" class="tool-btn" id="btn-test-chime" style="padding: 7px 16px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                  <span>Play Test Audio Chime</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7. Theme & System -->
+          <div class="settings-panel" id="tab-cfg-interface">
+            <div class="settings-section-title">
+              <h4>Interface Themes & System Integration</h4>
+              <p>Personalize accent aesthetics, high-framerate transfer telemetry, and extension connectivity.</p>
+            </div>
+
+            <div class="settings-stack">
+              <div class="form-group">
+                <label class="input-label">Theme Accent Color Palette</label>
+                <div class="theme-accent-picker" id="theme-accent-picker">
+                  <button type="button" class="accent-swatch active" data-accent="cyan" style="--swatch-color: #388bfd;" title="Cyber Cyan (IDM Blue)">
+                    <span>Cyan</span>
+                  </button>
+                  <button type="button" class="accent-swatch" data-accent="purple" style="--swatch-color: #a371f7;" title="Neon Purple (Waterfall Flow)">
+                    <span>Purple</span>
+                  </button>
+                  <button type="button" class="accent-swatch" data-accent="emerald" style="--swatch-color: #2ea043;" title="Emerald Matrix">
+                    <span>Emerald</span>
+                  </button>
+                  <button type="button" class="accent-swatch" data-accent="amber" style="--swatch-color: #d29922;" title="Solar Gold">
+                    <span>Amber</span>
+                  </button>
+                  <button type="button" class="accent-swatch" data-accent="crimson" style="--swatch-color: #f85149;" title="Crimson Strike">
+                    <span>Crimson</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">High-Framerate Speed Gauges (250ms Ticks)</div>
+                  <div class="toggle-desc">Ultra-responsive transfer rate sampling with 4 updates per second for tactile speed graphs.</div>
+                </div>
+                <input type="checkbox" id="cfg-high-fps" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Show Top Filter Tabs Bar</div>
+                  <div class="toggle-desc">Displays the top filter tabs (All, Done, Downloading, Paused, Canceled, Categories) above the queue. Disabled by default to rely on the side panel.</div>
+                </div>
+                <input type="checkbox" id="cfg-show-top-filter-bar" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Hide Finished Downloads in "All Downloads"</div>
+                  <div class="toggle-desc">Automatically filters completed downloads out of the "All Downloads" queue. Finished downloads remain safe and accessible under the "Finished" tab in the sidebar.</div>
+                </div>
+                <input type="checkbox" id="cfg-hide-finished" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Default Queue Sorting</div>
+                  <div class="toggle-desc">Choose the default order for downloads in the queue (e.g. Active First pins downloading items to top).</div>
+                </div>
+                <select id="cfg-default-sort" class="text-input" style="width: 220px;">
+                  <option value="active-first">⚡ Active First (Downloading at Top)</option>
+                  <option value="date-desc">🕒 Date Added (Newest First)</option>
+                  <option value="date-asc">🕒 Date Added (Oldest First)</option>
+                  <option value="name-asc">🔤 Name (A → Z)</option>
+                  <option value="name-desc">🔤 Name (Z → A)</option>
+                  <option value="size-desc">📦 Size (Largest First)</option>
+                  <option value="size-asc">📦 Size (Smallest First)</option>
+                  <option value="progress-desc">📊 Progress (Highest First)</option>
+                  <option value="speed-desc">🚀 Speed (Fastest First)</option>
+                </select>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Start Waterfall with Windows (System Startup)</div>
+                  <div class="toggle-desc">Automatically launches Waterfall when Windows boots up so the IDM companion and accelerated queue are always running (ON by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-start-with-windows" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Start with Window Open (Visible on Launch)</div>
+                  <div class="toggle-desc">Opens the main Waterfall desktop window immediately when the application launches (OFF by default for silent system tray operation).</div>
+                </div>
+                <input type="checkbox" id="cfg-start-with-window" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Show IDM-Style Download Progress Dialog</div>
+                  <div class="toggle-desc">Opens a small, dedicated floating window to track live download progress, transfer speed, and ETA without opening the main window (ON by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-show-download-progress" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Show IDM-Style Download Complete Dialog</div>
+                  <div class="toggle-desc">Displays a dedicated completion window with quick actions to Open File or Open Folder when a download finishes (ON by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-show-download-complete" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">When Clicking the Window Exit (X) Button</div>
+                  <div class="toggle-desc">Choose whether to ask each time, minimize to the system tray, or exit completely.</div>
+                </div>
+                <select id="cfg-close-action" class="text-input" style="width: 250px;">
+                  <option value="ask" selected>❓ Ask Each Time (Tray / Full Exit / Cancel)</option>
+                  <option value="tray">📥 Minimize to System Tray</option>
+                  <option value="exit">❌ Full Exit (Quit Application)</option>
+                </select>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Auto-Download Files Immediately (Bypass Confirmation)</div>
+                  <div class="toggle-desc">Automatically starts downloads in the background without prompting the confirmation dialog (Disabled / OFF by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-auto-download-no-confirm" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Force Main Window to Top on New Download</div>
+                  <div class="toggle-desc">Automatically brings the main Waterfall window to the foreground whenever a download starts (OFF by default).</div>
+                </div>
+                <input type="checkbox" id="cfg-force-top-download" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Always Keep Waterfall on Top (Pinned)</div>
+                  <div class="toggle-desc">Keeps the Waterfall window pinned above all other open application windows.</div>
+                </div>
+                <input type="checkbox" id="cfg-always-on-top" class="toggle-checkbox">
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Show IDM Download Confirmation Dialog</div>
+                  <div class="toggle-desc">Presents an IDM-style dialog before starting downloads to review file size, 10-download average ETA, custom destination folder, and script execution.</div>
+                </div>
+                <input type="checkbox" id="cfg-show-confirm" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Enable "Watch While Downloading" Media Streamer</div>
+                  <div class="toggle-desc">Permits streaming and watching video and audio files in real-time directly while downloading.</div>
+                </div>
+                <input type="checkbox" id="cfg-media-stream-preview" class="toggle-checkbox" checked>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Clipboard URL Auto-Monitoring</div>
+                  <div class="toggle-desc">Monitors system clipboard for copied URLs and automatically stages them into LinkGrabber.</div>
+                </div>
+                <input type="checkbox" id="cfg-clipboard-monitor" class="toggle-checkbox">
+              </div>
+
+              <!-- Universal Crawler & Extractor Engine Card -->
+              <div style="margin-top: 10px; padding: 14px; background: #090e18; border: 1px solid var(--border-dim); border-radius: var(--radius-sm);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                  <div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                      Automated Crawler & Website Extractor Engine
+                    </div>
+                    <div style="font-size: 0.70rem; color: var(--text-muted); margin-top: 2px;">
+                      Universal bridge supporting 1,800+ websites automatically without writing hand-crafted plugins.
+                    </div>
+                  </div>
+                  <span id="crawler-engine-badge" style="font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">yt-dlp 2026.08.19</span>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;">
+                  <button type="button" class="tool-btn" id="btn-update-crawler" style="background: rgba(46, 160, 67, 0.15); color: #3fb950; border-color: rgba(46, 160, 67, 0.4);">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    <span>Update Crawler Engine Now</span>
+                  </button>
+                  <span id="crawler-update-status" style="font-size: 0.72rem; color: var(--text-muted);">Ready to check GitHub releases</span>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 4px; font-size: 0.72rem; color: var(--text-secondary); line-height: 1.5;">
+                  <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">Open-Source Crawler Ecosystem & Sources:</div>
+                  • <b>yt-dlp</b> (1,800+ extractors, daily updates): <span style="color: var(--accent-cyan); font-family: var(--font-mono);">github.com/yt-dlp/yt-dlp</span><br>
+                  • <b>JDownloader 2 SVN</b> (3,500+ hosters & decrypters): <span style="color: var(--accent-cyan); font-family: var(--font-mono);">svn.jdownloader.org/jdownloader</span><br>
+                  • <b>PyLoad Plugins</b> (400+ hosters): <span style="color: var(--accent-cyan); font-family: var(--font-mono);">github.com/pyload/pyload</span><br>
+                  • <b>Debrid APIs</b> (Real-Debrid / AllDebrid): Universal token for 100+ premium file hosts
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="input-label" for="cfg-listen-port">Waterfall Core Daemon Listen Port</label>
+                <input type="number" id="cfg-listen-port" class="text-input" value="4567" min="1024" max="65535">
+                <span class="settings-help">Port used by browser extensions, FlashGot bridge, and REST APIs. (Default: 4567)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="tool-btn danger" id="btn-reset-settings" title="Restore factory default settings">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+          <span>Reset Defaults</span>
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="tool-btn modal-close-btn">Cancel</button>
+          <button type="button" class="tool-btn primary" id="btn-save-settings">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Save Settings</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: Duplicate Download Alert & In-Progress File Update System
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-duplicate-prompt">
+    <div class="modal-card" style="width: 550px; max-width: 95vw;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div id="duplicate-header-icon" style="width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; background: rgba(227, 179, 65, 0.15); color: #e3b341;">
+            ⚠️
+          </div>
+          <div>
+            <h3 id="duplicate-prompt-title" style="margin: 0; font-size: 0.98rem; color: #fff;">File Already Present</h3>
+            <div id="duplicate-prompt-subtitle" style="font-size: 0.70rem; color: var(--text-muted);">Waterfall Duplicate Detection System</div>
+          </div>
+        </div>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Dynamic Alert Banner -->
+        <div id="duplicate-prompt-banner" style="padding: 12px 14px; border-radius: 6px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.8rem; line-height: 1.45; background: rgba(227, 179, 65, 0.1); border: 1px solid rgba(227, 179, 65, 0.3); color: #f2cc60;">
+          <span id="duplicate-prompt-banner-icon" style="font-size: 1.25rem; flex-shrink: 0;">ℹ️</span>
+          <div id="duplicate-prompt-banner-text">
+            This file is already in your download queue or on your computer.
+          </div>
+        </div>
+
+        <!-- File Details Card -->
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px;">
+            <span style="font-size: 0.74rem; color: var(--text-muted); flex-shrink: 0;">File Name:</span>
+            <span id="duplicate-prompt-filename" style="font-size: 0.84rem; font-weight: 600; color: var(--text-main); word-break: break-all; max-width: 360px; text-align: right;">--</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Current Status:</span>
+            <span id="duplicate-prompt-status" class="type-badge" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 4px;">--</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Size / Downloaded:</span>
+            <span id="duplicate-prompt-size" style="font-size: 0.80rem; font-weight: 600; font-family: var(--font-mono); color: #58a6ff;">--</span>
+          </div>
+
+          <!-- In-Progress Progress Bar -->
+          <div id="duplicate-prompt-progress-box" style="display: none; flex-direction: column; gap: 4px; margin-top: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.70rem; color: var(--text-muted);">
+              <span>Buffer Downloaded</span>
+              <span id="duplicate-prompt-percent" style="font-weight: 700; color: #3fb950;">0%</span>
+            </div>
+            <div style="height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+              <div id="duplicate-prompt-bar" style="height: 100%; width: 0%; background: #2ea043; border-radius: 3px; transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px;">
+            <span style="font-size: 0.74rem; color: var(--text-muted); flex-shrink: 0;">Disk Path:</span>
+            <span id="duplicate-prompt-path" style="font-size: 0.70rem; font-family: var(--font-mono); color: var(--text-muted); word-break: break-all; max-width: 360px; text-align: right;">--</span>
+          </div>
+
+          <div id="duplicate-prompt-extract-row" style="display: none; justify-content: space-between; align-items: baseline; gap: 10px;">
+            <span style="font-size: 0.74rem; color: #c084fc; flex-shrink: 0;">Extracted To:</span>
+            <span id="duplicate-prompt-extracted-path" style="font-size: 0.70rem; font-family: var(--font-mono); color: #e9d5ff; word-break: break-all; max-width: 360px; text-align: right;">--</span>
+          </div>
+        </div>
+
+        <!-- New URL details (when offering file update) -->
+        <div id="duplicate-prompt-newurl-box" style="display: none; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px;">
+          <div style="font-size: 0.70rem; color: var(--text-muted); margin-bottom: 2px;">Fresh Download Link to Apply:</div>
+          <div id="duplicate-prompt-newurl" style="font-size: 0.72rem; font-family: var(--font-mono); color: #58a6ff; word-break: break-all; max-height: 48px; overflow-y: auto;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer" id="duplicate-prompt-footer" style="padding: 12px 20px; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-mid); display: flex; justify-content: space-between; align-items: center;">
+        <!-- Dynamically populated buttons -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 6: Refresh / Update Download URL & Resume
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-update-url">
+    <div class="modal-card" style="width: 520px;">
+      <div class="modal-header">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Refresh / Update Download URL
+        </h3>
+        <button class="icon-btn modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;">
+          If the download link expired or changed on the host, paste the fresh URL below. Waterfall will seamlessly resume downloading from your existing bytes on disk.
+        </p>
+        <div class="form-group">
+          <label class="input-label">File</label>
+          <div id="update-url-filename" style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); word-break: break-all;"></div>
+        </div>
+        <div class="form-group">
+          <label class="input-label">Current / Expired URL</label>
+          <div id="update-url-current" style="font-size: 0.72rem; color: var(--text-muted); word-break: break-all; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); max-height: 60px; overflow-y: auto;"></div>
+        </div>
+        <div class="form-group">
+          <label class="input-label" for="input-new-url">New Fresh Download URL</label>
+          <input type="text" id="input-new-url" class="text-input" placeholder="https://example.com/fresh-download-link..." autofocus>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="tool-btn modal-close-btn">Cancel</button>
+        <button class="tool-btn primary" id="btn-submit-update-url">🔄 Update & Resume</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: Delete Download & Disk File Cleanup Confirmation
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-delete-confirm">
+    <div class="modal-card" style="width: 520px; max-width: 95vw;">
+      <div class="modal-header">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 8px; color: #f85149;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          Delete Download
+        </div>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 20px;">
+        <p id="delete-confirm-prompt" style="font-size: 0.9rem; margin-bottom: 14px; color: var(--text-main);">
+          Are you sure you want to delete this download?
+        </p>
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 0.75rem; color: var(--text-muted);">File Name:</span>
+            <span id="delete-confirm-filename" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); word-break: break-all; max-width: 320px; text-align: right;">--</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Disk Path:</span>
+            <span id="delete-confirm-path" style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-muted); word-break: break-all; max-width: 320px; text-align: right;">--</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Size on Disk:</span>
+            <span id="delete-confirm-size" style="font-size: 0.78rem; font-weight: 600; color: #58a6ff;">--</span>
+          </div>
+        </div>
+
+        <div style="background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.25); border-radius: 6px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 10px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <div style="font-size: 0.78rem; color: #ff7b72; line-height: 1.4;">
+            <strong>"Delete File from Disk"</strong> permanently removes the downloaded file and temporary parts from your hard drive. This action cannot be undone.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: rgba(0, 0, 0, 0.2);">
+        <button class="tool-btn modal-close-btn" id="btn-cancel-delete">Cancel</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="tool-btn" id="btn-delete-list-only" title="Removes task from Waterfall queue but leaves file on disk">
+            Remove from List Only
+          </button>
+          <button class="tool-btn danger" id="btn-delete-from-disk" style="background: #da3633; color: #ffffff; border-color: #f85149; font-weight: 600;" title="Permanently delete the file from disk and remove task">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            Delete File from Disk
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Completion Notifications Container (IDM Style) -->
+  <div class="completion-notifications-container" id="completion-notifications-container"></div>
+
+  <!-- Right-Click Desktop Context Menu (IDM Style) -->
+  <div class="context-menu" id="context-menu" style="display: none;">
+    <div class="context-menu-item" id="ctx-open-file">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      Open File
+    </div>
+    <div class="context-menu-item" id="ctx-open-folder">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      Open Containing Folder
+    </div>
+    <div class="context-menu-item" id="ctx-open-extracted-folder" style="display: none; color: #c084fc;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><path d="M12 11v6m-3-3l3-3 3 3"></path></svg>
+      Open Extracted Folder
+    </div>
+    <div class="context-menu-sep"></div>
+    <div class="context-menu-item" id="ctx-extract-archive">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+      Extract Archive Now
+    </div>
+    <div class="context-menu-item" id="ctx-verify-checksum">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+      Verify SHA-256 Checksum
+    </div>
+    <div class="context-menu-item" id="ctx-copy-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+      Copy Download Link
+    </div>
+    <div class="context-menu-item" id="ctx-update-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+      Refresh / Update URL & Resume
+    </div>
+    <div class="context-menu-item" id="ctx-pause-resume">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+      Pause / Resume
+    </div>
+    <div class="context-menu-sep"></div>
+    <div class="context-menu-item" id="ctx-move-top">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline><line x1="6" y1="5" x2="18" y2="5"></line></svg>
+      Move to Top of Queue
+    </div>
+    <div class="context-menu-item" id="ctx-move-up">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+      Move Up in Queue
+    </div>
+    <div class="context-menu-item" id="ctx-move-down">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      Move Down in Queue
+    </div>
+    <div class="context-menu-item" id="ctx-move-bottom">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline><line x1="6" y1="19" x2="18" y2="19"></line></svg>
+      Move to Bottom of Queue
+    </div>
+    <div class="context-menu-item" id="ctx-set-priority-high">
+      🔴 High Queue Priority
+    </div>
+    <div class="context-menu-item" id="ctx-set-priority-normal">
+      🔵 Normal Priority
+    </div>
+    <div class="context-menu-sep"></div>
+    <div class="context-menu-item danger" id="ctx-delete-disk">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      🗑️ Delete File from Disk & List
+    </div>
+    <div class="context-menu-item" id="ctx-delete-list">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      Remove from List Only
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/speedGraph.js"></script>
+  <script src="js/websocket.js"></script>
+  <script src="js/segmentVisualizer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
