@@ -26,6 +26,21 @@ std::filesystem::path StorageRouter::GetDefaultDownloadDir() const {
     return base_download_dir_;
 }
 
+std::filesystem::path StorageRouter::GetAppDataDir() const {
+    PWSTR path = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &path))) {
+        std::filesystem::path p = std::filesystem::path(path) / "Waterfall";
+        CoTaskMemFree(path);
+        std::error_code ec;
+        std::filesystem::create_directories(p, ec);
+        return p;
+    }
+    std::filesystem::path fallback = std::filesystem::current_path() / "data";
+    std::error_code ec;
+    std::filesystem::create_directories(fallback, ec);
+    return fallback;
+}
+
 void StorageRouter::SetCustomDownloadDir(const std::filesystem::path& dir) {
     base_download_dir_ = dir;
 }

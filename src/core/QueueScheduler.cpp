@@ -27,8 +27,8 @@ std::string QueueScheduler::GetHostKey(const std::string& url) {
 void QueueScheduler::Schedule(std::vector<DownloadTask>& tasks, StartTaskCallback start_cb) {
     std::unique_lock<std::mutex> lock(mutex_);
 
-    int max_active = ConfigManager::Instance().GetMaxConcurrentDownloads();
-    int max_per_host = ConfigManager::Instance().GetMaxConcurrentPerHost();
+    int max_active = std::max(1, ConfigManager::Instance().GetMaxConcurrentDownloads());
+    int max_per_host = std::max(1, ConfigManager::Instance().GetMaxConcurrentPerHost());
 
     int active_count = 0;
     std::map<std::string, int> active_hosts;

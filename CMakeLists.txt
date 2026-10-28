@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Waterfall VERSION 2.0.0 LANGUAGES CXX C)
+project(Waterfall VERSION 2.0.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -98,8 +98,10 @@ add_executable(waterfall
     src/core/ScriptEngine.cpp
     src/core/ShellIntegration.cpp
     src/core/QueueScheduler.cpp
+    src/core/UpdateManager.cpp
     src/server/ExtensionServer.cpp
     src/ui/UiManager.cpp
+    src/ui/WebViewUiManager.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_GL2.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_GL2.cpp
@@ -108,10 +110,12 @@ add_executable(waterfall
 target_include_directories(waterfall PRIVATE
     include
     vendor/sqlite3
+    vendor/webview2/build/native/include
     ${rmlui_SOURCE_DIR}/Backends
 )
 
 target_link_libraries(waterfall PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/vendor/webview2/build/native/x64/WebView2LoaderStatic.lib
     RmlUi::Core
     nlohmann_json::nlohmann_json
     httplib::httplib
@@ -121,6 +125,7 @@ target_link_libraries(waterfall PRIVATE
     user32
     shell32
     ole32
+    oleaut32
     winhttp
     ws2_32
     dwmapi
@@ -129,9 +134,18 @@ target_link_libraries(waterfall PRIVATE
     powrprof
 )
 
-# Copy UI assets next to binary on build
+# Copy UI assets and frontend next to binary on build
 add_custom_command(TARGET waterfall POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/assets
         $<TARGET_FILE_DIR:waterfall>/assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend
+        $<TARGET_FILE_DIR:waterfall>/src/frontend
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend
+        $<TARGET_FILE_DIR:waterfall>/frontend
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/vendor/webview2/build/native/x64/WebView2Loader.dll
+        $<TARGET_FILE_DIR:waterfall>/WebView2Loader.dll
 )

@@ -646,6 +646,186 @@ void DownloadManager::ClearGrabber() {
     NotifyUpdate();
 }
 
+void DownloadManager::RemoveGrabberPackage(int package_index) {
+    std::lock_guard lock(tasks_mutex_);
+    if (package_index >= 0 && package_index < static_cast<int>(grabber_packages_.size())) {
+        grabber_packages_.erase(grabber_packages_.begin() + package_index);
+        NotifyUpdate();
+    }
+}
+
+bool DownloadManager::UpdateDownloadUrl(int task_id, const std::string& new_url) {
+    std::lock_guard lock(tasks_mutex_);
+    for (auto& t : tasks_) {
+        if (t.id == task_id) {
+            t.url = new_url;
+            t.direct_url = new_url;
+            t.error_message.clear();
+            SaveTaskToDb(t);
+            ResumeDownload(task_id);
+            NotifyUpdate();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool DownloadManager::VerifyChecksum(int task_id, std::string& out_hash) {
+    DownloadTask target;
+    {
+        std::lock_guard lock(tasks_mutex_);
+        for (auto& t : tasks_) {
+            if (t.id == task_id) {
+                target = t;
+                break;
+            }
+        }
+    }
+    if (target.id == 0 || target.save_path.empty()) return false;
+    if (!fs::exists(target.save_path)) return false;
+
+    out_hash = ChunkEngine::CalculateSha256(target.save_path);
+    if (!out_hash.empty()) {
+        std::lock_guard lock(tasks_mutex_);
+        for (auto& t : tasks_) {
+            if (t.id == task_id) {
+                t.sha256_hash = out_hash;
+                SaveTaskToDb(t);
+                break;
+            }
+        }
+        NotifyUpdate();
+        return true;
+    }
+    return false;
+}
+
+bool DownloadManager::ExtractTask(int task_id, const std::string& password) {
+    DownloadTask target;
+    {
+        std::lock_guard lock(tasks_mutex_);
+        for (auto& t : tasks_) {
+            if (t.id == task_id) {
+                t.status = TaskStatus::Extracting;
+                t.extract_progress = 0.0f;
+                target = t;
+                break;
+            }
+        }
+    }
+    if (target.id == 0) return false;
+    NotifyUpdate();
+
+    std::thread([this, target, password]() {
+        std::vector<std::string> passwords = ConfigManager::Instance().GetArchivePasswords();
+        if (!password.empty()) {
+            passwords.insert(passwords.begin(), password);
+        }
+
+        std::string out_dir = (fs::path(target.save_path).parent_path() / fs::path(target.filename).stem()).string();
+        std::string ext_err;
+        std::vector<std::string> all_parts;
+
+        if (target.is_multipart && !target.multipart_group.empty()) {
+            std::lock_guard lock(tasks_mutex_);
+            for (const auto& t : tasks_) {
+                if (t.is_multipart && t.multipart_group == target.multipart_group) {
+                    all_parts.push_back(t.save_path);
+                }
+            }
+        }
+
+        bool ok = ArchiveEngine::Instance().UnpackArchive(
+            target.save_path, out_dir, passwords,
+            ConfigManager::Instance().ShouldDeleteArchiveAfterExtract(),
+            all_parts,
+            [this, target](float pct) {
+                std::lock_guard lk(tasks_mutex_);
+                for (auto& item : tasks_) {
+                    if (item.id == target.id || (target.is_multipart && item.multipart_group == target.multipart_group)) {
+                        item.status = TaskStatus::Extracting;
+                        item.extract_progress = pct;
+                    }
+                }
+                NotifyUpdate();
+            },
+            ext_err
+        );
+
+        {
+            std::lock_guard lock(tasks_mutex_);
+            for (auto& item : tasks_) {
+                if (item.id == target.id || (target.is_multipart && item.multipart_group == target.multipart_group)) {
+                    item.status = ok ? TaskStatus::Completed : TaskStatus::Error;
+                    if (!ok) item.error_message = ext_err.empty() ? "Archive extraction failed" : ext_err;
+                    else item.extract_progress = 100.0f;
+                    SaveTaskToDb(item);
+                }
+            }
+        }
+        NotifyUpdate();
+    }).detach();
+
+    return true;
+}
+
+void DownloadManager::SetTaskPriority(int task_id, int priority) {
+    std::lock_guard lock(tasks_mutex_);
+    for (auto& t : tasks_) {
+        if (t.id == task_id) {
+            t.priority = priority;
+            SaveTaskToDb(t);
+            break;
+        }
+    }
+    NotifyUpdate();
+}
+
+void DownloadManager::ForceDownloadGroup(const std::string& group_key) {
+    std::vector<int> ids_to_resume;
+    {
+        std::lock_guard lock(tasks_mutex_);
+        for (auto& t : tasks_) {
+            if (t.multipart_group == group_key || t.package_name == group_key) {
+                ids_to_resume.push_back(t.id);
+            }
+        }
+    }
+    for (int id : ids_to_resume) {
+        ResumeDownload(id);
+    }
+}
+
+void DownloadManager::UpdateTaskbar() {
+    uint64_t sum_done = 0;
+    uint64_t sum_total = 0;
+    bool has_downloading = false;
+    bool has_paused = false;
+
+    {
+        std::lock_guard lock(tasks_mutex_);
+        for (const auto& t : tasks_) {
+            if (t.status == TaskStatus::Downloading || t.status == TaskStatus::Probing) {
+                has_downloading = true;
+                sum_done += static_cast<uint64_t>(std::max<int64_t>(0, t.downloaded_bytes));
+                sum_total += static_cast<uint64_t>(std::max<int64_t>(0, t.total_bytes));
+            } else if (t.status == TaskStatus::Paused && t.downloaded_bytes > 0) {
+                has_paused = true;
+                sum_done += static_cast<uint64_t>(std::max<int64_t>(0, t.downloaded_bytes));
+                sum_total += static_cast<uint64_t>(std::max<int64_t>(0, t.total_bytes));
+            }
+        }
+    }
+
+    if (has_downloading) {
+        ShellIntegration::Instance().SetTaskbarProgress(sum_done, sum_total, TaskbarProgressState::Normal);
+    } else if (has_paused) {
+        ShellIntegration::Instance().SetTaskbarProgress(sum_done, sum_total, TaskbarProgressState::Paused);
+    } else {
+        ShellIntegration::Instance().SetTaskbarProgress(0, 0, TaskbarProgressState::NoProgress);
+    }
+}
+
 std::vector<DownloadTask> DownloadManager::GetTasks() {
     std::lock_guard lock(tasks_mutex_);
     return tasks_;
@@ -685,6 +865,7 @@ void DownloadManager::SetUpdateListener(UpdateListener listener) {
 }
 
 void DownloadManager::NotifyUpdate() {
+    UpdateTaskbar();
     if (update_listener_) {
         update_listener_();
     }

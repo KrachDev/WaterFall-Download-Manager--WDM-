@@ -30,6 +30,10 @@ struct AppConfig {
     
     PowerAction post_queue_power_action = PowerAction::None;
     bool system_tray_notifications = true;
+    bool show_console = false; // Default: Console hidden
+    std::string close_action = "ask"; // "ask", "tray", "exit"
+    bool first_run_completed = false; // IDM-like setup wizard completion state
+    bool start_with_windows = false; // Launch minimized on Windows startup
 };
 
 class ConfigManager {
@@ -64,6 +68,10 @@ public:
     void SetPowerAction(PowerAction action);
     std::string GetDownloadDirectory();
     void SetDownloadDirectory(const std::string& dir);
+    bool IsFirstRunCompleted();
+    void SetFirstRunCompleted(bool completed);
+    bool IsStartWithWindows();
+    void SetStartWithWindows(bool enable);
 
 private:
     ConfigManager();

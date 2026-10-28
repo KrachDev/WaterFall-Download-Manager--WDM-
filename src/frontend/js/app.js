@@ -2639,26 +2639,35 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openDesktopProgressWindow(task) {
-    if (!task || !task.id) return;
+    if (!task) return;
+    const taskId = (typeof task === 'object' && task !== null) ? (task.id || 0) : task;
+    if (!taskId) return;
     const cfg = window.appState.config || {};
 
-    // 1. Electron Native IPC
+    // 1. Desktop Bridge
     if (window.waterfallDesktop && typeof window.waterfallDesktop.openProgressWindow === 'function') {
-      window.waterfallDesktop.openProgressWindow(task);
+      window.waterfallDesktop.openProgressWindow(taskId);
       return;
     }
 
-    // 2. Tauri 2 Native Invocation
+    // 2. Native Waterfall C++ Desktop Dialog Window
+    fetch('/api/window/open-progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: taskId, topmost: false })
+    }).catch(() => {});
+
+    // 3. Tauri fallback
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
-      window.__TAURI__.core.invoke('open_progress_window', { taskId: String(task.id) }).catch(() => {});
+      window.__TAURI__.core.invoke('open_progress_window', { taskId: String(taskId) }).catch(() => {});
       return;
     }
 
-    // 3. Web Popup Window fallback
+    // 4. Web Popup Window fallback
     try {
       const popup = window.open(
-        `/download-progress.html?taskId=${encodeURIComponent(task.id)}`,
-        `progress_${String(task.id).replace(/-/g, '_')}`,
+        `/download-progress.html?taskId=${encodeURIComponent(taskId)}`,
+        `progress_${String(taskId).replace(/-/g, '_')}`,
         'width=640,height=560,resizable=yes,scrollbars=yes,status=no,location=no,toolbar=no,menubar=no'
       );
       if (popup && !popup.closed) {
@@ -2670,19 +2679,26 @@ document.addEventListener('DOMContentLoaded', () => {
   function openDesktopConfirmWindow(probeData) {
     if (!probeData) return;
 
-    // 1. Electron Native IPC
+    // 1. Desktop Bridge
     if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
       window.waterfallDesktop.openConfirmWindow(probeData);
       return;
     }
 
-    // 2. Tauri 2 Native Invocation
+    // 2. Native Waterfall C++ Desktop Dialog Window
+    fetch('/api/window/open-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(probeData)
+    }).catch(() => {});
+
+    // 3. Tauri 2 Native Invocation
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
       window.__TAURI__.core.invoke('open_confirm_window').catch(() => {});
       return;
     }
 
-    // 3. Web Popup Window fallback
+    // 4. Web Popup Window fallback
     try {
       const popup = window.open(
         '/confirm.html',
@@ -2709,7 +2725,26 @@ document.addEventListener('DOMContentLoaded', () => {
     showCompletionNotification(task);
     const cfg = window.appState.config || {};
     if (cfg.showDownloadCompleteDialog !== false && task) {
-      openDesktopProgressWindow(task);
+      // Bring done window to top
+      fetch('/api/window/open-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: task.id, topmost: true, bringToFront: true })
+      }).catch(() => {});
+    }
+  });
+
+  window.addEventListener('task:failed', (e) => {
+    const detail = e.detail;
+    const task = (detail && detail.task) ? detail.task : detail;
+    showFailureNotification(detail);
+    if (task) {
+      // Bring error window to top
+      fetch('/api/window/open-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: task.id, topmost: true, bringToFront: true })
+      }).catch(() => {});
     }
   });
 
@@ -3576,12 +3611,16 @@ document.addEventListener('DOMContentLoaded', () => {
       btnSubmitAddUrl.disabled = true;
       btnSubmitAddUrl.textContent = 'Inspecting...';
 
+      const probeCtrl = new AbortController();
+      const probeTimer = setTimeout(() => probeCtrl.abort(), 2500);
       try {
         const probeRes = await fetch('/api/downloads/probe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url }),
+          signal: probeCtrl.signal
         });
+        clearTimeout(probeTimer);
 
         let probeData;
         if (probeRes.ok) {
@@ -3894,17 +3933,24 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify(probeData)
     }).catch(() => {});
 
-    // 1. Electron or Tauri Native Separate Window
+    // 1. Desktop Bridge
     if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
       window.waterfallDesktop.openConfirmWindow(probeData);
       return;
     }
+
+    // 2. Native Waterfall C++ Desktop Dialog Window
+    fetch('/api/window/open-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(probeData)
+    }).catch(() => {});
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
       window.__TAURI__.core.invoke('open_confirm_window').catch(() => {});
       return;
     }
 
-    // 2. Web Browser Popup Window
+    // 3. Web Browser Popup Window fallback
     try {
       const popup = window.open(
         '/confirm.html',
@@ -4882,7 +4928,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('cfg-start-with-window')) document.getElementById('cfg-start-with-window').checked = !!cfg.startWithWindow;
     if (document.getElementById('cfg-show-download-progress')) document.getElementById('cfg-show-download-progress').checked = cfg.showDownloadProgressDialog !== false;
     if (document.getElementById('cfg-show-download-complete')) document.getElementById('cfg-show-download-complete').checked = cfg.showDownloadCompleteDialog !== false;
-    if (document.getElementById('cfg-close-action')) document.getElementById('cfg-close-action').value = cfg.closeAction || 'ask';
+    if (document.getElementById('cfg-close-action')) document.getElementById('cfg-close-action').value = cfg.closeAction || cfg.close_action || 'ask';
+    if (document.getElementById('cfg-show-console')) document.getElementById('cfg-show-console').checked = !!(cfg.showConsole || cfg.show_console);
     if (document.getElementById('cfg-auto-download-no-confirm')) document.getElementById('cfg-auto-download-no-confirm').checked = !!cfg.autoDownloadWithoutConfirmation;
     if (document.getElementById('cfg-force-top-download')) document.getElementById('cfg-force-top-download').checked = !!cfg.forceTopOnDownload;
     if (document.getElementById('cfg-always-on-top')) document.getElementById('cfg-always-on-top').checked = !!cfg.alwaysOnTop;
@@ -4919,6 +4966,18 @@ document.addEventListener('DOMContentLoaded', () => {
         populateSettingsForm(defaults);
       } catch (err) {
         alert('Reset failed: ' + err.message);
+      }
+    });
+  }
+
+  const btnRelaunchWizard = document.getElementById('btn-relaunch-wizard');
+  if (btnRelaunchWizard) {
+    btnRelaunchWizard.addEventListener('click', () => {
+      modalSettings.classList.remove('open');
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.openWelcomeWindow === 'function') {
+        window.waterfallDesktop.openWelcomeWindow();
+      } else {
+        fetch('/api/window/open-welcome', { method: 'POST' }).catch(() => {});
       }
     });
   }
@@ -4993,6 +5052,9 @@ document.addEventListener('DOMContentLoaded', () => {
       showDownloadProgressDialog: document.getElementById('cfg-show-download-progress')?.checked !== false,
       showDownloadCompleteDialog: document.getElementById('cfg-show-download-complete')?.checked !== false,
       closeAction: document.getElementById('cfg-close-action')?.value || 'ask',
+      close_action: document.getElementById('cfg-close-action')?.value || 'ask',
+      showConsole: Boolean(document.getElementById('cfg-show-console')?.checked),
+      show_console: Boolean(document.getElementById('cfg-show-console')?.checked),
       autoDownloadWithoutConfirmation: document.getElementById('cfg-auto-download-no-confirm')?.checked || false,
       forceTopOnDownload: Boolean(document.getElementById('cfg-force-top-download')?.checked),
       alwaysOnTop: document.getElementById('cfg-always-on-top')?.checked || false,
@@ -5039,6 +5101,186 @@ document.addEventListener('DOMContentLoaded', () => {
       btnSaveSettings.textContent = 'Save Settings';
     }
   });
+
+  // ==========================================================================
+  // Waterfall Auto-Updater Controller (GitHub Releases)
+  // ==========================================================================
+  const modalUpdate = document.getElementById('modal-update-available');
+  const modalUpdateCurrVer = document.getElementById('modal-update-curr-ver');
+  const modalUpdateLatestVer = document.getElementById('modal-update-latest-ver');
+  const modalUpdateNotes = document.getElementById('modal-update-notes-body');
+  const modalUpdateProgressWrap = document.getElementById('modal-update-progress-wrap');
+  const modalUpdateProgressBar = document.getElementById('modal-update-progress-bar');
+  const modalUpdateProgressMsg = document.getElementById('modal-update-progress-msg');
+  const modalUpdateProgressPct = document.getElementById('modal-update-progress-pct');
+  const btnModalUpdateNow = document.getElementById('btn-modal-update-now');
+  const btnModalUpdateLater = document.getElementById('btn-modal-update-later');
+
+  const btnSettingsCheckUpdate = document.getElementById('btn-settings-check-update');
+  const btnSettingsInstallUpdate = document.getElementById('btn-settings-install-update');
+  const updaterStatusText = document.getElementById('updater-status-text');
+  const updaterIndicatorDot = document.getElementById('updater-indicator-dot');
+  const updaterProgressContainer = document.getElementById('updater-progress-container');
+  const updaterProgressFill = document.getElementById('updater-progress-fill');
+  const updaterProgressPercent = document.getElementById('updater-progress-percent');
+  const updaterProgressLabel = document.getElementById('updater-progress-label');
+  const updaterAvailableBox = document.getElementById('updater-available-box');
+  const updaterAvailableTitle = document.getElementById('updater-available-title');
+  const updaterReleaseNotesBox = document.getElementById('updater-release-notes-box');
+  const cfgAutoCheckUpdate = document.getElementById('cfg-auto-check-update');
+
+  let activeUpdateInfo = null;
+  let updatePollInterval = null;
+
+  async function checkForAppUpdates(isManual = false) {
+    if (isManual && btnSettingsCheckUpdate) {
+      btnSettingsCheckUpdate.disabled = true;
+      btnSettingsCheckUpdate.innerHTML = `<span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid #38bdf8; border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite; vertical-align:middle; margin-right:4px;"></span> Checking...`;
+    }
+    if (updaterStatusText) {
+      updaterStatusText.textContent = 'Checking GitHub Releases for newer version...';
+    }
+
+    try {
+      const res = await fetch(`/api/update/check?force=${isManual ? 'true' : 'false'}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      activeUpdateInfo = data;
+
+      if (modalUpdateCurrVer) modalUpdateCurrVer.textContent = data.current_version || 'v2.0.0';
+      const curVerPill = document.getElementById('updater-current-ver-pill');
+      if (curVerPill && data.current_version) curVerPill.textContent = `${data.current_version} Pro`;
+
+      if (data.update_available) {
+        if (updaterIndicatorDot) updaterIndicatorDot.style.background = '#38bdf8';
+        if (updaterStatusText) {
+          updaterStatusText.innerHTML = `<b style="color: #38bdf8;">Update Available:</b> ${data.latest_version} is ready for installation.`;
+        }
+        if (updaterAvailableBox) {
+          updaterAvailableBox.style.display = 'flex';
+          if (updaterAvailableTitle) updaterAvailableTitle.textContent = `🎉 New Version Ready: ${data.latest_version}`;
+          if (updaterReleaseNotesBox) updaterReleaseNotesBox.textContent = data.release_notes || 'Continuous performance improvements and bug fixes.';
+        }
+
+        if (modalUpdateLatestVer) modalUpdateLatestVer.textContent = data.latest_version || 'Latest';
+        if (modalUpdateNotes) modalUpdateNotes.textContent = data.release_notes || 'Official release containing security updates, download acceleration improvements, and fixes.';
+
+        if (modalUpdate) {
+          modalUpdate.classList.add('open');
+        }
+      } else {
+        if (updaterIndicatorDot) updaterIndicatorDot.style.background = '#10b981';
+        if (updaterStatusText) {
+          updaterStatusText.textContent = `Waterfall is up to date (${data.current_version || 'v2.0.0'}).`;
+        }
+        if (updaterAvailableBox) updaterAvailableBox.style.display = 'none';
+
+        if (isManual) {
+          alert(`You are running the latest version of Waterfall (${data.current_version || 'v2.0.0'}). No updates needed!`);
+        }
+      }
+    } catch (err) {
+      if (updaterStatusText) {
+        updaterStatusText.textContent = `Update check failed: ${err.message}`;
+      }
+      if (isManual) {
+        alert('Could not check for updates. Please check your internet connection or try again later.');
+      }
+    } finally {
+      if (isManual && btnSettingsCheckUpdate) {
+        btnSettingsCheckUpdate.disabled = false;
+        btnSettingsCheckUpdate.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> <span>Check for Updates</span>`;
+      }
+    }
+  }
+
+  async function executeDownloadAndApplyUpdate() {
+    if (btnModalUpdateNow) {
+      btnModalUpdateNow.disabled = true;
+      btnModalUpdateNow.textContent = 'Downloading...';
+    }
+    if (btnSettingsInstallUpdate) {
+      btnSettingsInstallUpdate.disabled = true;
+      btnSettingsInstallUpdate.textContent = 'Downloading...';
+    }
+    if (modalUpdateProgressWrap) modalUpdateProgressWrap.style.display = 'flex';
+    if (updaterProgressContainer) updaterProgressContainer.style.display = 'flex';
+
+    try {
+      const startRes = await fetch('/api/update/download', { method: 'POST' });
+      if (!startRes.ok) {
+        const errJson = await startRes.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to start download');
+      }
+
+      if (updatePollInterval) clearInterval(updatePollInterval);
+      updatePollInterval = setInterval(async () => {
+        try {
+          const progRes = await fetch('/api/update/progress');
+          if (!progRes.ok) return;
+          const prog = await progRes.json();
+          const pct = Math.min(100, Math.max(0, Math.round(prog.progress || 0)));
+
+          if (modalUpdateProgressBar) modalUpdateProgressBar.style.width = `${pct}%`;
+          if (modalUpdateProgressPct) modalUpdateProgressPct.textContent = `${pct}%`;
+          if (updaterProgressFill) updaterProgressFill.style.width = `${pct}%`;
+          if (updaterProgressPercent) updaterProgressPercent.textContent = `${pct}%`;
+
+          if (!prog.is_downloading && pct >= 100) {
+            clearInterval(updatePollInterval);
+            updatePollInterval = null;
+
+            if (modalUpdateProgressMsg) modalUpdateProgressMsg.textContent = 'Update downloaded! Restarting Waterfall to apply...';
+            if (updaterProgressLabel) updaterProgressLabel.textContent = 'Update downloaded! Restarting Waterfall to apply...';
+            if (btnModalUpdateNow) btnModalUpdateNow.textContent = 'Restarting Waterfall...';
+            if (btnSettingsInstallUpdate) btnSettingsInstallUpdate.textContent = 'Restarting Waterfall...';
+
+            // Trigger extraction & restart
+            setTimeout(async () => {
+              try {
+                await fetch('/api/update/apply', { method: 'POST' });
+              } catch (_) {}
+            }, 600);
+          }
+        } catch (_) {}
+      }, 300);
+    } catch (err) {
+      alert('Update failed: ' + err.message);
+      if (btnModalUpdateNow) {
+        btnModalUpdateNow.disabled = false;
+        btnModalUpdateNow.textContent = 'Update & Restart Now';
+      }
+      if (btnSettingsInstallUpdate) {
+        btnSettingsInstallUpdate.disabled = false;
+        btnSettingsInstallUpdate.textContent = 'Download & Apply Update';
+      }
+    }
+  }
+
+  if (btnSettingsCheckUpdate) {
+    btnSettingsCheckUpdate.addEventListener('click', () => checkForAppUpdates(true));
+  }
+  if (btnSettingsInstallUpdate) {
+    btnSettingsInstallUpdate.addEventListener('click', () => executeDownloadAndApplyUpdate());
+  }
+  if (btnModalUpdateNow) {
+    btnModalUpdateNow.addEventListener('click', () => executeDownloadAndApplyUpdate());
+  }
+  if (btnModalUpdateLater && modalUpdate) {
+    btnModalUpdateLater.addEventListener('click', () => {
+      modalUpdate.classList.remove('open');
+    });
+  }
+
+  // Automatic silent check 4 seconds after app starts
+  setTimeout(() => {
+    try {
+      const autoCheckDisabled = localStorage.getItem('waterfall_auto_update_disabled');
+      if (!autoCheckDisabled) {
+        checkForAppUpdates(false);
+      }
+    } catch (_) {}
+  }, 4000);
 
   // Post-Download Script Engine: Clickable Placeholder Token Pills
   document.querySelectorAll('.script-placeholder-pill').forEach(pill => {
@@ -5363,6 +5605,123 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+
+  // --- Quit / Exit Application Options Modal ---
+  const modalQuitOptions = document.getElementById('modal-quit-options');
+  const btnQuitToTray = document.getElementById('btn-quit-to-tray');
+  const btnQuitExit = document.getElementById('btn-quit-exit');
+  const btnQuitCancel = document.getElementById('btn-quit-cancel');
+  const btnQuitCancelX = document.getElementById('btn-quit-cancel-x');
+  const quitRememberChoice = document.getElementById('quit-remember-choice');
+  const quitStatusText = document.getElementById('quit-status-text');
+  const quitStatusBanner = document.getElementById('quit-status-banner');
+  const cfgShowConsole = document.getElementById('cfg-show-console');
+
+  if (cfgShowConsole) {
+    cfgShowConsole.addEventListener('change', () => {
+      fetch('/api/system/console', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ show: cfgShowConsole.checked })
+      }).catch(() => {});
+    });
+  }
+
+  window.showQuitOptionsModal = function() {
+    const cfg = window.appState && window.appState.config ? window.appState.config : {};
+    const savedAction = cfg.closeAction || cfg.close_action || localStorage.getItem('waterfall_close_action') || 'ask';
+
+    if (savedAction === 'tray') {
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.minimizeToTray === 'function') {
+        window.waterfallDesktop.minimizeToTray();
+      } else {
+        fetch('/api/system/minimize-tray', { method: 'POST' }).catch(() => {});
+      }
+      return;
+    }
+
+    if (savedAction === 'exit') {
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.exitApp === 'function') {
+        window.waterfallDesktop.exitApp();
+      } else {
+        fetch('/api/system/exit', { method: 'POST' }).catch(() => {});
+      }
+      return;
+    }
+
+    const activeCount = (window.appState && Array.isArray(window.appState.tasks))
+      ? window.appState.tasks.filter(t => t.status === 'downloading' || t.status === 'extracting' || t.status === 'assembling').length
+      : 0;
+
+    if (quitStatusText) {
+      if (activeCount > 0) {
+        quitStatusText.textContent = `${activeCount} download${activeCount > 1 ? 's are' : ' is'} currently active. Minimizing to tray keeps ${activeCount > 1 ? 'them' : 'it'} downloading in the background.`;
+        if (quitStatusBanner) quitStatusBanner.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+      } else {
+        quitStatusText.textContent = 'All downloads are currently idle or finished.';
+        if (quitStatusBanner) quitStatusBanner.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+      }
+    }
+
+    if (modalQuitOptions) {
+      modalQuitOptions.classList.add('active');
+    }
+  };
+
+  function hideQuitOptionsModal() {
+    if (modalQuitOptions) {
+      modalQuitOptions.classList.remove('active');
+    }
+  }
+
+  if (btnQuitToTray) {
+    btnQuitToTray.addEventListener('click', () => {
+      if (quitRememberChoice && quitRememberChoice.checked) {
+        try { localStorage.setItem('waterfall_close_action', 'tray'); } catch (_) {}
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ close_action: 'tray' })
+        }).catch(() => {});
+        if (window.appState && window.appState.config) {
+          window.appState.config.closeAction = 'tray';
+          window.appState.config.close_action = 'tray';
+        }
+      }
+      hideQuitOptionsModal();
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.minimizeToTray === 'function') {
+        window.waterfallDesktop.minimizeToTray();
+      } else {
+        fetch('/api/system/minimize-tray', { method: 'POST' }).catch(() => {});
+      }
+    });
+  }
+
+  if (btnQuitExit) {
+    btnQuitExit.addEventListener('click', () => {
+      if (quitRememberChoice && quitRememberChoice.checked) {
+        try { localStorage.setItem('waterfall_close_action', 'exit'); } catch (_) {}
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ close_action: 'exit' })
+        }).catch(() => {});
+        if (window.appState && window.appState.config) {
+          window.appState.config.closeAction = 'exit';
+          window.appState.config.close_action = 'exit';
+        }
+      }
+      hideQuitOptionsModal();
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.exitApp === 'function') {
+        window.waterfallDesktop.exitApp();
+      } else {
+        fetch('/api/system/exit', { method: 'POST' }).catch(() => {});
+      }
+    });
+  }
+
+  if (btnQuitCancel) btnQuitCancel.addEventListener('click', hideQuitOptionsModal);
+  if (btnQuitCancelX) btnQuitCancelX.addEventListener('click', hideQuitOptionsModal);
 
   // Initialize table resizers, column sorting & initial filter tabs bar visibility
   initTableColumnResizing();

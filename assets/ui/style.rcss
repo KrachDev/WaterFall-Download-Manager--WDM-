@@ -2,21 +2,11 @@
    Waterfall Download Accelerator - Obsidian Cyber-Fluid RCSS Design System
    ========================================================================== */
 
-@font-face {
-    font-family: "Segoe UI";
-    src: "C:/Windows/Fonts/segoeui.ttf";
-}
 
-@font-face {
-    font-family: "Segoe UI";
-    src: "C:/Windows/Fonts/segoeuib.ttf";
-    font-weight: bold;
-}
 
-@font-face {
-    font-family: "Consolas";
-    src: "C:/Windows/Fonts/consola.ttf";
-}
+
+
+
 
 body {
     font-family: "Segoe UI";
@@ -32,13 +22,21 @@ body {
     flex-direction: column;
 }
 
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 /* --------------------------------------------------------------------------
    Top Navigation & Command Toolbar
    -------------------------------------------------------------------------- */
 #header {
     height: 52px;
     background-color: #111827;
-    border-bottom: 2px solid #1f293d;
+    border-bottom: 2px #1f293d;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -82,13 +80,14 @@ body {
 
 .tb-btn {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     color: #f1f5f9;
     font-size: 12px;
     font-weight: bold;
     padding: 7px 13px;
     margin-right: 6px;
     border-radius: 6px;
+    cursor: pointer;
 }
 
 .tb-btn:hover {
@@ -97,9 +96,15 @@ body {
     border-color: #00e5ff;
 }
 
+.tb-btn.active {
+    background-color: #0c4a6e;
+    border-color: #00e5ff;
+    color: #00e5ff;
+}
+
 .tb-btn.primary {
     background-color: #0284c7;
-    border: 1px solid #38bdf8;
+    border: 1px #38bdf8;
     color: #ffffff;
 }
 
@@ -110,6 +115,12 @@ body {
 
 .tb-btn.power {
     background-color: #1e293b;
+    border: 1px #475569;
+    color: #94a3b8;
+}
+
+.tb-btn.power.active {
+    background-color: #451a03;
     border-color: #f59e0b;
     color: #fbbf24;
 }
@@ -122,7 +133,7 @@ body {
 
 .stat-pill {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     padding: 5px 12px;
     margin-left: 8px;
@@ -160,7 +171,7 @@ body {
 #sidebar {
     width: 230px;
     background-color: #0f172a;
-    border-right: 1px solid #1e293b;
+    border-right: 1px #1e293b;
     padding: 14px;
     display: flex;
     flex-direction: column;
@@ -183,7 +194,7 @@ body {
     display: block;
     width: 100%;
     background-color: transparent;
-    border: none;
+    border-width: 0px;
     color: #94a3b8;
     font-size: 12px;
     text-align: left;
@@ -201,12 +212,12 @@ body {
     background-color: #1e293b;
     color: #00e5ff;
     font-weight: bold;
-    border-left: 3px solid #00e5ff;
+    border-left: 3px #00e5ff;
 }
 
 .telemetry-box {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     padding: 10px;
     margin-top: auto;
@@ -233,7 +244,7 @@ body {
 
 .sidebar-footer {
     padding-top: 8px;
-    border-top: 1px solid #1e293b;
+    border-top: 1px #1e293b;
 }
 
 .server-status {
@@ -292,7 +303,7 @@ body {
 
 .search-input {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     color: #ffffff;
     padding: 7px 12px;
@@ -303,7 +314,7 @@ body {
 
 .tool-btn {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     color: #f1f5f9;
     font-size: 11px;
     font-weight: bold;
@@ -335,27 +346,33 @@ body {
 
 .empty-state-card {
     background-color: #111827;
-    border: 1px dashed #334155;
+    border: 1px #1e293b;
     border-radius: 8px;
-    padding: 40px 20px;
+    padding: 48px 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    margin-top: 24px;
+    margin-top: 36px;
+}
+
+.empty-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
 }
 
 .empty-title {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: bold;
     color: #f8fafc;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .empty-desc {
     font-size: 12px;
     color: #94a3b8;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
+    text-align: center;
 }
 
 .empty-action {
@@ -367,15 +384,20 @@ body {
    Download Task Cards
    -------------------------------------------------------------------------- */
 .task-card {
+    display: flex;
+    flex-direction: column;
     background-color: #111827;
-    border: 1px solid #1f293d;
+    border: 1px #1e293b;
+    border-left: 4px #0284c7;
     border-radius: 8px;
     padding: 14px 18px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .task-card:hover {
-    border-color: #00e5ff;
+    border-color: #38bdf8;
+    border-left-color: #00e5ff;
+    background-color: #151f33;
 }
 
 .card-top {
@@ -383,60 +405,102 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .file-info {
     display: flex;
     flex-direction: row;
     align-items: center;
+    flex: 1;
+    overflow: hidden;
+    margin-right: 14px;
 }
 
 .file-icon {
-    font-size: 18px;
-    margin-right: 10px;
+    font-size: 16px;
+    margin-right: 8px;
+    flex-shrink: 0;
 }
 
 .file-name {
     font-size: 13px;
     font-weight: bold;
-    color: #ffffff;
+    color: #f8fafc;
 }
 
 .card-badges {
     display: flex;
     flex-direction: row;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .badge-status {
     font-size: 10px;
     font-weight: bold;
     background-color: #1e293b;
-    color: #38bdf8;
+    border: 1px #334155;
+    color: #94a3b8;
     padding: 3px 8px;
     border-radius: 4px;
-    margin-right: 8px;
+    margin-right: 10px;
+}
+
+.badge-status.downloading {
+    background-color: #0c4a6e;
+    color: #38bdf8;
+    border-color: #0284c7;
+}
+
+.badge-status.paused {
+    background-color: #451a03;
+    color: #fbbf24;
+    border-color: #d97706;
+}
+
+.badge-status.completed {
+    background-color: #064e3b;
+    color: #34d399;
+    border-color: #059669;
+}
+
+.badge-status.extracting {
+    background-color: #4c1d95;
+    color: #c084fc;
+    border-color: #7c3aed;
+}
+
+.badge-status.error {
+    background-color: #7f1d1d;
+    color: #fca5a5;
+    border-color: #dc2626;
 }
 
 .badge-speed {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
     color: #00e5ff;
+    letter-spacing: 0.5px;
 }
 
 .progress-track {
     height: 7px;
     background-color: #1e293b;
+    border: 1px #334155;
     border-radius: 4px;
-    margin-bottom: 8px;
+    margin: 8px 0;
     overflow: hidden;
 }
 
 .progress-fill {
     height: 100%;
     background-color: #00e5ff;
-    border-radius: 4px;
+    border-radius: 3px;
+}
+
+.progress-fill.done {
+    background-color: #10b981;
 }
 
 .card-bottom {
@@ -444,12 +508,14 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+    margin-top: 6px;
 }
 
 .meta-stats {
     display: flex;
     flex-direction: row;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .meta-text {
@@ -457,8 +523,13 @@ body {
     color: #94a3b8;
 }
 
+.meta-val {
+    color: #e2e8f0;
+    font-weight: bold;
+}
+
 .meta-dot {
-    margin: 0 6px;
+    margin: 0 7px;
     color: #475569;
 }
 
@@ -466,27 +537,64 @@ body {
     display: flex;
     flex-direction: row;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .btn-action {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     color: #cbd5e1;
     font-size: 11px;
     font-weight: bold;
-    padding: 4px 10px;
-    border-radius: 4px;
-    margin-left: 6px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    margin-left: 5px;
+    cursor: pointer;
+    flex-shrink: 0;
 }
 
 .btn-action:hover {
     background-color: #334155;
+    border-color: #64748b;
     color: #ffffff;
+}
+
+.btn-action.primary {
+    background-color: #0284c7;
+    border-color: #38bdf8;
+    color: #ffffff;
+}
+
+.btn-action.primary:hover {
+    background-color: #00e5ff;
+    color: #000000;
+}
+
+.btn-action.extract {
+    background-color: #4c1d95;
+    border-color: #7c3aed;
+    color: #e9d5ff;
+}
+
+.btn-action.extract:hover {
+    background-color: #6b21a8;
+    border-color: #c084fc;
+    color: #ffffff;
+}
+
+.btn-action.inspect {
+    color: #38bdf8;
+    border-color: #0284c7;
 }
 
 .btn-action.inspect:hover {
     background-color: #0284c7;
+    border-color: #38bdf8;
     color: #ffffff;
+}
+
+.btn-action.danger {
+    color: #f87171;
 }
 
 .btn-action.danger:hover {
@@ -499,27 +607,36 @@ body {
    LinkGrabber Package Cards
    -------------------------------------------------------------------------- */
 .grabber-card {
+    display: flex;
+    flex-direction: column;
     background-color: #111827;
-    border: 1px solid #1f293d;
+    border: 1px #1f293d;
+    border-left: 4px #0284c7;
     border-radius: 8px;
-    padding: 16px;
+    padding: 14px 18px;
     margin-bottom: 12px;
+}
+
+.grabber-card:hover {
+    border-color: #38bdf8;
+    border-left-color: #00e5ff;
+    background-color: #151f33;
 }
 
 .grabber-card-header {
     display: flex;
     flex-direction: row;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
 .pkg-icon {
-    font-size: 20px;
-    margin-right: 10px;
+    font-size: 16px;
+    margin-right: 8px;
 }
 
 .pkg-name {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     color: #ffffff;
 }
@@ -537,11 +654,12 @@ body {
 .grabber-card-body {
     display: flex;
     flex-direction: row;
-    margin-bottom: 12px;
+    align-items: center;
+    margin-bottom: 10px;
 }
 
 .pkg-meta {
-    font-size: 12px;
+    font-size: 11px;
     color: #94a3b8;
     margin-right: 20px;
 }
@@ -570,7 +688,7 @@ body {
 .media-url-input {
     flex: 1;
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     color: #ffffff;
     padding: 9px 14px;
@@ -580,7 +698,7 @@ body {
 
 .media-preview-card {
     background-color: #111827;
-    border: 1px solid #1f293d;
+    border: 1px #1f293d;
     border-radius: 8px;
     padding: 18px;
     display: flex;
@@ -591,7 +709,7 @@ body {
     width: 220px;
     height: 124px;
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -640,7 +758,7 @@ body {
 
 .chip-btn {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     color: #cbd5e1;
     font-size: 11px;
     font-weight: bold;
@@ -657,7 +775,7 @@ body {
 
 .btn-primary-large {
     background-color: #0284c7;
-    border: 1px solid #38bdf8;
+    border: 1px #38bdf8;
     color: #ffffff;
     font-size: 13px;
     font-weight: bold;
@@ -678,7 +796,7 @@ body {
     display: flex;
     width: 320px;
     background-color: #0f172a;
-    border-left: 2px solid #1e293b;
+    border-left: 2px #1e293b;
     padding: 16px;
     flex-direction: column;
     overflow-y: auto;
@@ -690,7 +808,7 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 14px;
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px #1e293b;
     padding-bottom: 10px;
 }
 
@@ -703,7 +821,7 @@ body {
 
 .btn-close {
     background-color: transparent;
-    border: none;
+    border-width: 0px;
     color: #94a3b8;
     font-size: 14px;
     font-weight: bold;
@@ -746,20 +864,35 @@ body {
 }
 
 .seg-cell {
-    width: 30px;
-    height: 22px;
+    width: 32px;
+    height: 24px;
     font-size: 10px;
     font-weight: bold;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
+    border-radius: 4px;
     margin: 2px;
+    border: 1px #334155;
 }
 
-.seg-cell.done { background-color: #059669; color: #ffffff; }
-.seg-cell.active { background-color: #00e5ff; color: #000000; }
-.seg-cell.pending { background-color: #1e293b; color: #64748b; }
+.seg-cell.done {
+    background-color: #059669;
+    border-color: #10b981;
+    color: #ffffff;
+}
+
+.seg-cell.active {
+    background-color: #00e5ff;
+    border-color: #38bdf8;
+    color: #000000;
+}
+
+.seg-cell.pending {
+    background-color: #1e293b;
+    border-color: #334155;
+    color: #64748b;
+}
 
 .priority-row {
     display: flex;
@@ -771,7 +904,7 @@ body {
 .priority-chip {
     flex: 1;
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     color: #94a3b8;
     font-size: 11px;
     font-weight: bold;
@@ -795,13 +928,13 @@ body {
     display: flex;
     flex-direction: column;
     margin-top: 14px;
-    border-top: 1px solid #1e293b;
+    border-top: 1px #1e293b;
     padding-top: 12px;
 }
 
 .ins-action-btn {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     color: #cbd5e1;
     font-size: 11px;
     font-weight: bold;
@@ -839,7 +972,7 @@ body {
 .modal-card {
     width: 520px;
     background-color: #111827;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 8px;
     padding: 20px;
     display: flex;
@@ -861,7 +994,7 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px #1e293b;
     padding-bottom: 10px;
 }
 
@@ -888,7 +1021,7 @@ body {
 
 .modal-input {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     color: #ffffff;
     padding: 8px 12px;
@@ -899,7 +1032,7 @@ body {
 
 .modal-textarea {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     color: #ffffff;
     padding: 8px 12px;
@@ -910,14 +1043,14 @@ body {
 .modal-subtabs {
     display: flex;
     flex-direction: row;
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px #1e293b;
     margin-bottom: 12px;
 }
 
 .subtab-btn {
     background-color: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
+    border-width: 0px;
+    border-bottom: 2px transparent;
     color: #94a3b8;
     font-size: 12px;
     font-weight: bold;
@@ -950,7 +1083,7 @@ body {
 
 .chip-folder-btn {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 4px;
     color: #94a3b8;
     font-size: 10px;
@@ -989,7 +1122,7 @@ body {
     flex-direction: row;
     justify-content: flex-end;
     margin-top: 20px;
-    border-top: 1px solid #1e293b;
+    border-top: 1px #1e293b;
     padding-top: 14px;
 }
 
@@ -1000,7 +1133,7 @@ body {
     align-items: center;
     justify-content: space-between;
     background-color: #0f172a;
-    border: 1px solid #1e293b;
+    border: 1px #1e293b;
     border-radius: 8px;
     padding: 14px 18px;
     margin-top: 6px;
@@ -1035,7 +1168,7 @@ body {
 
 .preset-btn {
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 6px;
     color: #cbd5e1;
     padding: 8px 12px;
@@ -1075,7 +1208,7 @@ body {
 /* Batch Action Bar */
 .batch-bar {
     background-color: #0c4a6e;
-    border: 1px solid #0284c7;
+    border: 1px #0284c7;
     border-radius: 6px;
     padding: 8px 14px;
     display: flex;
@@ -1092,19 +1225,24 @@ body {
 }
 
 .card-select-btn {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    max-width: 20px;
+    min-height: 20px;
+    max-height: 20px;
     border-radius: 4px;
     background-color: #1e293b;
-    border: 1px solid #475569;
+    border: 1px #475569;
     color: transparent;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: bold;
     text-align: center;
-    line-height: 20px;
-    margin-right: 10px;
+    line-height: 18px;
+    margin-right: 12px;
     padding: 0;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .card-select-btn:hover {
@@ -1127,7 +1265,7 @@ body {
 .context-menu-card {
     width: 320px;
     background-color: #111827;
-    border: 1px solid #38bdf8;
+    border: 1px #38bdf8;
     border-radius: 8px;
     padding: 14px;
     display: flex;
@@ -1135,7 +1273,7 @@ body {
 }
 
 .context-header {
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px #1e293b;
     padding-bottom: 8px;
     margin-bottom: 8px;
 }
@@ -1161,7 +1299,7 @@ body {
 
 .context-item {
     background-color: transparent;
-    border: none;
+    border-width: 0px;
     color: #cbd5e1;
     font-size: 11px;
     text-align: left;
@@ -1193,7 +1331,7 @@ body {
 /* Password Vault List */
 .vault-list {
     background-color: #0f172a;
-    border: 1px solid #1e293b;
+    border: 1px #1e293b;
     border-radius: 6px;
     padding: 8px;
     max-height: 110px;
@@ -1209,7 +1347,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 4px 6px;
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px #1e293b;
 }
 
 .vault-pwd {
@@ -1219,7 +1357,7 @@ body {
 
 .vault-del-btn {
     background-color: transparent;
-    border: none;
+    border-width: 0px;
     color: #f87171;
     font-size: 11px;
     cursor: pointer;
@@ -1244,7 +1382,7 @@ body {
     width: 28px;
     height: 28px;
     background-color: #1e293b;
-    border: 1px solid #334155;
+    border: 1px #334155;
     border-radius: 4px;
     color: #ffffff;
     font-size: 14px;
@@ -1266,7 +1404,7 @@ body {
 
 .settings-sidebar {
     width: 150px;
-    border-right: 1px solid #1e293b;
+    border-right: 1px #1e293b;
     padding-right: 12px;
     display: flex;
     flex-direction: column;
@@ -1274,7 +1412,7 @@ body {
 
 .settings-tab-btn {
     background-color: transparent;
-    border: none;
+    border-width: 0px;
     color: #94a3b8;
     font-size: 12px;
     text-align: left;
@@ -1308,7 +1446,7 @@ body {
 #statusbar {
     height: 26px;
     background-color: #0f172a;
-    border-top: 1px solid #1e293b;
+    border-top: 1px #1e293b;
     padding: 0 16px;
     display: flex;
     flex-direction: row;

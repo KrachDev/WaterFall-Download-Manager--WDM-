@@ -55,10 +55,18 @@ void ConfigManager::LoadFromDb() {
     if (!dl_dir.empty()) config_.download_directory = dl_dir;
 
     std::string max_dl = get_str("max_concurrent_downloads", "3");
-    config_.max_concurrent_downloads = std::max(1, std::stoi(max_dl));
+    try {
+        config_.max_concurrent_downloads = std::max(1, std::stoi(max_dl));
+    } catch (...) {
+        config_.max_concurrent_downloads = 3;
+    }
 
     std::string max_host = get_str("max_concurrent_per_host", "2");
-    config_.max_concurrent_per_host = std::max(1, std::stoi(max_host));
+    try {
+        config_.max_concurrent_per_host = std::max(1, std::stoi(max_host));
+    } catch (...) {
+        config_.max_concurrent_per_host = 2;
+    }
 
     std::string def_conn = get_str("default_connections_per_task", "16");
     config_.default_connections_per_task = std::stoi(def_conn);
@@ -79,6 +87,18 @@ void ConfigManager::LoadFromDb() {
     if (power == "sleep") config_.post_queue_power_action = PowerAction::Sleep;
     else if (power == "shutdown") config_.post_queue_power_action = PowerAction::Shutdown;
     else config_.post_queue_power_action = PowerAction::None;
+
+    std::string console_str = get_str("show_console", "0");
+    config_.show_console = (console_str == "1");
+
+    std::string close_act = get_str("close_action", "ask");
+    if (!close_act.empty()) config_.close_action = close_act;
+
+    std::string first_run = get_str("first_run_completed", "0");
+    config_.first_run_completed = (first_run == "1");
+
+    std::string start_win = get_str("start_with_windows", "0");
+    config_.start_with_windows = (start_win == "1");
 
     std::string passwords_raw = get_str("archive_passwords", "");
     config_.archive_passwords.clear();
@@ -118,6 +138,10 @@ void ConfigManager::SaveToDb() {
     if (config_.post_queue_power_action == PowerAction::Sleep) power_str = "sleep";
     else if (config_.post_queue_power_action == PowerAction::Shutdown) power_str = "shutdown";
     set_str("post_queue_power_action", power_str);
+    set_str("show_console", config_.show_console ? "1" : "0");
+    set_str("close_action", config_.close_action);
+    set_str("first_run_completed", config_.first_run_completed ? "1" : "0");
+    set_str("start_with_windows", config_.start_with_windows ? "1" : "0");
 
     std::string passwords_raw;
     for (const auto& p : config_.archive_passwords) {
@@ -134,6 +158,8 @@ AppConfig ConfigManager::GetConfig() {
 void ConfigManager::UpdateConfig(const AppConfig& config) {
     std::lock_guard<std::mutex> lock(mutex_);
     config_ = config;
+    if (config_.max_concurrent_downloads < 1) config_.max_concurrent_downloads = 3;
+    if (config_.max_concurrent_per_host < 1) config_.max_concurrent_per_host = 2;
     SaveToDb();
 }
 
@@ -256,6 +282,28 @@ std::string ConfigManager::GetDownloadDirectory() {
 void ConfigManager::SetDownloadDirectory(const std::string& dir) {
     std::lock_guard<std::mutex> lock(mutex_);
     config_.download_directory = dir;
+    SaveToDb();
+}
+
+bool ConfigManager::IsFirstRunCompleted() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return config_.first_run_completed;
+}
+
+void ConfigManager::SetFirstRunCompleted(bool completed) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.first_run_completed = completed;
+    SaveToDb();
+}
+
+bool ConfigManager::IsStartWithWindows() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return config_.start_with_windows;
+}
+
+void ConfigManager::SetStartWithWindows(bool enable) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_.start_with_windows = enable;
     SaveToDb();
 }
 

@@ -49,6 +49,15 @@ public:
     void TransferGrabberPackage(int package_index);
     void TransferAllGrabberPackages();
     void ClearGrabber();
+    void RemoveGrabberPackage(int package_index);
+
+    // Advanced task operations
+    bool UpdateDownloadUrl(int task_id, const std::string& new_url);
+    bool VerifyChecksum(int task_id, std::string& out_hash);
+    bool ExtractTask(int task_id, const std::string& password = "");
+    void SetTaskPriority(int task_id, int priority);
+    void ForceDownloadGroup(const std::string& group_key);
+    void UpdateTaskbar();
 
     std::vector<DownloadTask> GetTasks();
     DownloadTask* GetTaskPtr(int task_id);

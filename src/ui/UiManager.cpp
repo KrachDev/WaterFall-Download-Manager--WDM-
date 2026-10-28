@@ -103,13 +103,14 @@ static void SetWin32ClipboardText(const std::string& text) {
 struct UiTask {
     int id = 0;
     Rml::String filename;
+    Rml::String icon;
     Rml::String status;
     Rml::String speed;
     Rml::String downloaded;
     Rml::String total;
     Rml::String eta;
     float progress = 0.0f;
-    int category_id = 0; // 0=general, 1=compressed, 2=video, 3=audio, 4=documents, 5=software
+    int category_id = 0; // 0=general, 1=media, 2=audio, 3=compressed, 4=documents, 5=software
     bool selected = false;
 };
 
@@ -238,6 +239,13 @@ static void RefreshModelData() {
         if (g_active_filter == "completed" && t.status != core::TaskStatus::Completed) continue;
         if (g_active_filter == "error" && t.status != core::TaskStatus::Error) continue;
 
+        auto cat = core::StorageRouter::Instance().CategorizeFile(t.filename);
+        if (g_active_category == "compressed" && cat != core::FileCategory::Compressed) continue;
+        if (g_active_category == "videos" && cat != core::FileCategory::Media) continue;
+        if (g_active_category == "audio" && cat != core::FileCategory::Audio) continue;
+        if (g_active_category == "documents" && cat != core::FileCategory::Documents) continue;
+        if (g_active_category == "software" && cat != core::FileCategory::Programs) continue;
+
         UiTask item;
         item.id = t.id;
         item.filename = t.filename.c_str();
@@ -248,9 +256,16 @@ static void RefreshModelData() {
         item.eta = t.GetEtaFormatted().c_str();
         item.progress = t.GetProgressPercent();
         item.selected = (g_selected_task_ids.count(t.id) > 0);
-        
-        auto cat = core::StorageRouter::Instance().CategorizeFile(t.filename);
         item.category_id = static_cast<int>(cat);
+
+        switch (cat) {
+            case core::FileCategory::Compressed: item.icon = "📦"; break;
+            case core::FileCategory::Media:      item.icon = "🎬"; break;
+            case core::FileCategory::Audio:      item.icon = "🎵"; break;
+            case core::FileCategory::Documents:  item.icon = "📄"; break;
+            case core::FileCategory::Programs:   item.icon = "⚡"; break;
+            default:                             item.icon = "📄"; break;
+        }
 
         g_ui_tasks.push_back(item);
     }
@@ -298,6 +313,7 @@ static void RefreshModelData() {
     g_ui_grabber_count = std::to_string(g_ui_grabber_packages.size()).c_str();
     g_has_tasks = !g_ui_tasks.empty();
     g_has_grabber = !g_ui_grabber_packages.empty();
+    std::cout << "[DATA_MODEL] RefreshModelData: g_ui_tasks.size() = " << g_ui_tasks.size() << ", has_tasks = " << g_has_tasks << std::endl;
 
     // Update inspector data if an active task is selected
     if (g_selected_task_id > 0) {
@@ -450,13 +466,30 @@ UiManager::~UiManager() {
     Shutdown();
 }
 
+class ConsoleSystemInterface : public Rml::SystemInterface {
+public:
+    double GetElapsedTime() override { return Backend::GetSystemInterface()->GetElapsedTime(); }
+    void SetMouseCursor(const Rml::String& cursor_name) override { Backend::GetSystemInterface()->SetMouseCursor(cursor_name); }
+    void SetClipboardText(const Rml::String& text) override { Backend::GetSystemInterface()->SetClipboardText(text); }
+    void GetClipboardText(Rml::String& text) override { Backend::GetSystemInterface()->GetClipboardText(text); }
+    void ActivateKeyboard(Rml::Vector2f caret_position, float line_height) override {
+        Backend::GetSystemInterface()->ActivateKeyboard(caret_position, line_height);
+    }
+    void DeactivateKeyboard() override { Backend::GetSystemInterface()->DeactivateKeyboard(); }
+    bool LogMessage(Rml::Log::Type /*type*/, const Rml::String& message) override {
+        std::cout << "[RmlUi] " << message << std::endl;
+        return true;
+    }
+};
+static ConsoleSystemInterface g_console_system_interface;
+
 bool UiManager::Initialize(int width, int height) {
     if (!Backend::Initialize("🌊 Waterfall Accelerator v2.0 (Native C++20)", width, height, true)) {
         std::cerr << "Failed to initialize RmlUi Win32 OpenGL backend" << std::endl;
         return false;
     }
 
-    Rml::SetSystemInterface(Backend::GetSystemInterface());
+    Rml::SetSystemInterface(&g_console_system_interface);
     Rml::SetRenderInterface(Backend::GetRenderInterface());
 
     if (!Rml::Initialise()) {
@@ -501,9 +534,12 @@ void UiManager::SetupDataModel() {
     }
 
     // Bind task structure
-    if (auto task_handle = constructor.RegisterStruct<UiTask>()) {
+    auto task_handle = constructor.RegisterStruct<UiTask>();
+    std::cout << "[DATA_MODEL] RegisterStruct<UiTask>: " << (bool)task_handle << std::endl;
+    if (task_handle) {
         task_handle.RegisterMember("id", &UiTask::id);
         task_handle.RegisterMember("filename", &UiTask::filename);
+        task_handle.RegisterMember("icon", &UiTask::icon);
         task_handle.RegisterMember("status", &UiTask::status);
         task_handle.RegisterMember("speed", &UiTask::speed);
         task_handle.RegisterMember("downloaded", &UiTask::downloaded);
@@ -513,8 +549,10 @@ void UiManager::SetupDataModel() {
         task_handle.RegisterMember("category_id", &UiTask::category_id);
         task_handle.RegisterMember("selected", &UiTask::selected);
     }
-    constructor.RegisterArray<Rml::Vector<UiTask>>();
-    constructor.Bind("tasks", &g_ui_tasks);
+    bool reg_tasks_arr = constructor.RegisterArray<Rml::Vector<UiTask>>();
+    std::cout << "[DATA_MODEL] RegisterArray<UiTask>: " << reg_tasks_arr << std::endl;
+    bool bind_tasks = constructor.Bind("tasks", &g_ui_tasks);
+    std::cout << "[DATA_MODEL] Bind tasks: " << bind_tasks << std::endl;
 
     // Bind LinkGrabber package structure
     if (auto pkg_handle = constructor.RegisterStruct<UiGrabberPackage>()) {
@@ -631,13 +669,20 @@ void UiManager::SetupDataModel() {
     constructor.BindEventCallback("set_filter", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
             g_active_filter = args[0].Get<Rml::String>();
+            g_active_category = "all";
             RefreshModelData();
         }
     });
 
     constructor.BindEventCallback("set_category", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
         if (!args.empty()) {
-            g_active_category = args[0].Get<Rml::String>();
+            Rml::String cat = args[0].Get<Rml::String>();
+            if (g_active_category == cat) {
+                g_active_category = "all";
+            } else {
+                g_active_category = cat;
+                g_active_filter = "all";
+            }
             RefreshModelData();
         }
     });
@@ -1355,6 +1400,10 @@ void UiManager::LoadDocument() {
     document_ = context_->LoadDocument("assets/ui/main.rml");
     if (document_) {
         document_->Show();
+        RefreshModelData();
+        if (g_model_handle) {
+            g_model_handle.DirtyAllVariables();
+        }
     } else {
         std::cerr << "Failed to load assets/ui/main.rml document" << std::endl;
     }
@@ -1362,14 +1411,19 @@ void UiManager::LoadDocument() {
 
 void UiManager::RequestDataUpdate() {
     needs_model_dirty_ = true;
+    HWND hwnd = FindWindowW(nullptr, L"🌊 Waterfall Accelerator v2.0 (Native C++20)");
+    if (hwnd) {
+        PostMessageW(hwnd, WM_NULL, 0, 0);
+    }
 }
 
 void UiManager::Run() {
+    std::cout << std::unitbuf;
     auto last_frame = std::chrono::steady_clock::now();
     const auto target_frame_time = std::chrono::microseconds(16666); // ~60 FPS cap
 
     while (is_running_) {
-        bool running = Backend::ProcessEvents(context_, nullptr, true);
+        bool running = Backend::ProcessEvents(context_, nullptr, false);
         if (!running) {
             break;
         }

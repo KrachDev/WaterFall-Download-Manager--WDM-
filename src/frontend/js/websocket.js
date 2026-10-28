@@ -16,7 +16,60 @@ class WSClient {
   constructor() {
     this.ws = null;
     this.reconnectTimer = null;
+    this.pollTimer = null;
+    this.initFromApi();
+    this.startPollingFallback();
     this.connect();
+  }
+
+  async initFromApi() {
+    try {
+      const res = await fetch('/api/init');
+      if (res.ok) {
+        const data = await res.json();
+        this.handleMessage({ type: 'init', ...data });
+      }
+    } catch (_) {}
+  }
+
+  startPollingFallback() {
+    if (this.pollTimer) return;
+    this.pollTimer = setInterval(async () => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+      try {
+        const res = await fetch('/api/downloads');
+        if (res.ok) {
+          const tasks = await res.json();
+          const prevTasks = window.appState.tasks || [];
+
+          // Detect new tasks and state changes during polling fallback
+          if (prevTasks.length > 0 && Array.isArray(tasks)) {
+            for (const t of tasks) {
+              const prev = prevTasks.find(p => String(p.id) === String(t.id));
+              if (!prev) {
+                window.dispatchEvent(new CustomEvent('task:created', { detail: t }));
+              } else {
+                if (prev.status !== 'completed' && t.status === 'completed') {
+                  window.dispatchEvent(new CustomEvent('task:completed', { detail: t }));
+                } else if (prev.status !== 'failed' && prev.status !== 'error' && (t.status === 'failed' || t.status === 'error')) {
+                  window.dispatchEvent(new CustomEvent('task:failed', { detail: t }));
+                }
+              }
+            }
+          }
+
+          window.appState.tasks = tasks;
+          let globalSpeed = 0;
+          for (const t of tasks) {
+            if (t.speed_bps) globalSpeed += t.speed_bps;
+            else if (t.speed) globalSpeed += t.speed;
+          }
+          window.appState.globalSpeed = globalSpeed;
+          this.handleMessage({ type: 'tick', tasks, globalSpeed });
+          window.dispatchEvent(new CustomEvent('state:change'));
+        }
+      } catch (_) {}
+    }, 400);
   }
 
   connect() {

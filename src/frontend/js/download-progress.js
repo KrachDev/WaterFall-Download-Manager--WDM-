@@ -175,6 +175,56 @@
     });
   });
 
+  // --- Pin / Always on Top Window Control ---
+  let isProgressPinned = false;
+  const btnPinProgress = document.getElementById('btn-pin-progress');
+  const pinProgressLabel = document.getElementById('pin-progress-label');
+
+  function updateProgressPinUI(pinned) {
+    isProgressPinned = Boolean(pinned);
+    if (!btnPinProgress) return;
+    if (pinned) {
+      btnPinProgress.innerHTML = '📌 <span id="pin-progress-label">Pinned</span>';
+      btnPinProgress.style.color = '#38bdf8';
+      btnPinProgress.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+      btnPinProgress.style.background = 'rgba(56, 189, 248, 0.15)';
+      btnPinProgress.title = 'Always on Top (Top Window): ON (Click to unpin)';
+    } else {
+      btnPinProgress.innerHTML = '📍 <span id="pin-progress-label">Pin</span>';
+      btnPinProgress.style.color = '#94a3b8';
+      btnPinProgress.style.borderColor = '';
+      btnPinProgress.style.background = '';
+      btnPinProgress.title = 'Always on Top (Top Window): OFF (Click to pin)';
+    }
+  }
+
+  if (btnPinProgress) {
+    btnPinProgress.addEventListener('click', () => {
+      const next = !isProgressPinned;
+      updateProgressPinUI(next);
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.setAlwaysOnTop === 'function') {
+        try { window.waterfallDesktop.setAlwaysOnTop(next, currentTaskId); } catch (_) {}
+      }
+      fetch(`${apiBase}/api/window/set-topmost`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: currentTaskId ? parseInt(currentTaskId, 10) : 0, topmost: next, bringToFront: next })
+      }).catch(() => {});
+    });
+  }
+
+  function bringProgressWindowToFront() {
+    updateProgressPinUI(true);
+    if (window.waterfallDesktop && typeof window.waterfallDesktop.forceTop === 'function') {
+      try { window.waterfallDesktop.forceTop(currentTaskId); } catch (_) {}
+    }
+    fetch(`${apiBase}/api/window/set-topmost`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: currentTaskId ? parseInt(currentTaskId, 10) : 0, topmost: true, bringToFront: true })
+    }).catch(() => {});
+  }
+
   // --- Open When Finished Toggle Action ---
   let isOpenWhenDone = false;
   function updateOpenWhenDoneUI(active, syncBackend = true) {
@@ -570,6 +620,9 @@
     if (task.status === 'completed' && !isCompletedState) {
       showCompletionView(task);
       return;
+    }
+    if ((task.status === 'failed' || task.status === 'error') && !isCompletedState) {
+      bringProgressWindowToFront();
     }
     if (isCompletedState) {
       updateExtractionUI(task);
@@ -968,6 +1021,7 @@
         dlgStatus.textContent = `Error: ${data.error || 'Download failed'}`;
         statusDot.style.background = '#ef4444';
         statusDot.style.boxShadow = '0 0 8px #ef4444';
+        bringProgressWindowToFront();
         if (btnPauseResume) {
           btnPauseResume.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg> Retry`;
         }
@@ -1024,7 +1078,7 @@
 
     // Force to top on completion
     if (window.waterfallDesktop && typeof window.waterfallDesktop.forceTop === 'function') {
-      try { window.waterfallDesktop.forceTop(true); } catch (_) {}
+      try { window.waterfallDesktop.forceTop(currentTaskId); } catch (_) {}
     }
 
     // Auto close dialog if configured
@@ -1039,6 +1093,7 @@
     tabPanes.forEach(p => p.style.display = 'none');
     if (footerControls) footerControls.style.display = 'none';
     if (finishView) finishView.style.display = 'flex';
+    bringProgressWindowToFront();
 
     if (finishFileName) {
       finishFileName.textContent = name;
@@ -1167,9 +1222,34 @@
     try {
       const res = await fetch(`${apiBase}/api/downloads`);
       const all = await res.json();
-      const match = all.find(t => t.id === currentTaskId);
+      const match = all.find(t => String(t.id) === String(currentTaskId));
       if (match) applyTaskData(match);
     } catch (_) {}
+  }
+
+  // --- Real-time Polling Engine ---
+  let pollInterval = null;
+  function startPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(async () => {
+      if (!currentTaskId) return;
+      try {
+        const res = await fetch(`${apiBase}/api/downloads`);
+        if (res.ok) {
+          const all = await res.json();
+          const match = all.find(t => String(t.id) === String(currentTaskId));
+          if (match) {
+            updateProgressMetrics(match);
+            if (match.status === 'completed' && !isCompletedState) {
+              showCompletionView(match);
+            } else if ((match.status === 'failed' || match.status === 'error' || match.status === 'canceled') && !isCompletedState) {
+              applyTaskData(match);
+              bringProgressWindowToFront();
+            }
+          }
+        }
+      } catch (_) {}
+    }, 350);
   }
 
   // --- IPC Desktop Listeners ---
@@ -1182,7 +1262,7 @@
 
     if (typeof window.waterfallDesktop.onProgressTick === 'function') {
       window.waterfallDesktop.onProgressTick((data) => {
-        if (!currentTaskId || data.id === currentTaskId) {
+        if (!currentTaskId || String(data.id) === String(currentTaskId)) {
           updateProgressMetrics(data);
         }
       });
@@ -1190,7 +1270,7 @@
 
     if (typeof window.waterfallDesktop.onTaskCompleted === 'function') {
       window.waterfallDesktop.onTaskCompleted((task) => {
-        if (!currentTaskId || task.id === currentTaskId) {
+        if (!currentTaskId || String(task.id) === String(currentTaskId)) {
           showCompletionView(task);
         }
       });
@@ -1206,14 +1286,20 @@
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'tick' && Array.isArray(msg.tasks)) {
-            const match = msg.tasks.find(t => t.id === currentTaskId);
+            const match = msg.tasks.find(t => String(t.id) === String(currentTaskId));
             if (match) updateProgressMetrics(match);
           } else if (msg.type === 'taskCompleted' && msg.task) {
-            if (msg.task.id === currentTaskId) showCompletionView(msg.task);
+            if (String(msg.task.id) === String(currentTaskId)) showCompletionView(msg.task);
+          } else if ((msg.type === 'taskFailed' || msg.type === 'taskError') && msg.task) {
+            if (String(msg.task.id) === String(currentTaskId)) {
+              applyTaskData(msg.task);
+              bringProgressWindowToFront();
+            }
           } else if (msg.type === 'taskUpdated' && msg.task) {
-            if (msg.task.id === currentTaskId) applyTaskData(msg.task);
+            if (String(msg.task.id) === String(currentTaskId)) applyTaskData(msg.task);
           } else if (msg.type === 'extractPasswordRequired' && msg.data) {
-            if (!currentTaskId || msg.data.taskId === currentTaskId) {
+            if (!currentTaskId || String(msg.data.taskId) === String(currentTaskId)) {
+              bringProgressWindowToFront();
               if (currentTask) {
                 currentTask.extractStatus = 'extract_password_required';
                 currentTask.extractPasswordRequired = true;
@@ -1231,5 +1317,6 @@
   }
 
   initTask();
+  startPolling();
   setupWebSocket();
 })();

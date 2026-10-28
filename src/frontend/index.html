@@ -1335,6 +1335,10 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 0 0 20v-20z"></path></svg>
             <span>Theme & System</span>
           </button>
+          <button class="settings-nav-item" data-tab="tab-cfg-updates">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>Updates & About</span>
+          </button>
         </nav>
 
         <!-- Settings Content Panels -->
@@ -1839,6 +1843,17 @@
 
               <div class="settings-toggle-card">
                 <div class="toggle-info">
+                  <div class="toggle-title">Relaunch Welcome & Setup Wizard</div>
+                  <div class="toggle-desc">Reopen the IDM-style initial configuration wizard to readjust storage locations, acceleration presets, and browser integration.</div>
+                </div>
+                <button type="button" class="tool-btn" id="btn-relaunch-wizard" style="padding: 6px 14px; font-size: 0.78rem; border-radius: 6px; cursor: pointer; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.1);">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                  Run Setup Wizard
+                </button>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
                   <div class="toggle-title">Start Waterfall with Windows (System Startup)</div>
                   <div class="toggle-desc">Automatically launches Waterfall when Windows boots up so the IDM companion and accelerated queue are always running (ON by default).</div>
                 </div>
@@ -1879,6 +1894,14 @@
                   <option value="tray">📥 Minimize to System Tray</option>
                   <option value="exit">❌ Full Exit (Quit Application)</option>
                 </select>
+              </div>
+
+              <div class="settings-toggle-card">
+                <div class="toggle-info">
+                  <div class="toggle-title">Show Debug / Developer Console Window</div>
+                  <div class="toggle-desc">Displays the native system command prompt console for live engine and WebServer debug logs. (Disabled by default)</div>
+                </div>
+                <input type="checkbox" id="cfg-show-console" class="toggle-checkbox">
               </div>
 
               <div class="settings-toggle-card">
@@ -1966,6 +1989,86 @@
                 <input type="number" id="cfg-listen-port" class="text-input" value="4567" min="1024" max="65535">
                 <span class="settings-help">Port used by browser extensions, FlashGot bridge, and REST APIs. (Default: 4567)</span>
               </div>
+            </div>
+          </div>
+
+          <!-- 8. Updates & About Waterfall -->
+          <div class="settings-panel" id="tab-cfg-updates">
+            <div class="settings-section-title">
+              <h4>Software Updates & Release Channel</h4>
+              <p>Keep Waterfall up to date with continuous performance enhancements and engine fixes.</p>
+            </div>
+
+            <!-- About Banner -->
+            <div class="updater-about-card" style="display: flex; gap: 14px; align-items: center; padding: 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-dim); border-radius: var(--radius-sm);">
+              <div class="updater-about-icon" style="width: 48px; height: 48px; border-radius: 10px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); display: flex; align-items: center; justify-content: center;">
+                <img src="assets/logo.png" alt="Waterfall Logo" style="width: 38px; height: 38px; object-fit: contain;">
+              </div>
+              <div class="updater-about-details" style="flex: 1;">
+                <div class="updater-about-title-row" style="display: flex; align-items: center; gap: 8px;">
+                  <span class="updater-app-name" style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">Waterfall Download Manager</span>
+                  <span class="updater-ver-pill" id="updater-current-ver-pill" style="font-family: var(--font-mono); font-size: 0.70rem; padding: 2px 7px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">v2.0.1 Pro</span>
+                </div>
+                <div class="updater-meta-row" style="font-size: 0.70rem; color: var(--text-muted); margin-top: 3px; display: flex; gap: 14px;">
+                  <span>Core: <b>C++20 Native / WebView2</b></span>
+                  <span>Channel: <b style="color: #38bdf8;">GitHub Releases (Official)</b></span>
+                </div>
+                <div class="updater-repo-link" style="font-size: 0.70rem; color: var(--text-muted); margin-top: 3px;">
+                  Repository: <a href="https://github.com/KrachDev/WaterFall-Download-Manager--WDM-" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-family: var(--font-mono);">KrachDev/WaterFall-Download-Manager--WDM-</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Update Status & Actions Card -->
+            <div class="settings-toggle-card updater-status-card" style="margin-top: 14px; flex-direction: column; align-items: stretch; gap: 12px; padding: 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                    <span class="status-indicator-dot" id="updater-indicator-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+                    Update Status
+                  </div>
+                  <div id="updater-status-text" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 3px;">
+                    Waterfall is up to date (Version 2.0.1).
+                  </div>
+                </div>
+                <button type="button" class="tool-btn" id="btn-settings-check-update" style="padding: 6px 14px; font-weight: 600; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                  <span>Check for Updates</span>
+                </button>
+              </div>
+
+              <!-- Live Progress Bar (Hidden by default) -->
+              <div id="updater-progress-container" style="display: none; flex-direction: column; gap: 6px; margin-top: 4px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid var(--border-dim);">
+                <div style="display: flex; justify-content: space-between; font-size: 0.74rem;">
+                  <span id="updater-progress-label" style="color: var(--text-secondary);">Downloading update package...</span>
+                  <span id="updater-progress-percent" style="font-weight: 700; color: #38bdf8; font-family: var(--font-mono);">0%</span>
+                </div>
+                <div class="progress-track" style="height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
+                  <div id="updater-progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); transition: width 0.2s ease;"></div>
+                </div>
+              </div>
+
+              <!-- Available Update Callout (Hidden by default) -->
+              <div id="updater-available-box" style="display: none; flex-direction: column; gap: 10px; padding: 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div style="font-size: 0.82rem; font-weight: 700; color: #34d399;" id="updater-available-title">
+                    🎉 New Version Ready to Install: v...
+                  </div>
+                  <button type="button" class="tool-btn" id="btn-settings-install-update" style="background: #10b981; color: #fff; border: none; font-weight: 700; padding: 6px 16px;">
+                    Download & Apply Update
+                  </button>
+                </div>
+                <div id="updater-release-notes-box" style="font-size: 0.74rem; color: var(--text-secondary); max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius: 4px; white-space: pre-wrap; font-family: var(--font-mono);"></div>
+              </div>
+            </div>
+
+            <!-- Auto-Check Setting Card -->
+            <div class="settings-toggle-card" style="margin-top: 12px;">
+              <div class="toggle-info">
+                <div class="toggle-title">Automatically Check for Updates on Startup</div>
+                <div class="toggle-desc">Silently queries GitHub releases on application launch and notifies you when an update is ready.</div>
+              </div>
+              <input type="checkbox" id="cfg-auto-check-update" class="toggle-checkbox" checked>
             </div>
           </div>
         </div>
@@ -2224,6 +2327,142 @@
     <div class="context-menu-item" id="ctx-delete-list">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       Remove from List Only
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: Automatic Software Update Available Notification
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-update-available">
+    <div class="modal-card update-modal-card" style="width: 580px; max-width: 95vw; border: 1px solid rgba(56, 189, 248, 0.35); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(56, 189, 248, 0.15);">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0e172a, #131c31); border-bottom: 1px solid rgba(56, 189, 248, 0.2);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: center; color: #38bdf8;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 0.98rem; color: #f8fafc;">New Waterfall Update Available!</h3>
+            <div style="font-size: 0.68rem; color: var(--text-muted);">A new official release has been published on GitHub</div>
+          </div>
+        </div>
+        <button class="icon-btn modal-close-btn" title="Close">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <!-- Version Banner -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div>
+              <div style="font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">Current Version</div>
+              <div style="font-size: 0.88rem; font-weight: 700; color: #94a3b8;" id="modal-update-curr-ver">v2.0.1</div>
+            </div>
+            <div style="color: #38bdf8; font-size: 1.2rem; font-weight: 700;">➔</div>
+            <div>
+              <div style="font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #34d399;">Latest Version</div>
+              <div style="font-size: 0.96rem; font-weight: 800; color: #10b981;" id="modal-update-latest-ver">v2.1.0</div>
+            </div>
+          </div>
+          <span style="font-size: 0.72rem; padding: 4px 10px; border-radius: 12px; background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 600; border: 1px solid rgba(16, 185, 129, 0.3);">
+            Recommended
+          </span>
+        </div>
+
+        <!-- Release Notes Section -->
+        <div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.04em;">
+            What's New in this Version:
+          </div>
+          <div id="modal-update-notes-body" style="max-height: 180px; overflow-y: auto; background: #070b13; border: 1px solid var(--border-dim); border-radius: 6px; padding: 12px; font-size: 0.76rem; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; font-family: var(--font-mono);">
+          </div>
+        </div>
+
+        <!-- Progress Box (Shown during update) -->
+        <div id="modal-update-progress-wrap" style="display: none; flex-direction: column; gap: 6px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid var(--border-dim);">
+          <div style="display: flex; justify-content: space-between; font-size: 0.74rem;">
+            <span id="modal-update-progress-msg" style="color: var(--text-secondary);">Downloading release bundle...</span>
+            <span id="modal-update-progress-pct" style="font-weight: 700; color: #38bdf8; font-family: var(--font-mono);">0%</span>
+          </div>
+          <div class="progress-track" style="height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
+            <div id="modal-update-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #10b981); transition: width 0.2s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 14px 20px; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-dim); display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="tool-btn modal-close-btn" id="btn-modal-update-later">Remind Me Later</button>
+        <div style="display: flex; gap: 10px;">
+          <a href="https://github.com/KrachDev/WaterFall-Download-Manager--WDM-/releases" target="_blank" class="tool-btn" style="text-decoration: none;" id="btn-modal-update-github">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            <span>GitHub Notes</span>
+          </a>
+          <button type="button" class="tool-btn primary" id="btn-modal-update-now" style="font-weight: 700; padding: 7px 18px; background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            <span>Update & Restart Now</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: Application Exit & Tray Options
+       ========================================================================== -->
+  <div class="modal-overlay" id="modal-quit-options">
+    <div class="modal-card" style="width: 500px; max-width: 95vw; border: 1px solid rgba(56, 189, 248, 0.35); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.15);">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0f172a, #151f38); border-bottom: 1px solid rgba(56, 189, 248, 0.2);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: center; color: #38bdf8;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 0.98rem; color: #f8fafc;">Close Waterfall</h3>
+            <div style="font-size: 0.68rem; color: var(--text-muted);">Choose what happens when closing the window</div>
+          </div>
+        </div>
+        <button class="icon-btn modal-close-btn" id="btn-quit-cancel-x" title="Cancel">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div id="quit-status-banner" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; font-size: 0.78rem; color: #cbd5e1;">
+          <span style="font-size: 1.1rem;">⚡</span>
+          <span id="quit-status-text">Downloads can continue accelerating in the background.</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Option 1: Minimize to Tray -->
+          <button type="button" id="btn-quit-to-tray" class="quit-choice-card" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: #0c1424; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.15s ease;">
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">
+              📥
+            </div>
+            <div style="flex: 1;">
+              <div style="font-size: 0.88rem; font-weight: 700; color: #38bdf8;">Minimize to System Tray</div>
+              <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Keep Waterfall running in background. Active transfers and browser companion extension remain active.</div>
+            </div>
+          </button>
+
+          <!-- Option 2: Exit Completely -->
+          <button type="button" id="btn-quit-exit" class="quit-choice-card" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: #0c1424; border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.15s ease;">
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">
+              🛑
+            </div>
+            <div style="flex: 1;">
+              <div style="font-size: 0.88rem; font-weight: 700; color: #f87171;">Exit Waterfall Completely</div>
+              <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Stop all downloads, pause queue, shut down extension server and terminate application.</div>
+            </div>
+          </button>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border-dim);">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer;">
+            <input type="checkbox" id="quit-remember-choice" style="accent-color: #38bdf8;">
+            <span>Remember my choice (can change anytime in Settings)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-dim); display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="tool-btn" id="btn-quit-cancel" style="padding: 7px 18px;">Cancel</button>
+      </div>
     </div>
   </div>
 

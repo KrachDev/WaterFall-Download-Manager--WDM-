@@ -1,0 +1,96 @@
+name: Release Build & Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v2.0.0)'
+        required: true
+        default: 'v2.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Package Waterfall Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Configure CMake (Release)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Waterfall Executable
+        run: |
+          ninja -C build waterfall
+
+      - name: Stage Release Package
+        shell: pwsh
+        run: |
+          $ver = if ("${{ github.event.inputs.version }}") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
+          if (-not $ver) { $ver = "v2.0.0" }
+          
+          $stage = "dist/Waterfall-$ver-windows-x64"
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+
+          Copy-Item "build/waterfall.exe" "$stage/Waterfall.exe" -Force
+          Copy-Item "vendor/webview2/build/native/x64/WebView2Loader.dll" "$stage/WebView2Loader.dll" -Force
+          Copy-Item -Recurse "src/frontend" "$stage/frontend" -Force
+          Copy-Item -Recurse "src/frontend" "$stage/src/frontend" -Force
+          Copy-Item -Recurse "assets" "$stage/assets" -Force
+
+          if (Test-Path "LICENSE") { Copy-Item "LICENSE" "$stage/LICENSE" -Force }
+          if (Test-Path "README.md") { Copy-Item "README.md" "$stage/README.md" -Force }
+
+          # Sanitize release bundle: Ensure zero user database, history, cache, or private logs are ever packaged
+          Get-ChildItem -Path $stage -Include "*.db*", "*.wal*", "*.shm*", "*.log", "downloads.json*", "config.json*" -Recurse -Force | Remove-Item -Force
+
+          # Compress Standalone Release
+          $zipPath = "dist/Waterfall-$ver-windows-x64.zip"
+          Compress-Archive -Path "$stage/*" -DestinationPath $zipPath -CompressionLevel Optimal
+
+          # Compress Browser Extension
+          $extZip = "dist/Waterfall-Companion-Extension-$ver.zip"
+          if (Test-Path "extension") {
+            Compress-Archive -Path "extension/*" -DestinationPath $extZip -CompressionLevel Optimal
+          }
+
+          # Checksums
+          $hashes = @()
+          Get-ChildItem "dist" -Filter "*.zip" | ForEach-Object {
+            $h = Get-FileHash -Path $_.FullName -Algorithm SHA256
+            $hashes += "$($h.Hash.ToLower())  $($_.Name)"
+          }
+          $hashes | Out-File -FilePath "dist/SHA256SUMS.txt" -Encoding utf8
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: Waterfall Download Accelerator ${{ github.event.inputs.version || github.ref_name }} (Native C++20)
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS.txt

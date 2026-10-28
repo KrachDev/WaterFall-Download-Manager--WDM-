@@ -386,6 +386,12 @@
 
       if (autoStart && window.waterfallDesktop && typeof window.waterfallDesktop.openProgressWindow === 'function') {
         window.waterfallDesktop.openProgressWindow(task);
+      } else if (autoStart) {
+        fetch(`${apiBase}/api/window/open-progress`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: (task && task.id) ? task.id : (task || 0), topmost: false })
+        }).catch(() => {});
       }
 
       closeThisWindow();
@@ -423,16 +429,62 @@
       if (window.waterfallDesktop && typeof window.waterfallDesktop.setAlwaysOnTop === 'function') {
         window.waterfallDesktop.setAlwaysOnTop(nextState);
       }
+      fetch(`${apiBase}/api/window/set-topmost`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'confirm', topmost: nextState, bringToFront: nextState })
+      }).catch(() => {});
     });
   }
 
+  // Pin / Always on Top Control
+  let isConfirmPinned = true;
+  function updateConfirmPinUI(pinned) {
+    isConfirmPinned = Boolean(pinned);
+    if (!btnPinConfirm) return;
+    if (pinned) {
+      btnPinConfirm.innerHTML = '📌 Top';
+      btnPinConfirm.style.color = '#38bdf8';
+      btnPinConfirm.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+      btnPinConfirm.style.background = 'rgba(56, 189, 248, 0.15)';
+      btnPinConfirm.title = 'Always on Top (Top Window): ON (Click to unpin)';
+    } else {
+      btnPinConfirm.innerHTML = '📍 Normal';
+      btnPinConfirm.style.color = '#94a3b8';
+      btnPinConfirm.style.borderColor = '#334155';
+      btnPinConfirm.style.background = 'rgba(15, 23, 42, 0.6)';
+      btnPinConfirm.title = 'Always on Top (Top Window): OFF (Click to pin)';
+    }
+  }
+
+  if (btnPinConfirm) {
+    btnPinConfirm.onclick = () => {
+      const next = !isConfirmPinned;
+      updateConfirmPinUI(next);
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.setAlwaysOnTop === 'function') {
+        try { window.waterfallDesktop.setAlwaysOnTop(next); } catch (_) {}
+      }
+      fetch(`${apiBase}/api/window/set-topmost`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'confirm', topmost: next, bringToFront: next })
+      }).catch(() => {});
+    };
+  }
+
   // Ensure confirm window is topmost upon initialization
+  fetch(`${apiBase}/api/window/set-topmost`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'confirm', topmost: true, bringToFront: true })
+  }).catch(() => {});
+
   if (window.waterfallDesktop) {
     if (typeof window.waterfallDesktop.setAlwaysOnTop === 'function') {
       try { window.waterfallDesktop.setAlwaysOnTop(true); } catch (_) {}
     }
     if (typeof window.waterfallDesktop.forceTop === 'function') {
-      try { window.waterfallDesktop.forceTop(true); } catch (_) {}
+      try { window.waterfallDesktop.forceTop(); } catch (_) {}
     }
   }
 

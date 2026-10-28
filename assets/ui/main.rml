@@ -3,7 +3,8 @@
     <title>Waterfall Download Accelerator</title>
     <link type="text/rcss" href="style.rcss"/>
 </head>
-<body data-model="downloads_model">
+<body>
+<div id="app" data-model="downloads_model">
 
     <!-- Top Command Toolbar -->
     <div id="header">
@@ -18,9 +19,9 @@
             <button class="tb-btn" data-event-click="resume_all()">▶ Resume All</button>
             <button class="tb-btn" data-event-click="pause_all()">⏸ Pause All</button>
             <button class="tb-btn" data-event-click="clear_completed()">✕ Clear Done</button>
-            <button class="tb-btn" data-event-click="open_limiter_modal()">⚡ Speed Cap</button>
+            <button class="tb-btn" data-class-active="limiter_enabled" data-event-click="open_limiter_modal()">⚡ Speed Cap</button>
             <button class="tb-btn" data-event-click="open_settings_modal()">⚙ Settings</button>
-            <button class="tb-btn power" data-event-click="cycle_power_action()">Power: {{power_action}}</button>
+            <button class="tb-btn power" data-class-active="power_action != 'None'" data-event-click="cycle_power_action()">Power: {{power_action}}</button>
         </div>
 
         <!-- Telemetry Stats Pill -->
@@ -58,11 +59,11 @@
 
             <div class="sidebar-section">
                 <span class="section-title">CATEGORIES</span>
-                <button class="sidebar-btn" data-event-click="set_category('compressed')">■ Compressed Archives</button>
-                <button class="sidebar-btn" data-event-click="set_category('videos')">■ Video Files</button>
-                <button class="sidebar-btn" data-event-click="set_category('audio')">■ Audio &amp; Music</button>
-                <button class="sidebar-btn" data-event-click="set_category('documents')">■ Documents</button>
-                <button class="sidebar-btn" data-event-click="set_category('software')">■ Executables &amp; ISO</button>
+                <button class="sidebar-btn" data-class-active="active_category == 'compressed'" data-event-click="set_category('compressed')">📦 Compressed Archives</button>
+                <button class="sidebar-btn" data-class-active="active_category == 'videos'" data-event-click="set_category('videos')">🎬 Video Files</button>
+                <button class="sidebar-btn" data-class-active="active_category == 'audio'" data-event-click="set_category('audio')">🎵 Audio &amp; Music</button>
+                <button class="sidebar-btn" data-class-active="active_category == 'documents'" data-event-click="set_category('documents')">📄 Documents</button>
+                <button class="sidebar-btn" data-class-active="active_category == 'software'" data-event-click="set_category('software')">⚡ Executables &amp; ISO</button>
             </div>
 
             <!-- Telemetry Monitor Box -->
@@ -108,48 +109,53 @@
                 <div class="tasks-scroll-container">
                     <!-- Clean Empty-State When Queue is Empty -->
                     <div class="empty-state-card" data-if="!has_tasks">
-                        <span class="empty-title">Queue is Empty</span>
+                        <span class="empty-icon">📥</span>
+                        <span class="empty-title">Download Queue is Clean</span>
                         <span class="empty-desc">Paste a download URL or click '+ Add Download' to start accelerating.</span>
                         <button class="tool-btn primary empty-action" data-event-click="open_add_modal()">+ Add Download Now</button>
                     </div>
 
                     <!-- Dynamic Task Cards Loop (Only shown when queue has items) -->
                     <div class="tasks-list" data-if="has_tasks">
-                        <div data-for="task:tasks">
-                            <div class="task-card">
-                                <div class="card-top">
-                                    <button class="card-select-btn" data-class-checked="task.selected" data-event-click="toggle_task_selection(task.id)">✓</button>
-                                    <div class="file-info">
-                                        <span class="file-name">{{task.filename}}</span>
-                                    </div>
-                                    <div class="card-badges">
-                                        <span class="badge-status">{{task.status}}</span>
-                                        <span class="badge-speed">{{task.speed}}</span>
-                                    </div>
+                        <div class="task-card" data-for="task : tasks">
+                            <div class="card-top">
+                                <button class="card-select-btn" data-class-checked="task.selected" data-event-click="toggle_task_selection(task.id)">✓</button>
+                                <div class="file-info">
+                                    <span class="file-icon">{{task.icon}}</span>
+                                    <span class="file-name">{{task.filename}}</span>
                                 </div>
-
-                                <!-- Progress Bar Track -->
-                                <div class="progress-track">
-                                    <div class="progress-fill" data-style-width="task.progress + '%'"></div>
+                                <div class="card-badges">
+                                    <span class="badge-status" 
+                                          data-class-downloading="task.status == 'Downloading' || task.status == 'Probing'" 
+                                          data-class-paused="task.status == 'Paused'" 
+                                          data-class-completed="task.status == 'Completed'" 
+                                          data-class-extracting="task.status == 'Extracting'" 
+                                          data-class-error="task.status == 'Error'">{{task.status}}</span>
+                                    <span class="badge-speed">{{task.speed}}</span>
                                 </div>
+                            </div>
 
-                                <div class="card-bottom">
-                                    <div class="meta-stats">
-                                        <span class="meta-text">{{task.downloaded}} / {{task.total}}</span>
-                                        <span class="meta-dot">•</span>
-                                        <span class="meta-text">ETA: {{task.eta}}</span>
-                                        <span class="meta-dot">•</span>
-                                        <span class="meta-text">16 In-Place Sockets</span>
-                                    </div>
-                                    <div class="card-actions">
-                                        <button class="btn-action" data-event-click="resume_download(task.id)">Resume</button>
-                                        <button class="btn-action" data-event-click="pause_download(task.id)">Pause</button>
-                                        <button class="btn-action" data-event-click="open_folder(task.id)">Folder</button>
-                                        <button class="btn-action" data-if="task.category_id == 1" data-event-click="open_extracted(task.id)">📦 Extracted</button>
-                                        <button class="btn-action inspect" data-event-click="toggle_inspector(task.id)">Inspect</button>
-                                        <button class="btn-action menu-btn" data-event-click="open_task_menu(task.id)">⋮ Menu</button>
-                                        <button class="btn-action danger" data-event-click="delete_download(task.id)">Delete</button>
-                                    </div>
+                            <!-- Progress Bar Track -->
+                            <div class="progress-track">
+                                <div class="progress-fill" data-class-done="task.status == 'Completed'" data-style-width="task.progress + '%'"></div>
+                            </div>
+
+                            <div class="card-bottom">
+                                <div class="meta-stats">
+                                    <span class="meta-text"><span class="meta-val">{{task.downloaded}}</span> / {{task.total}}</span>
+                                    <span class="meta-dot">•</span>
+                                    <span class="meta-text">ETA: <span class="meta-val">{{task.eta}}</span></span>
+                                    <span class="meta-dot">•</span>
+                                    <span class="meta-text">16 In-Place Sockets</span>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="btn-action primary" data-if="task.status == 'Paused' || task.status == 'Error'" data-event-click="resume_download(task.id)">▶ Resume</button>
+                                    <button class="btn-action" data-if="task.status == 'Downloading' || task.status == 'Probing'" data-event-click="pause_download(task.id)">⏸ Pause</button>
+                                    <button class="btn-action" data-event-click="open_folder(task.id)">📁 Folder</button>
+                                    <button class="btn-action extract" data-if="task.category_id == 3" data-event-click="open_extracted(task.id)">📦 Extracted</button>
+                                    <button class="btn-action inspect" data-event-click="toggle_inspector(task.id)">🔍 Inspect</button>
+                                    <button class="btn-action menu-btn" data-event-click="open_task_menu(task.id)">⋮ Menu</button>
+                                    <button class="btn-action danger" data-event-click="delete_download(task.id)">🗑</button>
                                 </div>
                             </div>
                         </div>
@@ -173,25 +179,27 @@
 
                 <div class="tasks-scroll-container">
                     <div class="empty-state-card" data-if="!has_grabber">
-                        <span class="empty-title">LinkGrabber is Empty</span>
+                        <span class="empty-icon">🔗</span>
+                        <span class="empty-title">LinkGrabber is Ready</span>
                         <span class="empty-desc">Copy links to clipboard and click 'Deep Crawl' or click '+ Add Links'.</span>
                         <button class="tool-btn primary empty-action" data-event-click="grabber_crawl()">Deep Crawl Clipboard</button>
                     </div>
 
                     <div class="tasks-list" data-if="has_grabber">
-                        <div class="grabber-card" data-for="pkg:grabber_packages">
+                        <div class="grabber-card" data-for="pkg : grabber_packages">
                             <div class="grabber-card-header">
+                                <span class="pkg-icon">📁</span>
                                 <span class="pkg-name">{{pkg.name}}</span>
                                 <span class="pkg-hoster">{{pkg.hoster}}</span>
                             </div>
                             <div class="grabber-card-body">
-                                <span class="pkg-meta">Files: {{pkg.file_count}} Items</span>
-                                <span class="pkg-meta">Total Size: {{pkg.total_size}}</span>
-                                <span class="pkg-meta emerald">Status: {{pkg.status}}</span>
+                                <span class="pkg-meta">Files: <span class="meta-val">{{pkg.file_count}} Items</span></span>
+                                <span class="pkg-meta">Total Size: <span class="meta-val">{{pkg.total_size}}</span></span>
+                                <span class="pkg-meta emerald">● {{pkg.status}}</span>
                             </div>
                             <div class="grabber-card-footer">
                                 <button class="btn-action primary" data-event-click="grabber_add_package(pkg.id)">⚡ Transfer to Downloads</button>
-                                <button class="btn-action danger" data-event-click="grabber_clear()">Remove Package</button>
+                                <button class="btn-action danger" data-event-click="grabber_clear()">🗑 Remove Package</button>
                             </div>
                         </div>
                     </div>
@@ -215,7 +223,7 @@
                     <!-- Media Preview Card -->
                     <div class="media-preview-card">
                         <div class="media-thumb-box">
-                            <span class="media-thumb-placeholder">4K HDR</span>
+                            <span class="media-thumb-placeholder">🎬 4K HDR</span>
                         </div>
                         <div class="media-info-box">
                             <span class="media-video-title">{{media_title}}</span>
@@ -223,10 +231,10 @@
 
                             <span class="format-label">SELECT EXTRACTION FORMAT:</span>
                             <div class="format-chips">
-                                <button class="chip-btn" data-class-active="media_format == 'mp4-best'" data-event-click="set_media_format('mp4-best')">4K Video (2160p HDR)</button>
-                                <button class="chip-btn" data-class-active="media_format == 'mp4-1080'" data-event-click="set_media_format('mp4-1080')">1080p Full HD</button>
-                                <button class="chip-btn" data-class-active="media_format == 'mp3-320'" data-event-click="set_media_format('mp3-320')">MP3 Audio (320kbps)</button>
-                                <button class="chip-btn" data-class-active="media_format == 'flac'" data-event-click="set_media_format('flac')">FLAC Lossless</button>
+                                <button class="chip-btn" data-class-active="media_format == 'mp4-best'" data-event-click="set_media_format('mp4-best')">🎬 4K Video (2160p HDR)</button>
+                                <button class="chip-btn" data-class-active="media_format == 'mp4-1080'" data-event-click="set_media_format('mp4-1080')">📺 1080p Full HD</button>
+                                <button class="chip-btn" data-class-active="media_format == 'mp3-320'" data-event-click="set_media_format('mp3-320')">🎵 MP3 Audio (320kbps)</button>
+                                <button class="chip-btn" data-class-active="media_format == 'flac'" data-event-click="set_media_format('flac')">🎧 FLAC Lossless</button>
                             </div>
 
                             <button class="btn-primary-large" data-event-click="media_download()">⚡ Download Media Stream</button>
@@ -280,9 +288,7 @@
                 <div class="segment-grid-section">
                     <span class="ins-label">MULTI-SOCKET STREAM SEGMENT MAP</span>
                     <div class="segment-cells">
-                        <div data-for="chunk:inspector_chunks_list">
-                            <div class="seg-cell" data-class-done="chunk.state == 'done'" data-class-active="chunk.state == 'active'" data-class-pending="chunk.state == 'pending'">{{chunk.text}}</div>
-                        </div>
+                        <div class="seg-cell" data-for="chunk : inspector_chunks_list" data-class-done="chunk.state == 'done'" data-class-active="chunk.state == 'active'" data-class-pending="chunk.state == 'pending'">{{chunk.text}}</div>
                     </div>
                 </div>
 
@@ -453,7 +459,7 @@
                         </div>
                         <span class="input-label">SAVED ARCHIVE PASSWORDS</span>
                         <div class="vault-list">
-                            <div class="vault-item" data-for="pwd:vault_passwords">
+                            <div class="vault-item" data-for="pwd : vault_passwords">
                                 <span class="vault-pwd">{{pwd}}</span>
                                 <button class="vault-del-btn" data-event-click="remove_vault_password(pwd)">✕</button>
                             </div>
@@ -587,5 +593,6 @@
         <span class="status-item right">Memory: 100% Native C++ (Zero Web Engine)</span>
     </div>
 
+</div>
 </body>
 </rml>

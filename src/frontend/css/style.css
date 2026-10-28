@@ -3281,6 +3281,46 @@ body,
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* ==========================================================================
+   Waterfall Auto-Updater & Release Notification Styling
+   ========================================================================== */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 
+.update-modal-card {
+  position: relative;
+  overflow: hidden;
+}
 
+.update-modal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399);
+}
 
+.status-indicator-dot {
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* Quit Dialog Options Cards */
+.quit-choice-card {
+  transition: all 0.15s ease;
+}
+.quit-choice-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+#btn-quit-to-tray:hover {
+  border-color: #38bdf8 !important;
+  background: #111d35 !important;
+}
+#btn-quit-exit:hover {
+  border-color: #ef4444 !important;
+  background: #1e1218 !important;
+}

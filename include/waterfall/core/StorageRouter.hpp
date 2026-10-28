@@ -19,6 +19,7 @@ public:
     static StorageRouter& Instance();
 
     [[nodiscard]] std::filesystem::path GetDefaultDownloadDir() const;
+    [[nodiscard]] std::filesystem::path GetAppDataDir() const;
     [[nodiscard]] std::filesystem::path ResolveTargetDirectory(const std::string& filename, bool category_subfolders = true) const;
     [[nodiscard]] FileCategory CategorizeFile(const std::string& filename) const;
     [[nodiscard]] std::string SanitizeFilename(const std::string& filename) const;

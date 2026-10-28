@@ -27,6 +27,12 @@ public:
 
     void SetTaskbarProgress(uint64_t completed, uint64_t total, TaskbarProgressState state = TaskbarProgressState::Normal);
 
+    void MinimizeToTray();
+    void RestoreFromTray();
+
+    bool IsStartWithWindows();
+    bool SetStartWithWindows(bool enable);
+
 private:
     ShellIntegration();
     ~ShellIntegration();

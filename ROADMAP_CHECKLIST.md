@@ -29,9 +29,9 @@ pie title Engine & Feature Completion Overview
 | **Phase 10** | OS Library Auto-Routing & Duplicate Handling | ✅ Verified | Medium |
 | **Phase 11** | Post-Download Automation Script Engine | ✅ Verified | Medium |
 | **Phase 12** | Native Win32 Shell (Taskbar Progress, Tray, Toasts, Power) | ✅ Verified | Medium |
-| **Phase 13** | Companion Browser Extension & Click'n'Load Bridge | 🟡 In Progress | High |
-| **Phase 14** | Live In-Progress Streaming ("Watch as you download") | ⚪ Pending | Low |
-| **Phase 15** | Performance Profiling, Edge Cases & Final Polishing | 🟡 In Progress | Medium |
+| **Phase 13** | Companion Browser Extension & Click'n'Load Bridge | ✅ Verified | High |
+| **Phase 14** | Live In-Progress Streaming ("Watch as you download") | ✅ Verified | High |
+| **Phase 15** | Performance Profiling, Edge Cases & Final Polishing | ✅ Verified | Medium |
 
 ---
 
@@ -242,11 +242,11 @@ pie title Engine & Feature Completion Overview
 ---
 
 ### Phase 14: Live In-Progress Media Streaming ("Watch as you download")
-- [ ] **Embedded Partial Content HTTP Server**:
+- [x] **Embedded Partial Content HTTP Server**:
   - Route: `GET /api/downloads/:id/stream`
-  - Responds to HTTP `Range` requests from VLC / mpv / internal player.
-  - Streams directly from growing `.part` file on disk with byte-range locking.
-- [ ] **"▶ Watch as Download Starts" Button**: Launches default media player pointed at stream URL.
+  - Responds to HTTP `Range` requests with `206 Partial Content` from internal HTML5 player, VLC, mpv.
+  - Streams directly from growing file on disk with byte-range locking and multi-socket write concurrency.
+- [x] **"▶ Watch as Download Starts" Button**: Launches internal Cinema media player or external player pointed at stream URL.
 
 ---
 

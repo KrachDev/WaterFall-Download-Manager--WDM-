@@ -6,6 +6,8 @@ package-lock.json
 dist/
 out/
 build/
+build-release/
+scratch/
 Publish/
 publish/
 src-tauri/target/
