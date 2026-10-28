@@ -27,7 +27,11 @@ public:
                     const std::string& target_folder = "",
                     int priority = 2,
                     bool is_media = false,
-                    const std::string& media_format = "");
+                    const std::string& media_format = "",
+                    const std::string& referrer = "",
+                    const std::string& cookies = "",
+                    const std::string& user_agent = "",
+                    int64_t total_bytes = 0);
 
     bool PauseDownload(int task_id);
     bool ResumeDownload(int task_id);

@@ -168,7 +168,7 @@ function extractCanonicalYoutubeUrl(url, sourceUrl) {
 /**
  * Dispatch downloads to Hydra Engine
  */
-async function sendToHydra({ urls, packageName, source, autostartOverride, isMedia, mediaOptions, filename }) {
+async function sendToHydra({ urls, packageName, source, autostartOverride, isMedia, mediaOptions, filename, cookies, fileSize }) {
   if (!urls) return { success: false, error: 'No URLs provided' };
 
   const settings = await getSettings();
@@ -180,6 +180,18 @@ async function sendToHydra({ urls, packageName, source, autostartOverride, isMed
 
   if (cleanUrls.length === 0) {
     return { success: false, error: 'Empty URL list' };
+  }
+
+  let cookieHeader = cookies || '';
+  if (!cookieHeader && cleanUrls.length > 0) {
+    try {
+      if (chrome.cookies) {
+        const cks = await chrome.cookies.getAll({ url: cleanUrls[0] });
+        if (cks && cks.length > 0) {
+          cookieHeader = cks.map(c => `${c.name}=${c.value}`).join('; ');
+        }
+      }
+    } catch (_) {}
   }
 
   let cleanFilename = (filename || '').trim();
@@ -219,6 +231,11 @@ async function sendToHydra({ urls, packageName, source, autostartOverride, isMed
         url: targetUrl,
         filename: cleanFilename || undefined,
         packageName: pkgName,
+        referrer: source || undefined,
+        source: source || undefined,
+        cookies: cookieHeader || undefined,
+        userAgent: navigator.userAgent,
+        totalBytes: fileSize || 0,
         isMedia: isMediaDetection,
         mediaOptions: mediaOptions || undefined,
         autoStart: autostart
@@ -644,11 +661,24 @@ async function handleDownloadInterception(downloadItem, candidateFilename) {
   recentlyInterceptedUrls.set(url, now);
 
   const pkgName = cleanName || 'Intercepted Download';
+
+  let cookieHeader = '';
+  try {
+    if (chrome.cookies) {
+      const cks = await chrome.cookies.getAll({ url });
+      if (cks && cks.length > 0) {
+        cookieHeader = cks.map(c => `${c.name}=${c.value}`).join('; ');
+      }
+    }
+  } catch (_) {}
+
   await sendToHydra({
     urls: [url],
     filename: cleanName,
     packageName: pkgName,
-    source: downloadItem.referrer || ''
+    source: downloadItem.referrer || '',
+    cookies: cookieHeader,
+    fileSize: downloadItem.fileSize || downloadItem.totalBytes || 0
   });
 
   return true;

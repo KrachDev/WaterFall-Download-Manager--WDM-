@@ -49,6 +49,11 @@ struct DownloadTask {
     int active_connections = 1;
     bool is_resumable = true;
     
+    // HTTP Request Headers & Session Context
+    std::string referrer;
+    std::string cookies;
+    std::string user_agent;
+    
     TaskStatus status = TaskStatus::Queued;
     std::string error_message;
     std::vector<ChunkInfo> chunks;

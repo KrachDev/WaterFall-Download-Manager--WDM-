@@ -210,7 +210,11 @@ int DownloadManager::AddDownload(const std::string& url,
                                 const std::string& target_folder,
                                 int priority,
                                 bool is_media,
-                                const std::string& media_format) {
+                                const std::string& media_format,
+                                const std::string& referrer,
+                                const std::string& cookies,
+                                const std::string& user_agent,
+                                int64_t total_bytes) {
     std::lock_guard lock(tasks_mutex_);
 
     DownloadTask task;
@@ -219,6 +223,10 @@ int DownloadManager::AddDownload(const std::string& url,
     task.priority = priority;
     task.is_media = is_media || MediaEngine::Instance().IsMediaUrl(url);
     task.media_format = media_format;
+    task.referrer = referrer;
+    task.cookies = cookies;
+    task.user_agent = user_agent;
+    task.total_bytes = total_bytes;
 
     // Use custom name or extract from URL
     std::string base_name = custom_name;

@@ -27,7 +27,10 @@ public:
     ~ChunkEngine();
 
     // Probe URL to inspect Content-Length, filename, and 206 Partial Content support
-    static RemoteFileInfo ProbeUrl(const std::string& url);
+    static RemoteFileInfo ProbeUrl(const std::string& url,
+                                   const std::string& referrer = "",
+                                   const std::string& cookies = "",
+                                   const std::string& user_agent = "");
 
     // Compute hardware-accelerated SHA-256 checksum of a file on disk
     static std::string CalculateSha256(const std::string& file_path);

@@ -516,7 +516,7 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
         title.c_str(),
         WS_OVERLAPPEDWINDOW,
         posX, posY, width, height,
-        (hwnd_ && IsWindow(hwnd_)) ? hwnd_ : nullptr,
+        nullptr, // Standalone top-level window (do not drag main application window forward)
         nullptr, hInstance, nullptr
     );
 

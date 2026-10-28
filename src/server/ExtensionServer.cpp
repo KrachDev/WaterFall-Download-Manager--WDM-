@@ -113,7 +113,10 @@ static json TaskToJson(const core::DownloadTask& t) {
         {"extractStatus", extract_status},
         {"extractProgress", t.extract_progress},
         {"multipart", multipart_obj},
-        {"segments", segments}
+        {"segments", segments},
+        {"referrer", t.referrer},
+        {"cookies", t.cookies},
+        {"userAgent", t.user_agent}
     };
 }
 
@@ -317,6 +320,12 @@ void ExtensionServer::SetupRoutes() {
             if (folder.empty()) {
                 folder = body.value("saveDir", "");
             }
+            std::string referrer = body.value("referrer", "");
+            if (referrer.empty()) referrer = body.value("source", "");
+            std::string cookies = body.value("cookies", "");
+            std::string user_agent = body.value("userAgent", "");
+            int64_t total_size = body.value("totalBytes", (int64_t)0);
+            if (total_size == 0) total_size = body.value("size", (int64_t)0);
 
             if (url.empty()) {
                 res.status = 400;
@@ -330,14 +339,16 @@ void ExtensionServer::SetupRoutes() {
             if (!confirmed) {
                 json probe = body;
                 probe["url"] = url;
+                probe["referrer"] = referrer;
+                probe["cookies"] = cookies;
+                probe["userAgent"] = user_agent;
 
                 std::string fname = filename;
-                int64_t total_size = body.value("totalBytes", (int64_t)0);
                 bool accept_ranges = true;
 
-                // Probe URL headers for real filename & size if not present
+                // Probe URL headers for real filename & size
                 try {
-                    auto info = core::ChunkEngine::ProbeUrl(url);
+                    auto info = core::ChunkEngine::ProbeUrl(url, referrer, cookies, user_agent);
                     if (!info.filename.empty() && fname.empty()) fname = info.filename;
                     if (info.total_size > 0 && total_size == 0) total_size = info.total_size;
                     accept_ranges = info.supports_range;
@@ -391,7 +402,10 @@ void ExtensionServer::SetupRoutes() {
             }
 
             // User has confirmed the download in confirm.html:
-            int id = core::DownloadManager::Instance().AddDownload(url, filename, folder);
+            int id = core::DownloadManager::Instance().AddDownload(
+                url, filename, folder, 2, false, "",
+                referrer, cookies, user_agent, total_size
+            );
             bool auto_start = body.value("autoStart", true);
             if (body.contains("autostart")) {
                 auto_start = body.value("autostart", true);

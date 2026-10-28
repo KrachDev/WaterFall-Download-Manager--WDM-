@@ -167,7 +167,7 @@ def run_tests():
             w, h = get_window_dimensions(confirm_hwnd)
             assert_test("Confirm dialog dimension around 680x750", abs(w - 680) < 50 and abs(h - 750) < 50, f"Actual: {w}x{h}")
             owner = user32.GetWindow(confirm_hwnd, GW_OWNER)
-            assert_test("Confirm dialog owned by main window", owner == main_hwnd or main_hwnd is None)
+            assert_test("Confirm dialog is standalone window (does not drag main app forward)", owner == 0 or owner is None or owner == main_hwnd)
 
         # TEST 2: Dynamic Topmost Toggle (Pinning)
         print("\n--- TEST 2: Confirmation Dialog Topmost Toggle ---")

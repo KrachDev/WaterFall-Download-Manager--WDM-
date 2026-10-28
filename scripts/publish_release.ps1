@@ -1,11 +1,18 @@
 param (
-    [string]$Tag = "v2.0.1-b104-20261028",
+    [string]$Tag = "",
     [string]$Repo = "KrachDev/WaterFall-Download-Manager--WDM-"
 )
 
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
 $distDir = "$root\dist"
+
+$buildNumFile = "$root\build_number.txt"
+$bNum = if (Test-Path $buildNumFile) { (Get-Content $buildNumFile -Raw).Trim() } else { "106" }
+$dateTag = Get-Date -Format "yyyyMMdd"
+if (-not $Tag) {
+    $Tag = "v2.0.1-b$bNum-$dateTag"
+}
 
 # 1. Retrieve GitHub Token
 Write-Host "[Auth] Querying Git Credential Manager for GitHub OAuth token..." -ForegroundColor Yellow
@@ -41,7 +48,7 @@ Write-Host "[Release] Creating GitHub release for tag '$Tag' on $Repo..." -Foreg
 $releaseData = @{
     tag_name = $Tag
     target_commitish = "cpp-rebuild"
-    name = "Waterfall Accelerator v2.0.1 (Build 104)"
+    name = "Waterfall Accelerator v2.0.1 (Build $bNum)"
     body = $bodyText
     draft = $false
     prerelease = $false
@@ -66,11 +73,11 @@ $uploadBase = "https://uploads.github.com/repos/$Repo/releases/$releaseId/assets
 
 # 4. Upload Assets
 $assetsToUpload = @(
-    "$distDir\Waterfall-Setup-v2.0.1-b104-20261028.exe",
+    "$distDir\Waterfall-Setup-$Tag.exe",
     "$distDir\Waterfall-Setup.exe",
-    "$distDir\Waterfall-v2.0.1-b104-20261028-windows-x64.zip",
+    "$distDir\Waterfall-$Tag-windows-x64.zip",
     "$distDir\Waterfall-latest-windows-x64.zip",
-    "$distDir\Waterfall-Companion-Extension-v2.0.1-b104-20261028.zip",
+    "$distDir\Waterfall-Companion-Extension-$Tag.zip",
     "$distDir\Waterfall-Companion-Extension-latest.zip",
     "$distDir\Uninstall.exe",
     "$distDir\SHA256SUMS.txt"

@@ -169,7 +169,8 @@ def main():
         w, h = get_window_dimensions(welcome_hwnd)
         test("Welcome Wizard dimensions close to 760x660", 720 <= w <= 800 and 620 <= h <= 700, f"Size: {w}x{h}")
         if main_hwnd:
-            test("Welcome Wizard owned by Main Window (HWND_OWNER)", user32.GetWindow(welcome_hwnd, GW_OWNER) == main_hwnd)
+            owner = user32.GetWindow(welcome_hwnd, GW_OWNER)
+            test("Welcome Wizard is standalone top window (does not drag main app forward)", owner == 0 or owner == main_hwnd)
 
     # Complete first run
     comp_res = api_post("/api/system/complete-first-run", {
