@@ -1,0 +1,41 @@
+#include <windows.h>
+
+#define IDI_APP_ICON 101
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent in Windows Explorer, Taskbar, and Alt-Tab
+IDI_APP_ICON ICON "@APP_ICON_PATH@"
+1            ICON "@APP_ICON_PATH@"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,@WATERFALL_BUILD_NUMBER@
+PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,@WATERFALL_BUILD_NUMBER@
+FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+FILEFLAGS 0x1L
+#else
+FILEFLAGS 0x0L
+#endif
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "KrachDev\0"
+            VALUE "FileDescription", "Waterfall Download Accelerator\0"
+            VALUE "FileVersion", "@PROJECT_VERSION@.@WATERFALL_BUILD_NUMBER@\0"
+            VALUE "InternalName", "waterfall\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 KrachDev\0"
+            VALUE "OriginalFilename", "Waterfall.exe\0"
+            VALUE "ProductName", "Waterfall Download Accelerator\0"
+            VALUE "ProductVersion", "@PROJECT_VERSION@\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

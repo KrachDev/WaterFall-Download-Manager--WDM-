@@ -13,6 +13,10 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
 Set-Location $root
 
+if (Test-Path "C:\Program Files\Git\cmd") {
+    $env:Path = "C:\Program Files\Git\cmd;$env:Path"
+}
+
 # 1. Resolve & Increment Build Number and Date
 $buildNumFile = "$root\build_number.txt"
 $currentBuild = 100
@@ -87,7 +91,26 @@ if (-not $SkipBuild) {
         New-Item -ItemType Directory -Path $buildDir | Out-Null
     }
 
-    $cmakeCmd = "cmake -B `"$buildDir`" -G Ninja -DCMAKE_BUILD_TYPE=Release"
+    $sourceOverrides = ""
+    $buildDepsDir = "$root\build\_deps"
+    if (Test-Path "$buildDepsDir\nlohmann_json-src") {
+        $cleanPath = ($buildDepsDir + "\nlohmann_json-src").Replace('\', '/')
+        $sourceOverrides += " -DFETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON=`"$cleanPath`""
+    }
+    if (Test-Path "$buildDepsDir\httplib-src") {
+        $cleanPath = ($buildDepsDir + "\httplib-src").Replace('\', '/')
+        $sourceOverrides += " -DFETCHCONTENT_SOURCE_DIR_HTTPLIB=`"$cleanPath`""
+    }
+    if (Test-Path "$buildDepsDir\freetype-src") {
+        $cleanPath = ($buildDepsDir + "\freetype-src").Replace('\', '/')
+        $sourceOverrides += " -DFETCHCONTENT_SOURCE_DIR_FREETYPE=`"$cleanPath`""
+    }
+    if (Test-Path "$buildDepsDir\rmlui-src") {
+        $cleanPath = ($buildDepsDir + "\rmlui-src").Replace('\', '/')
+        $sourceOverrides += " -DFETCHCONTENT_SOURCE_DIR_RMLUI=`"$cleanPath`""
+    }
+
+    $cmakeCmd = "cmake -B `"$buildDir`" -G Ninja -DCMAKE_BUILD_TYPE=Release -DWATERFALL_BUILD_NUMBER=`"$resolvedBuildNumber`"$sourceOverrides"
     $ninjaCmd = "ninja -C `"$buildDir`" waterfall"
 
     Write-Host "[Build] Running: $cmakeCmd" -ForegroundColor Gray
@@ -136,11 +159,19 @@ Copy-Item -Recurse "$root\src\frontend" "$stageDir\src\frontend" -Force
 # Copy Assets (UI icons, fonts, themes)
 Copy-Item -Recurse "$root\assets" "$stageDir\assets" -Force
 
+# Compile Application Resource for Installer/Uninstaller
+$installerRc = "$root\src\installer\installer.rc"
+$installerRes = "$distDir\installer.res"
+if (Test-Path $installerRc) {
+    cmd /c "$setupCmd rc.exe /fo `"$installerRes`" `"$installerRc`"" | Out-Null
+}
+$resArg = if (Test-Path $installerRes) { "`"$installerRes`"" } else { "" }
+
 # Compile & Embed Standalone Uninstaller
 Write-Host "[Installer] Compiling native Uninstaller binary..." -ForegroundColor Gray
 $uninstallerSrc = "$root\src\installer\UninstallerMain.cpp"
 if (Test-Path $uninstallerSrc) {
-    cmd /c "$setupCmd cl.exe /std:c++20 /EHsc /O2 /MD /utf-8 `"$uninstallerSrc`" /Fe:`"$stageDir\Uninstall.exe`" /link user32.lib shell32.lib advapi32.lib ole32.lib dwmapi.lib /SUBSYSTEM:WINDOWS" | Out-Null
+    cmd /c "$setupCmd cl.exe /std:c++20 /EHsc /O2 /MD /utf-8 `"$uninstallerSrc`" $resArg /Fe:`"$stageDir\Uninstall.exe`" /link user32.lib shell32.lib advapi32.lib ole32.lib dwmapi.lib /SUBSYSTEM:WINDOWS" | Out-Null
     if (Test-Path "$stageDir\Uninstall.exe") {
         Copy-Item "$stageDir\Uninstall.exe" "$distDir\Uninstall.exe" -Force
         # Clean up obj file
@@ -218,11 +249,12 @@ Write-Host "`n[Installer] Building standalone Windows Setup Installer (.exe)..."
 $installerSrc = "$root\src\installer\InstallerMain.cpp"
 $installerExe = "$distDir\Waterfall-Setup-$fullVersionTag.exe"
 if (Test-Path $installerSrc) {
-    cmd /c "$setupCmd cl.exe /std:c++20 /EHsc /O2 /MD /utf-8 `"$installerSrc`" /Fe:`"$installerExe`" /link user32.lib shell32.lib advapi32.lib ole32.lib comctl32.lib dwmapi.lib gdi32.lib /SUBSYSTEM:WINDOWS" | Out-Null
+    cmd /c "$setupCmd cl.exe /std:c++20 /EHsc /O2 /MD /utf-8 `"$installerSrc`" $resArg /Fe:`"$installerExe`" /link user32.lib shell32.lib advapi32.lib ole32.lib comctl32.lib dwmapi.lib gdi32.lib /SUBSYSTEM:WINDOWS" | Out-Null
     if (Test-Path $installerExe) {
         $latestInstaller = "$distDir\Waterfall-Setup.exe"
         Copy-Item $installerExe $latestInstaller -Force
         Remove-Item "$root\InstallerMain.obj" -Force -ErrorAction SilentlyContinue
+        Remove-Item $installerRes -Force -ErrorAction SilentlyContinue
         Write-Host "  [Installer] Built: $installerExe" -ForegroundColor Green
     }
 }

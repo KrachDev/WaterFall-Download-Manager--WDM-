@@ -256,13 +256,41 @@ bool WebViewUiManager::Initialize(int width, int height, const std::string& star
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     HINSTANCE hInstance = GetModuleHandle(nullptr);
 
+    // Load custom application icon (embedded resource ID 101 or fallback to assets/icon.ico)
+    hIconBig_ = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(101), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR);
+    hIconSmall_ = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(101), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
+    if (!hIconBig_ || !hIconSmall_) {
+        WCHAR exePath[MAX_PATH];
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        std::wstring exeDir = exePath;
+        size_t lastSlash = exeDir.find_last_of(L"\\/");
+        if (lastSlash != std::wstring::npos) exeDir = exeDir.substr(0, lastSlash);
+        std::wstring iconPath = exeDir + L"\\assets\\icon.ico";
+
+        if (!hIconBig_) {
+            hIconBig_ = (HICON)LoadImageW(nullptr, iconPath.c_str(), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_LOADFROMFILE);
+            if (!hIconBig_) {
+                hIconBig_ = (HICON)LoadImageW(nullptr, L"assets\\icon.ico", IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_LOADFROMFILE);
+            }
+        }
+        if (!hIconSmall_) {
+            hIconSmall_ = (HICON)LoadImageW(nullptr, iconPath.c_str(), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE);
+            if (!hIconSmall_) {
+                hIconSmall_ = (HICON)LoadImageW(nullptr, L"assets\\icon.ico", IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE);
+            }
+        }
+    }
+    if (!hIconBig_) hIconBig_ = LoadIconW(nullptr, (LPCWSTR)IDI_APPLICATION);
+    if (!hIconSmall_) hIconSmall_ = hIconBig_;
+
     // Register primary window class
     WNDCLASSEXW wcex = {};
     wcex.cbSize = sizeof(WNDCLASSEXW);
     wcex.style = CS_HREDRAW | CS_VREDRAW;
     wcex.lpfnWndProc = WndProc;
     wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIconW(nullptr, (LPCWSTR)IDI_APPLICATION);
+    wcex.hIcon = hIconBig_;
+    wcex.hIconSm = hIconSmall_;
     wcex.hCursor = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
     wcex.lpszClassName = L"Waterfall_WebView2_Class";
@@ -287,6 +315,9 @@ bool WebViewUiManager::Initialize(int width, int height, const std::string& star
         std::cerr << "[WebView2] Failed to create main application window." << std::endl;
         return false;
     }
+
+    SendMessageW(hwnd_, WM_SETICON, ICON_BIG, (LPARAM)hIconBig_);
+    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, (LPARAM)hIconSmall_);
 
     // Windows 10/11 Immersive Dark Titlebar
     BOOL useDarkMode = TRUE;
@@ -459,7 +490,8 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
         dwcex.style = CS_HREDRAW | CS_VREDRAW;
         dwcex.lpfnWndProc = DialogWndProc;
         dwcex.hInstance = hInstance;
-        dwcex.hIcon = LoadIconW(nullptr, (LPCWSTR)IDI_APPLICATION);
+        dwcex.hIcon = hIconBig_ ? hIconBig_ : LoadIconW(nullptr, (LPCWSTR)IDI_APPLICATION);
+        dwcex.hIconSm = hIconSmall_ ? hIconSmall_ : dwcex.hIcon;
         dwcex.hCursor = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
         dwcex.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
         dwcex.lpszClassName = L"Waterfall_Dialog_Class";
@@ -492,6 +524,9 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
         std::cerr << "[WebView2] Failed to create dialog window (" << type << ")" << std::endl;
         return nullptr;
     }
+
+    if (hIconBig_) SendMessageW(dlgHwnd, WM_SETICON, ICON_BIG, (LPARAM)hIconBig_);
+    if (hIconSmall_) SendMessageW(dlgHwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIconSmall_);
 
     BOOL useDarkMode = TRUE;
     DwmSetWindowAttribute(dlgHwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &useDarkMode, sizeof(useDarkMode));

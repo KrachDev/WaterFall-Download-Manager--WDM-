@@ -56,6 +56,8 @@ private:
     static LRESULT CALLBACK DialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     HWND hwnd_ = nullptr;
+    HICON hIconBig_ = nullptr;
+    HICON hIconSmall_ = nullptr;
     bool is_running_ = false;
     DWORD main_thread_id_ = 0;
 

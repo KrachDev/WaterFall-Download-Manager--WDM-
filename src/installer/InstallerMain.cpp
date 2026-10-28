@@ -368,12 +368,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     icex.dwICC = ICC_PROGRESS_CLASS | ICC_STANDARD_CLASSES;
     InitCommonControlsEx(&icex);
 
+    HICON hIconBig = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(101), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR);
+    HICON hIconSmall = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(101), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
+    if (!hIconBig) hIconBig = LoadIconW(nullptr, (LPCWSTR)IDI_APPLICATION);
+    if (!hIconSmall) hIconSmall = hIconBig;
+
     WNDCLASSEXW wcex = {};
     wcex.cbSize = sizeof(wcex);
     wcex.style = CS_HREDRAW | CS_VREDRAW;
     wcex.lpfnWndProc = WndProc;
     wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIconW(nullptr, (LPCWSTR)IDI_APPLICATION);
+    wcex.hIcon = hIconBig;
+    wcex.hIconSm = hIconSmall;
     wcex.hCursor = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wcex.lpszClassName = L"Waterfall_Setup_Class";
@@ -396,6 +402,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     );
 
     if (!hwnd) return 1;
+
+    SendMessageW(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIconBig);
+    SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIconSmall);
 
     BOOL useDarkMode = TRUE;
     DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &useDarkMode, sizeof(useDarkMode));

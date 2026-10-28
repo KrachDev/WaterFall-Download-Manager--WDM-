@@ -45,7 +45,23 @@ void ShellIntegration::Initialize(HWND hwnd) {
     nid_.uID = 1001;
     nid_.uFlags = NIF_ICON | NIF_TIP | NIF_INFO | NIF_MESSAGE;
     nid_.uCallbackMessage = WM_APP + 100;
-    nid_.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+    HICON hTrayIcon = (HICON)LoadImageW(GetModuleHandle(nullptr), MAKEINTRESOURCEW(101), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
+    if (!hTrayIcon) {
+        WCHAR exePath[MAX_PATH];
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        std::wstring exeDir = exePath;
+        size_t lastSlash = exeDir.find_last_of(L"\\/");
+        if (lastSlash != std::wstring::npos) exeDir = exeDir.substr(0, lastSlash);
+        std::wstring iconPath = exeDir + L"\\assets\\icon.ico";
+        hTrayIcon = (HICON)LoadImageW(nullptr, iconPath.c_str(), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE);
+        if (!hTrayIcon) {
+            hTrayIcon = (HICON)LoadImageW(nullptr, L"assets\\icon.ico", IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE);
+        }
+    }
+    if (!hTrayIcon) {
+        hTrayIcon = LoadIconW(nullptr, (LPCWSTR)IDI_APPLICATION);
+    }
+    nid_.hIcon = hTrayIcon;
     wcscpy_s(nid_.szTip, L"Waterfall Download Accelerator");
 
     if (Shell_NotifyIconW(NIM_ADD, &nid_)) {

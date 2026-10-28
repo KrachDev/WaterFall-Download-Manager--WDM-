@@ -84,6 +84,15 @@ if(MSVC)
     target_compile_options(sqlite3 PRIVATE /W0) # Suppress warnings in SQLite C code
 endif()
 
+# Configure Windows Application Resource (Icons & Version Info)
+set(WATERFALL_BUILD_NUMBER "103" CACHE STRING "Waterfall build number")
+set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/resources/waterfall.rc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/waterfall.rc"
+    @ONLY
+)
+
 # Main Waterfall Executable
 add_executable(waterfall
     src/main.cpp
@@ -105,6 +114,7 @@ add_executable(waterfall
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_GL2.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_GL2.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/waterfall.rc
 )
 
 target_include_directories(waterfall PRIVATE
