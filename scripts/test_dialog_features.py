@@ -135,7 +135,7 @@ def run_tests():
             return False
 
     try:
-        # TEST 1: Open Confirmation Window
+        # TEST 1: Open Confirmation Window via unconfirmed download
         print("\n--- TEST 1: Download Confirmation Dialog (confirm.html) ---")
         probe_sample = {
             "url": "https://speed.hetzner.de/100MB.bin",
@@ -144,8 +144,9 @@ def run_tests():
             "category": "General",
             "acceptRanges": True
         }
-        res = api_post("/api/window/open-confirm", probe_sample)
-        assert_test("API /api/window/open-confirm responds success", res.get("success") is True)
+        res = api_post("/api/downloads", probe_sample)
+        assert_test("API /api/downloads without 'confirmed' waits for confirmation", res.get("waitingForConfirmation") is True)
+        assert_test("Download task not started before user confirms", res.get("id") is None)
 
         time.sleep(1.2)
         dlg_wins = find_windows_by_class("Waterfall_Dialog_Class")
@@ -181,9 +182,14 @@ def run_tests():
 
         # TEST 3: Progress Dialog Window
         print("\n--- TEST 3: Download Progress Window (download-progress.html) ---")
-        dl_res = api_post("/api/downloads", {"url": "https://speed.hetzner.de/100MB.bin", "filename": "test_progress_100MB.bin", "openProgress": True})
+        dl_res = api_post("/api/downloads", {
+            "url": "https://speed.hetzner.de/100MB.bin",
+            "filename": "test_progress_100MB.bin",
+            "confirmed": True,
+            "openProgress": True
+        })
         task_id = dl_res.get("id", 0)
-        assert_test("Download task created via /api/downloads", task_id > 0, f"Task ID: {task_id}")
+        assert_test("Download task created via confirmed /api/downloads", task_id > 0, f"Task ID: {task_id}")
 
         time.sleep(1.2)
         dlg_wins = find_windows_by_class("Waterfall_Dialog_Class")

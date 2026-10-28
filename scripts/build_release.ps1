@@ -159,6 +159,12 @@ Copy-Item -Recurse "$root\src\frontend" "$stageDir\src\frontend" -Force
 # Copy Assets (UI icons, fonts, themes)
 Copy-Item -Recurse "$root\assets" "$stageDir\assets" -Force
 
+# Copy Browser Companion Extension directly into release root folder
+if (Test-Path "$root\extension") {
+    Write-Host "[Package] Including Browser Companion Extension in release root folder: $stageDir\extension" -ForegroundColor Gray
+    Copy-Item -Recurse "$root\extension" "$stageDir\extension" -Force
+}
+
 # Compile Application Resource for Installer/Uninstaller
 $installerRc = "$root\src\installer\installer.rc"
 $installerRes = "$distDir\installer.res"

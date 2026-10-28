@@ -4124,15 +4124,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.addEventListener('download:confirm', (e) => {
-    // In Electron native shell, electron-main.js connects to the backend WebSocket directly
-    // and opens confirmWindow natively. We do not focus or unminimize the main window!
-    if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
-      return;
-    }
-    if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
-      window.waterfallDesktop.focusWindow();
-    }
     if (e.detail) {
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
+        window.waterfallDesktop.openConfirmWindow(e.detail);
+        return;
+      }
+      if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
+        window.waterfallDesktop.focusWindow();
+      }
       if (e.detail.existingMatch) {
         showDuplicatePrompt(e.detail, (opts = {}) => {
           if (opts && opts.allowDuplicate) e.detail.allowDuplicate = true;

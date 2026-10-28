@@ -314,6 +314,9 @@ void ExtensionServer::SetupRoutes() {
             std::string url = body.value("url", "");
             std::string filename = body.value("filename", "");
             std::string folder = body.value("target_folder", "");
+            if (folder.empty()) {
+                folder = body.value("saveDir", "");
+            }
 
             if (url.empty()) {
                 res.status = 400;
@@ -321,13 +324,90 @@ void ExtensionServer::SetupRoutes() {
                 return;
             }
 
-            int id = core::DownloadManager::Instance().AddDownload(url, filename, folder);
-            if (id > 0 && (body.value("openProgress", false) || body.value("open_progress", false))) {
-                std::string prog_url = "http://127.0.0.1:4567/download-progress.html?taskId=" + std::to_string(id);
+            bool confirmed = body.value("confirmed", false) || body.value("force", false) || body.value("openProgress", false) || body.value("open_progress", false);
+
+            // If not confirmed yet, DO NOT start download! Wait for user in Download File Info dialog.
+            if (!confirmed) {
+                json probe = body;
+                probe["url"] = url;
+
+                std::string fname = filename;
+                int64_t total_size = body.value("totalBytes", (int64_t)0);
+                bool accept_ranges = true;
+
+                // Probe URL headers for real filename & size if not present
+                try {
+                    auto info = core::ChunkEngine::ProbeUrl(url);
+                    if (!info.filename.empty() && fname.empty()) fname = info.filename;
+                    if (info.total_size > 0 && total_size == 0) total_size = info.total_size;
+                    accept_ranges = info.supports_range;
+                } catch (...) {}
+
+                if (fname.empty()) {
+                    fname = url.substr(url.find_last_of("/\\") + 1);
+                    size_t q = fname.find('?');
+                    if (q != std::string::npos) fname = fname.substr(0, q);
+                    if (fname.empty()) fname = "download";
+                }
+                probe["filename"] = fname;
+                probe["totalBytes"] = total_size;
+                probe["acceptRanges"] = accept_ranges;
+
+                std::string def_dir = folder.empty() ? core::ConfigManager::Instance().GetDownloadDirectory() : folder;
+                probe["defaultSaveDir"] = def_dir;
+
+                // File categorization
+                std::string ext = "";
+                size_t dot = fname.find_last_of('.');
+                if (dot != std::string::npos) {
+                    ext = fname.substr(dot + 1);
+                    for (auto& c : ext) c = (char)tolower(c);
+                }
+                std::string cat = "General";
+                if (ext == "zip" || ext == "rar" || ext == "7z" || ext == "tar" || ext == "gz" || ext == "iso") cat = "Compressed";
+                else if (ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "webm") cat = "Video";
+                else if (ext == "mp3" || ext == "flac" || ext == "wav" || ext == "m4a" || ext == "aac") cat = "Audio";
+                else if (ext == "exe" || ext == "msi" || ext == "apk") cat = "Programs";
+                else if (ext == "pdf" || ext == "doc" || ext == "docx" || ext == "txt" || ext == "epub") cat = "Documents";
+                else if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "gif" || ext == "webp") cat = "Pictures";
+                probe["category"] = cat;
+
+                g_pending_confirm_json = probe.dump();
+
+                // Open Download File Info (confirm.html) Top Window
                 ui::WebViewUiManager::Instance().OpenDialogWindow(
-                    prog_url, 660, 600, false,
-                    L"Waterfall — Download Progress", "progress", id
+                    "http://127.0.0.1:4567/confirm.html",
+                    680, 750, true /* Top Window */,
+                    L"Waterfall — Download File Info", "confirm", 0
                 );
+
+                json resp = {
+                    {"success", true},
+                    {"waitingForConfirmation", true},
+                    {"message", "Download File Info window opened. Awaiting user confirmation."}
+                };
+                res.set_content(resp.dump(), "application/json");
+                return;
+            }
+
+            // User has confirmed the download in confirm.html:
+            int id = core::DownloadManager::Instance().AddDownload(url, filename, folder);
+            bool auto_start = body.value("autoStart", true);
+            if (body.contains("autostart")) {
+                auto_start = body.value("autostart", true);
+            }
+
+            if (id > 0) {
+                if (!auto_start) {
+                    // User selected "Download Later"
+                    core::DownloadManager::Instance().PauseDownload(id);
+                } else if (body.value("openProgress", false) || body.value("open_progress", false)) {
+                    std::string prog_url = "http://127.0.0.1:4567/download-progress.html?taskId=" + std::to_string(id);
+                    ui::WebViewUiManager::Instance().OpenDialogWindow(
+                        prog_url, 660, 600, false,
+                        L"Waterfall — Download Progress", "progress", id
+                    );
+                }
             }
             json resp = {
                 {"success", true},
