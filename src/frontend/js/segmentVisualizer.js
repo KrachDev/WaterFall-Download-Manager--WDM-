@@ -150,8 +150,8 @@ class SegmentVisualizer {
     } else {
       this.currentGroupKey = null;
     }
-    this.update();
     if (this.modal) this.modal.classList.add('open');
+    this.update();
   }
 
   openGroup(groupKey) {

@@ -795,7 +795,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="file-details">
               <div style="display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden;">
                 ${childBranchPrefix}
-                <span class="file-title" style="flex: 1; min-width: 0;" title="${escapeHtml(t.name)}" onclick="window.segmentVisualizer.open('${encodeURIComponent(t.id)}')">${escapeHtml(t.name)}</span>
+                <span class="file-title" style="flex: 1; min-width: 0;" title="${escapeHtml(t.name)}" onclick="event.stopPropagation(); window.segmentVisualizer.open('${encodeURIComponent(t.id)}')">${escapeHtml(t.name)}</span>
                 ${priorityTag}
                 ${queueBadge}
                 ${extractionBadge}
@@ -4103,6 +4103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
 
     // 3. Tauri fallback
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
       window.__TAURI__.core.invoke('open_confirm_window').catch(() => {});
       return;
     }

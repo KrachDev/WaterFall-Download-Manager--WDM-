@@ -162,8 +162,13 @@
   }
 
   function closeWindow() {
+    fetch(`${apiBase}/api/window/close-dialog`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'progress', taskId: currentTaskId ? Number(currentTaskId) : 0 })
+    }).catch(() => {});
     if (window.waterfallDesktop && window.waterfallDesktop.close) {
-      window.waterfallDesktop.close();
+      window.waterfallDesktop.close('progress', currentTaskId ? Number(currentTaskId) : 0);
     } else if (window.__TAURI__ && window.__TAURI__.window) {
       window.__TAURI__.window.getCurrentWindow().close().catch(() => window.close());
     } else {

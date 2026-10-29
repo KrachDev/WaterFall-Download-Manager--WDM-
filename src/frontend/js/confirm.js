@@ -91,6 +91,11 @@
   }
 
   function closeThisWindow() {
+    fetch(`${apiBase}/api/window/close-dialog`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'confirm' })
+    }).catch(() => {});
     if (window.waterfallDesktop && window.waterfallDesktop.closeConfirmWindow) {
       window.waterfallDesktop.closeConfirmWindow();
     } else if (window.__TAURI__ && window.__TAURI__.window) {
@@ -459,41 +464,6 @@
       btnStart.textContent = 'Start Download Now';
       alert('Could not start download: ' + err.message);
     }
-  }
-
-  // Pin / Always on Top Window Control
-  let isConfirmTop = true;
-  function updateConfirmPinUI(pinned) {
-    isConfirmTop = pinned;
-    if (!btnPinConfirm) return;
-    if (pinned) {
-      btnPinConfirm.innerHTML = '📌 Top';
-      btnPinConfirm.style.color = '#38bdf8';
-      btnPinConfirm.style.borderColor = 'rgba(56, 189, 248, 0.4)';
-      btnPinConfirm.style.background = 'rgba(56, 189, 248, 0.15)';
-      btnPinConfirm.title = 'Always on Top (Top Window): ON';
-    } else {
-      btnPinConfirm.innerHTML = '📍 Normal';
-      btnPinConfirm.style.color = '#94a3b8';
-      btnPinConfirm.style.borderColor = '#1e293b';
-      btnPinConfirm.style.background = '';
-      btnPinConfirm.title = 'Always on Top (Top Window): OFF';
-    }
-  }
-
-  if (btnPinConfirm) {
-    btnPinConfirm.addEventListener('click', () => {
-      const nextState = !isConfirmTop;
-      updateConfirmPinUI(nextState);
-      if (window.waterfallDesktop && typeof window.waterfallDesktop.setAlwaysOnTop === 'function') {
-        window.waterfallDesktop.setAlwaysOnTop(nextState);
-      }
-      fetch(`${apiBase}/api/window/set-topmost`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'confirm', topmost: nextState, bringToFront: nextState })
-      }).catch(() => {});
-    });
   }
 
   // Pin / Always on Top Control

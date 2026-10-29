@@ -65,10 +65,10 @@ static const wchar_t* s_bridge_script =
     L"  promptQuit: function() {"
     L"    if (typeof window.showQuitOptionsModal === 'function') window.showQuitOptionsModal();"
     L"  },"
-    L"  close: function() {"
+    L"  close: function(type, taskId) {\n    fetch('/api/window/close-dialog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: type || '', taskId: taskId || 0 }) }).catch(function(){});"
     L"    window.close();"
     L"  },"
-    L"  closeConfirmWindow: function() {"
+    L"  closeConfirmWindow: function() {\n    fetch('/api/window/close-dialog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'confirm' }) }).catch(function(){});"
     L"    window.close();"
     L"  },"
     L"  openFolder: function(p) {"
@@ -478,7 +478,7 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
         SetForegroundWindow(existing_hwnd);
         BringWindowToTop(existing_hwnd);
 
-        if (!mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
+        if (type == "confirm" && !mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
             if (prevFg && IsWindow(prevFg)) {
                 SetWindowPos(hwnd_, prevFg, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             } else {
@@ -551,7 +551,7 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
     }
 
     // Keep main application window from jumping over the user's active browser window (Chrome, Edge, etc.)
-    if (!mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
+    if (type == "confirm" && !mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
         if (prevFg && IsWindow(prevFg)) {
             SetWindowPos(hwnd_, prevFg, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         } else {
@@ -578,7 +578,7 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
     env_->CreateCoreWebView2Controller(
         dlgHwnd,
         Microsoft::WRL::Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-            [this, dlgHwnd, full_url, width, height, prevFg, mainWasForeground](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+            [this, dlgHwnd, full_url, width, height, prevFg, mainWasForeground, is_topmost, type](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
                 if (FAILED(result) || !controller) {
                     std::cerr << "[WebView2] Failed to create dialog controller: hr=0x" << std::hex << result << std::endl;
                     return result;
@@ -623,7 +623,15 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
                 controller->put_Bounds(bounds);
                 controller->put_IsVisible(TRUE);
 
-                if (!mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
+                if (is_topmost) {
+                    SetWindowPos(dlgHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                } else {
+                    SetWindowPos(dlgHwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                }
+                SetForegroundWindow(dlgHwnd);
+                BringWindowToTop(dlgHwnd);
+
+                if (type == "confirm" && !mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
                     if (prevFg && IsWindow(prevFg)) {
                         SetWindowPos(hwnd_, prevFg, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                     } else {
@@ -763,6 +771,25 @@ void WebViewUiManager::CloseDialogWindow(HWND hwnd) {
     if (hwnd && IsWindow(hwnd)) {
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
     }
+}
+
+bool WebViewUiManager::CloseDialogWindowByType(const std::string& type, int task_id) {
+    std::lock_guard<std::recursive_mutex> lock(windows_mutex_);
+    bool closed = false;
+    for (auto& win : dialog_windows_) {
+        if (!win || !win->hwnd || !IsWindow(win->hwnd)) continue;
+        if (task_id > 0 && win->task_id == task_id) {
+            PostMessageW(win->hwnd, WM_CLOSE, 0, 0);
+            closed = true;
+        } else if (!type.empty() && win->type == type) {
+            PostMessageW(win->hwnd, WM_CLOSE, 0, 0);
+            closed = true;
+        } else if (type.empty() && task_id == 0) {
+            PostMessageW(win->hwnd, WM_CLOSE, 0, 0);
+            closed = true;
+        }
+    }
+    return closed;
 }
 
 void WebViewUiManager::Run() {

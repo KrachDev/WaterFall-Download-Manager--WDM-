@@ -40,6 +40,7 @@ public:
     bool SetWindowTopmostByType(const std::string& type, bool topmost, bool bring_to_front = true);
     bool SetWindowTopmostByTypeInternal(const std::string& type, bool topmost, bool bring_to_front = true);
     void CloseDialogWindow(HWND hwnd);
+    bool CloseDialogWindowByType(const std::string& type, int task_id = 0);
 
     // Tray & Application Lifecycle
     void MinimizeToTray();

@@ -1710,6 +1710,28 @@ void ExtensionServer::SetupRoutes() {
         }
     });
 
+    server_->Post("/api/window/close-dialog", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            std::string type;
+            int taskId = 0;
+            if (!req.body.empty()) {
+                auto body = json::parse(req.body);
+                if (body.contains("type")) type = body["type"].get<std::string>();
+                if (body.contains("taskId")) {
+                    if (body["taskId"].is_number()) taskId = body["taskId"].get<int>();
+                    else if (body["taskId"].is_string()) {
+                        try { taskId = std::stoi(body["taskId"].get<std::string>()); } catch (...) {}
+                    }
+                }
+            }
+            ui::WebViewUiManager::Instance().CloseDialogWindowByType(type, taskId);
+            res.set_content(R"({"success":true})", "application/json");
+        } catch (const std::exception& e) {
+            res.status = 400;
+            res.set_content(json({{"error", e.what()}}).dump(), "application/json");
+        }
+    });
+
     // Crossdomain XML for web integrations
     server_->Get("/crossdomain.xml", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(
