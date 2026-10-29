@@ -2389,8 +2389,14 @@ document.addEventListener('DOMContentLoaded', () => {
                   : (update.status === 'completed' ? 'Completed' : '--');
                 if (cached.etaTd) {
                   cached.etaTd.title = (update.status === 'downloading')
-                    ? formatETADuration(update.eta)
+                    ? `${formatETADuration(update.eta)} (Stabilized: 5s window)`
                     : '';
+                  const subSpan = cached.etaTd.querySelector('.date-finish-sub');
+                  if (subSpan) {
+                    subSpan.textContent = (update.status === 'downloading')
+                      ? formatETADuration(update.eta)
+                      : (update.status === 'completed' ? 'Finished' : '--');
+                  }
                 }
               }
             }

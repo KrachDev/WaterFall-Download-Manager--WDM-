@@ -56,13 +56,18 @@ float DownloadTask::GetProgressPercent() const {
 }
 
 std::string DownloadTask::GetEtaFormatted() const {
-    if (status != TaskStatus::Downloading || speed_bps <= 0 || total_bytes <= 0) {
+    if (status != TaskStatus::Downloading || total_bytes <= 0) {
         return "--";
     }
-    int64_t remaining_bytes = total_bytes - downloaded_bytes;
-    if (remaining_bytes <= 0) return "0s";
-    
-    int64_t seconds = remaining_bytes / speed_bps;
+    int64_t seconds = eta_seconds;
+    if (seconds <= 0) {
+        int64_t remaining_bytes = total_bytes - downloaded_bytes;
+        if (remaining_bytes <= 0) return "0s";
+        int64_t spd = smoothed_speed_bps > 0 ? smoothed_speed_bps : speed_bps;
+        if (spd <= 0) return "--";
+        seconds = remaining_bytes / spd;
+    }
+    if (seconds <= 0) return "0s";
     if (seconds < 60) {
         return std::to_string(seconds) + "s";
     }

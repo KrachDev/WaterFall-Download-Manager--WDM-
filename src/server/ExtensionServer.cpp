@@ -91,9 +91,12 @@ static json TaskToJson(const core::DownloadTask& t) {
         {"isRootPart", t.is_root_part}
     };
 
-    int64_t eta_sec = 0;
-    if (t.status == core::TaskStatus::Downloading && t.speed_bps > 0 && t.total_bytes > t.downloaded_bytes) {
-        eta_sec = (t.total_bytes - t.downloaded_bytes) / t.speed_bps;
+    int64_t eta_sec = t.eta_seconds;
+    if (eta_sec <= 0 && t.status == core::TaskStatus::Downloading && t.total_bytes > t.downloaded_bytes) {
+        int64_t spd = t.smoothed_speed_bps > 0 ? t.smoothed_speed_bps : t.speed_bps;
+        if (spd > 0) {
+            eta_sec = (t.total_bytes - t.downloaded_bytes) / spd;
+        }
     }
 
     int64_t added_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t.created_at.time_since_epoch()).count();

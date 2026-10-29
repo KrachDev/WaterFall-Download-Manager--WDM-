@@ -636,7 +636,9 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
 
         // 6. Coordinator loop
         auto last_tick = std::chrono::steady_clock::now();
+        auto last_eta_calc = std::chrono::steady_clock::now();
         int64_t last_bytes = total_bytes_downloaded.load();
+        int64_t bytes_at_last_eta = last_bytes;
 
         while (!worker->cancel_requested &&
                !any_worker_failed.load() &&
@@ -652,11 +654,39 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
                 int64_t current_bytes = total_bytes_downloaded.load();
                 int64_t delta = current_bytes - last_bytes;
                 if (delta > 0 && elapsed_ms > 0) {
-                    task.speed_bps = (delta * 1000) / elapsed_ms;
+                    int64_t inst_speed = (delta * 1000) / elapsed_ms;
+                    task.speed_bps = inst_speed;
+                    if (task.smoothed_speed_bps <= 0) {
+                        task.smoothed_speed_bps = inst_speed;
+                    } else {
+                        task.smoothed_speed_bps = static_cast<int64_t>(0.85 * task.smoothed_speed_bps + 0.15 * inst_speed);
+                    }
                 }
                 task.downloaded_bytes = current_bytes;
                 last_bytes = current_bytes;
                 last_tick = now;
+
+                // Stabilized ETA calculation: Recalculate every 5 seconds (5000 ms) using 5-second windowed average
+                auto eta_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_eta_calc).count();
+                if (eta_elapsed_ms >= 5000 || task.eta_seconds <= 0) {
+                    int64_t bytes_in_5s = current_bytes - bytes_at_last_eta;
+                    int64_t five_sec_speed = (eta_elapsed_ms > 0 && bytes_in_5s > 0)
+                        ? (bytes_in_5s * 1000) / eta_elapsed_ms
+                        : (task.smoothed_speed_bps > 0 ? task.smoothed_speed_bps : task.speed_bps);
+
+                    if (five_sec_speed > 0 && task.total_bytes > current_bytes) {
+                        task.eta_base_seconds = (task.total_bytes - current_bytes) / five_sec_speed;
+                        task.eta_seconds = task.eta_base_seconds;
+                    } else if (task.total_bytes <= current_bytes && task.total_bytes > 0) {
+                        task.eta_base_seconds = 0;
+                        task.eta_seconds = 0;
+                    }
+                    last_eta_calc = now;
+                    bytes_at_last_eta = current_bytes;
+                } else if (task.eta_base_seconds > 0) {
+                    int64_t elapsed_sec = eta_elapsed_ms / 1000;
+                    task.eta_seconds = (std::max)(int64_t{0}, task.eta_base_seconds - elapsed_sec);
+                }
 
                 if (on_progress) on_progress(task);
             }

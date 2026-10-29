@@ -46,6 +46,9 @@ struct DownloadTask {
     int64_t total_bytes = 0;
     int64_t downloaded_bytes = 0;
     int64_t speed_bps = 0;
+    int64_t smoothed_speed_bps = 0;
+    int64_t eta_seconds = 0;
+    int64_t eta_base_seconds = 0;
     int active_connections = 1;
     bool is_resumable = true;
     

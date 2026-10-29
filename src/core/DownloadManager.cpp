@@ -339,6 +339,9 @@ bool DownloadManager::StartTaskInternal(int task_id) {
                                     item.downloaded_bytes = updated.downloaded_bytes;
                                     item.total_bytes = updated.total_bytes;
                                     item.speed_bps = updated.speed_bps;
+                                    item.smoothed_speed_bps = updated.smoothed_speed_bps;
+                                    item.eta_seconds = updated.eta_seconds;
+                                    item.eta_base_seconds = updated.eta_base_seconds;
                                     item.chunks = updated.chunks;
                                     item.sha256_hash = updated.sha256_hash;
                                     break;
