@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterfall — Companion Extension Installation Guide</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    :root {
+      --bg-dlg: #080c16;
+      --bg-card: #0f172a;
+      --bg-card-sub: #162035;
+      --border-dlg: #1e293b;
+      --border-accent: #38bdf8;
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-blue: #0284c7;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-dlg);
+      color: #f1f5f9;
+      font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    /* Top Brand Header */
+    .guide-header {
+      padding: 16px 28px;
+      background: #060911;
+      border-bottom: 1px solid var(--border-dlg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .guide-header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .guide-header-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(16, 185, 129, 0.2));
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+    }
+
+    .guide-header-titles h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .guide-header-titles .badge-tag {
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      text-transform: uppercase;
+    }
+
+    .guide-header-titles .subtitle {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    /* Main Container */
+    .guide-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 28px 48px 28px;
+      width: 100%;
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(22, 32, 53, 0.6) 100%);
+      border: 1px solid var(--border-dlg);
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-banner::before {
+      content: '';
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 160px;
+      height: 160px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hero-desc {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    /* Path Highlight Box */
+    .path-card {
+      background: #090e1b;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-top: 14px;
+    }
+
+    .path-label {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .path-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .path-input-group {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: #040711;
+      border: 1px solid #223049;
+      border-radius: 8px;
+      padding: 2px 8px;
+      min-width: 280px;
+    }
+
+    .path-input-group input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #38bdf8;
+      font-family: var(--font-mono, monospace);
+      font-size: 0.82rem;
+      padding: 8px 6px;
+      outline: none;
+      user-select: all;
+    }
+
+    .btn-action {
+      background: #0284c7;
+      color: #ffffff;
+      border: 1px solid #38bdf8;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+
+    .btn-action:hover {
+      background: #0369a1;
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #162035;
+      color: #cbd5e1;
+      border: 1px solid #2d3f5e;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .btn-secondary:hover {
+      background: #1e293b;
+      color: #ffffff;
+      border-color: #38bdf8;
+    }
+
+    /* Browser Selection Tabs */
+    .tabs-header {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: #64748b;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: #e2e8f0;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+
+    /* Step Cards */
+    .steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .step-card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .step-card:hover {
+      border-color: #2b3950;
+      transform: translateY(-1px);
+    }
+
+    .step-card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .step-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .step-desc {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    /* Mock UI Visual Illustrations */
+    .mock-visual {
+      background: #060911;
+      border: 1px solid #1b263b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .mock-tag {
+      font-size: 0.74rem;
+      color: #64748b;
+      font-family: var(--font-mono, monospace);
+    }
+
+    .mock-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #111a2e;
+      border: 1px solid #283754;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+
+    .mock-switch-active {
+      width: 32px;
+      height: 18px;
+      background: #0284c7;
+      border-radius: 12px;
+      position: relative;
+      display: inline-block;
+    }
+
+    .mock-switch-active::after {
+      content: '';
+      position: absolute;
+      right: 2px;
+      top: 2px;
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border-radius: 50%;
+    }
+
+    .mock-btn {
+      background: #16243d;
+      border: 1px solid #2a3e63;
+      color: #38bdf8;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Server status pill */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+
+    .status-pill.online {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+
+    .status-pill.offline {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Bottom footer */
+    .guide-footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-dlg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .toast-msg {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0284c7;
+      color: #ffffff;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.2s ease;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .toast-msg.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation / Header -->
+  <div class="guide-header">
+    <div class="guide-header-left">
+      <div class="guide-header-icon">🌊</div>
+      <div class="guide-header-titles">
+        <h2>Waterfall Companion Extension <span class="badge-tag">Setup Guide</span></h2>
+        <div class="subtitle">Quick 30-Second Browser Integration for High-Speed Multi-Stream Capture</div>
+      </div>
+    </div>
+    <div>
+      <span class="status-pill online" id="status-badge">
+        <span class="status-dot"></span> <span id="status-text">Bridge: Checking...</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="guide-container">
+
+    <!-- Hero Card with Extension Path & 1-Click Open Button -->
+    <div class="hero-banner">
+      <div class="hero-title">
+        <span>📁 Extension Location on Your Computer</span>
+      </div>
+      <div class="hero-desc">
+        Waterfall includes the ready-to-load browser companion extension inside your installation directory. Click below to open the extension folder directly in Windows Explorer:
+      </div>
+
+      <div class="path-card">
+        <div class="path-label">
+          <span>Unpacked Extension Directory Path:</span>
+          <span style="color: #38bdf8; font-weight: 700;">Manifest V3</span>
+        </div>
+        <div class="path-box">
+          <div class="path-input-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            <input type="text" id="ext-path-input" readonly value="Loading extension path...">
+          </div>
+          <button class="btn-action" id="btn-open-folder" title="Open this folder in Windows Explorer">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            Open Extension Folder
+          </button>
+          <button class="btn-secondary" id="btn-copy-path" title="Copy folder path to clipboard">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            Copy Path
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Browser Switcher Tabs -->
+    <div class="tabs-header">
+      <button class="tab-btn active" data-browser="chrome">
+        <span>🌐</span> Google Chrome
+      </button>
+      <button class="tab-btn" data-browser="edge">
+        <span>🌊</span> Microsoft Edge
+      </button>
+      <button class="tab-btn" data-browser="brave">
+        <span>🦁</span> Brave Browser
+      </button>
+      <button class="tab-btn" data-browser="opera">
+        <span>⭕</span> Opera / Vivaldi
+      </button>
+      <button class="tab-btn" data-browser="firefox">
+        <span>🦊</span> Mozilla Firefox
+      </button>
+    </div>
+
+    <!-- Step-by-Step Instructions -->
+    <div class="steps-list">
+
+      <!-- Step 1: Open Extensions Page -->
+      <div class="step-card">
+        <div class="step-card-header">
+          <div class="step-badge">1</div>
+          <div class="step-content">
+            <div class="step-title">
+              <span id="step-1-title">Open Your Browser's Extensions Page</span>
+              <button class="btn-secondary" id="btn-copy-ext-url" style="padding: 4px 10px; font-size: 0.74rem;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Copy URL
+              </button>
+            </div>
+            <div class="step-desc" id="step-1-desc">
+              Open a new tab in Google Chrome and navigate to <strong style="color: #38bdf8;">chrome://extensions</strong>, or click the <strong>Extensions</strong> puzzle icon in the toolbar and select <strong>Manage Extensions</strong>.
+            </div>
+            <div class="mock-visual">
+              <span class="mock-tag" id="step-1-tag">chrome://extensions</span>
+              <button class="mock-btn" id="btn-open-browser-ext">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                Open In Browser
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Enable Developer Mode -->
+      <div class="step-card">
+        <div class="step-card-header">
+          <div class="step-badge">2</div>
+          <div class="step-content">
+            <div class="step-title">
+              <span>Enable "Developer Mode"</span>
+            </div>
+            <div class="step-desc" id="step-2-desc">
+              Look at the top-right corner of the Extensions page and toggle the <strong>Developer mode</strong> switch to <strong>ON</strong>. This unlocks the ability to load unpacked extensions.
+            </div>
+            <div class="mock-visual">
+              <span class="mock-tag">Top-Right Corner:</span>
+              <div class="mock-toggle">
+                <span>Developer mode</span>
+                <span class="mock-switch-active"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Click Load Unpacked -->
+      <div class="step-card">
+        <div class="step-card-header">
+          <div class="step-badge">3</div>
+          <div class="step-content">
+            <div class="step-title">
+              <span>Click "Load Unpacked"</span>
+            </div>
+            <div class="step-desc" id="step-3-desc">
+              A new sub-toolbar will appear on the top-left of the Extensions page. Click the button labeled <strong style="color: #38bdf8;">Load unpacked</strong>.
+            </div>
+            <div class="mock-visual">
+              <span class="mock-tag">Top-Left Toolbar:</span>
+              <div class="mock-btn" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                Load unpacked
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Select Waterfall Extension Folder -->
+      <div class="step-card">
+        <div class="step-card-header">
+          <div class="step-badge">4</div>
+          <div class="step-content">
+            <div class="step-title">
+              <span>Select the Waterfall "extension" Folder</span>
+            </div>
+            <div class="step-desc">
+              In the folder selection dialog, navigate to the folder you opened in Step 1 and select the <strong style="color: #38bdf8;">extension</strong> folder, then click <strong>Select Folder</strong>.
+            </div>
+            <div class="mock-visual">
+              <span class="mock-tag">Selected Folder:</span>
+              <span style="font-size: 0.76rem; color: #10b981; font-weight: 600;" id="mock-folder-tag">📁 ...\Waterfall\extension</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: Pin Extension & Test Connection -->
+      <div class="step-card">
+        <div class="step-card-header">
+          <div class="step-badge">5</div>
+          <div class="step-content">
+            <div class="step-title">
+              <span>Pin Waterfall & Enjoy High-Speed Downloads</span>
+            </div>
+            <div class="step-desc">
+              Click the puzzle icon 🧩 in your browser toolbar, find <strong>Waterfall Download Accelerator</strong>, and click the Pin 📌 icon. Now whenever you click a download link in your browser, Waterfall will automatically intercept it with multi-stream acceleration!
+            </div>
+            <div class="mock-visual">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem;">🌊</span>
+                <span style="font-size: 0.8rem; font-weight: 600; color: #ffffff;">Waterfall Accelerator</span>
+              </div>
+              <div class="mock-btn" style="color: #34d399; border-color: rgba(16, 185, 129, 0.4);">
+                📌 Pinned to Toolbar
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Actions / Test Connection -->
+    <div class="guide-footer">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button class="btn-action" id="btn-launch-waterfall">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Launch Waterfall Accelerator
+        </button>
+        <button class="btn-secondary" id="btn-retest-connection">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Retest Connection
+        </button>
+      </div>
+
+      <div style="font-size: 0.74rem; color: #64748b;">
+        Need help? Check out the <a href="https://github.com/KrachDev/WaterFall-Download-Manager--WDM-" target="_blank" style="color: #38bdf8; text-decoration: none;">GitHub Repository</a>.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast Notification Message -->
+  <div class="toast-msg" id="toast-msg">Path copied to clipboard!</div>
+
+  <script src="js/extension-guide.js"></script>
+</body>
+</html>

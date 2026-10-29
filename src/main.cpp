@@ -6,6 +6,7 @@
 #include "waterfall/ui/WebViewUiManager.hpp"
 #include <iostream>
 #include <windows.h>
+#include <shellapi.h>
 #include <string>
 
 int main(int argc, char* argv[]) {
@@ -16,6 +17,7 @@ int main(int argc, char* argv[]) {
     bool use_rmlui = false;
     bool force_console = false;
     bool start_minimized = false;
+    bool show_extension_guide = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--rmlui") {
@@ -24,6 +26,8 @@ int main(int argc, char* argv[]) {
             force_console = true;
         } else if (arg == "--minimized" || arg == "-m") {
             start_minimized = true;
+        } else if (arg == "--extension-guide" || arg == "--guide") {
+            show_extension_guide = true;
         }
     }
 
@@ -44,6 +48,9 @@ int main(int argc, char* argv[]) {
         if (existing_hwnd) {
             ShowWindow(existing_hwnd, SW_RESTORE);
             SetForegroundWindow(existing_hwnd);
+        }
+        if (show_extension_guide) {
+            ShellExecuteW(nullptr, L"open", L"http://127.0.0.1:4567/extension-guide.html", nullptr, nullptr, SW_SHOWNORMAL);
         }
         if (h_mutex) CloseHandle(h_mutex);
         return 0;
@@ -83,6 +90,13 @@ int main(int argc, char* argv[]) {
         std::cout << "[UI] Launching native WebView2 high-fidelity UI..." << std::endl;
         if (waterfall::ui::WebViewUiManager::Instance().Initialize(1480, 780, "http://127.0.0.1:4567/")) {
             std::cout << "[UI] Native WebView2 interface initialized." << std::endl;
+            if (show_extension_guide) {
+                waterfall::ui::WebViewUiManager::Instance().OpenDialogWindow(
+                    "http://127.0.0.1:4567/extension-guide.html",
+                    820, 720, false,
+                    L"Waterfall — Companion Extension Guide", "guide", 0
+                );
+            }
             if (start_minimized) {
                 waterfall::ui::WebViewUiManager::Instance().MinimizeToTray();
             }

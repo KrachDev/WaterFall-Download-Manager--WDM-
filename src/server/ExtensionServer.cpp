@@ -515,14 +515,67 @@ void ExtensionServer::SetupRoutes() {
             auto body = json::parse(req.body);
             std::string path = body.value("path", "");
             if (!path.empty()) {
-                std::string param = "/select,\"" + path + "\"";
-                ShellExecuteA(nullptr, "open", "explorer.exe", param.c_str(), nullptr, SW_SHOW);
+                if (std::filesystem::is_directory(path)) {
+                    std::string param = "\"" + path + "\"";
+                    ShellExecuteA(nullptr, "open", "explorer.exe", param.c_str(), nullptr, SW_SHOW);
+                } else {
+                    std::string param = "/select,\"" + path + "\"";
+                    ShellExecuteA(nullptr, "open", "explorer.exe", param.c_str(), nullptr, SW_SHOW);
+                }
                 res.set_content(R"({"success":true})", "application/json");
                 return;
             }
         } catch (...) {}
         res.status = 400;
         res.set_content(R"({"error":"invalid path"})", "application/json");
+    });
+
+    // Companion Extension Info & Location
+    server_->Get("/api/extension-info", [exe_dir](const httplib::Request&, httplib::Response& res) {
+        std::filesystem::path ext_path;
+        if (std::filesystem::exists(exe_dir / "extension")) {
+            ext_path = std::filesystem::canonical(exe_dir / "extension");
+        } else if (std::filesystem::exists("extension")) {
+            ext_path = std::filesystem::canonical("extension");
+        } else if (std::filesystem::exists(exe_dir / "src" / "extension")) {
+            ext_path = std::filesystem::canonical(exe_dir / "src" / "extension");
+        } else if (std::filesystem::exists("src/extension")) {
+            ext_path = std::filesystem::canonical("src/extension");
+        } else {
+            ext_path = exe_dir / "extension";
+        }
+        json response = {
+            {"extension_path", ext_path.string()},
+            {"exists", std::filesystem::exists(ext_path)},
+            {"version", "2.0.1"},
+            {"port", 4567},
+            {"online", true}
+        };
+        res.set_content(response.dump(), "application/json");
+    });
+
+    // Open Extension Folder directly in Explorer
+    server_->Post("/api/open-extension-folder", [exe_dir](const httplib::Request&, httplib::Response& res) {
+        std::filesystem::path ext_path;
+        if (std::filesystem::exists(exe_dir / "extension")) {
+            ext_path = exe_dir / "extension";
+        } else if (std::filesystem::exists("extension")) {
+            ext_path = std::filesystem::canonical("extension");
+        } else if (std::filesystem::exists(exe_dir / "src" / "extension")) {
+            ext_path = exe_dir / "src" / "extension";
+        } else if (std::filesystem::exists("src/extension")) {
+            ext_path = std::filesystem::canonical("src/extension");
+        } else {
+            ext_path = exe_dir / "extension";
+        }
+        std::error_code ec;
+        if (!std::filesystem::exists(ext_path)) {
+            std::filesystem::create_directories(ext_path, ec);
+        }
+        std::string param = "\"" + ext_path.string() + "\"";
+        ShellExecuteA(nullptr, "open", "explorer.exe", param.c_str(), nullptr, SW_SHOW);
+        json r = {{"success", true}, {"path", ext_path.string()}};
+        res.set_content(r.dump(), "application/json");
     });
 
     // Open file with default Windows associated application
@@ -1409,6 +1462,15 @@ void ExtensionServer::SetupRoutes() {
             "http://127.0.0.1:4567/welcome.html",
             760, 660, true /* Top Window */,
             L"Waterfall — Setup & Welcome Wizard", "welcome", 0
+        );
+        res.set_content(R"({"success":true})", "application/json");
+    });
+
+    server_->Post("/api/window/open-extension-guide", [](const httplib::Request&, httplib::Response& res) {
+        ui::WebViewUiManager::Instance().OpenDialogWindow(
+            "http://127.0.0.1:4567/extension-guide.html",
+            820, 720, false /* Not Top Window */,
+            L"Waterfall — Browser Extension Setup Guide", "guide", 0
         );
         res.set_content(R"({"success":true})", "application/json");
     });

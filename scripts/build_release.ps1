@@ -254,14 +254,32 @@ if (Test-Path "$root\extension") {
 Write-Host "`n[Installer] Building standalone Windows Setup Installer (.exe)..." -ForegroundColor Yellow
 $installerSrc = "$root\src\installer\InstallerMain.cpp"
 $installerExe = "$distDir\Waterfall-Setup-$fullVersionTag.exe"
+
+# Generate embedded resource script linking the full application payload ZIP directly into setup executable
+$installerRcWithPayload = "$distDir\installer_payload.rc"
+$installerResWithPayload = "$distDir\installer_payload.res"
+$cleanZipPath = $releaseZip.Replace('\', '/')
+$cleanIconPath = ("$root/assets/icon.ico").Replace('\', '/')
+
+Set-Content -Path $installerRcWithPayload -Value "101 ICON `"$cleanIconPath`"`r`n1 ICON `"$cleanIconPath`"`r`n200 RCDATA `"$cleanZipPath`"" -Encoding Ascii
+
+Write-Host "  [Installer] Compiling embedded payload resource with rc.exe..." -ForegroundColor Gray
+cmd /c "$setupCmd rc.exe /fo `"$installerResWithPayload`" `"$installerRcWithPayload`"" | Out-Null
+$finalResArg = if (Test-Path $installerResWithPayload) { "`"$installerResWithPayload`"" } else { $resArg }
+
 if (Test-Path $installerSrc) {
-    cmd /c "$setupCmd cl.exe /std:c++20 /EHsc /O2 /MD /utf-8 `"$installerSrc`" $resArg /Fe:`"$installerExe`" /link user32.lib shell32.lib advapi32.lib ole32.lib comctl32.lib dwmapi.lib gdi32.lib /SUBSYSTEM:WINDOWS" | Out-Null
+    cmd /c "$setupCmd cl.exe /std:c++20 /EHsc /O2 /MD /utf-8 `"$installerSrc`" $finalResArg /Fe:`"$installerExe`" /link user32.lib shell32.lib advapi32.lib ole32.lib comctl32.lib dwmapi.lib gdi32.lib /SUBSYSTEM:WINDOWS" | Out-Null
     if (Test-Path $installerExe) {
         $latestInstaller = "$distDir\Waterfall-Setup.exe"
         Copy-Item $installerExe $latestInstaller -Force
         Remove-Item "$root\InstallerMain.obj" -Force -ErrorAction SilentlyContinue
+        Remove-Item $installerRcWithPayload -Force -ErrorAction SilentlyContinue
+        Remove-Item $installerResWithPayload -Force -ErrorAction SilentlyContinue
         Remove-Item $installerRes -Force -ErrorAction SilentlyContinue
-        Write-Host "  [Installer] Built: $installerExe" -ForegroundColor Green
+        $setupSizeMb = [math]::Round((Get-Item $installerExe).Length / 1MB, 2)
+        Write-Host "  [Installer] Successfully built self-contained installer: $installerExe ($setupSizeMb MB)" -ForegroundColor Green
+    } else {
+        Write-Error "Failed to build $installerExe"
     }
 }
 

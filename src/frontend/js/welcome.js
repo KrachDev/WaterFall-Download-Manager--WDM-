@@ -185,10 +185,12 @@
   if (btnOpenExtFolder) {
     btnOpenExtFolder.addEventListener('click', async () => {
       try {
+        const res = await fetch('/api/open-extension-folder', { method: 'POST' });
+        if (res.ok) return;
         await fetch('/api/open-folder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: 'src/extension' })
+          body: JSON.stringify({ path: 'extension' })
         });
       } catch (e) {
         console.error(e);

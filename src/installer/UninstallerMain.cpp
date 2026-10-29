@@ -49,6 +49,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     DeleteShortcut(CSIDL_DESKTOPDIRECTORY, L"Waterfall Accelerator.lnk");
     DeleteShortcut(CSIDL_PROGRAMS, L"Waterfall Accelerator.lnk");
 
+    // Remove Start Menu Program Group Folder
+    WCHAR progPath[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_PROGRAMS, nullptr, 0, progPath))) {
+        fs::path groupFolder = fs::path(progPath) / "Waterfall";
+        std::error_code ec;
+        fs::remove_all(groupFolder, ec);
+    }
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+
     // 4. Remove Windows Registry Uninstall Entry
     HKEY hKeyUninstall;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", 0, KEY_WRITE, &hKeyUninstall) == ERROR_SUCCESS) {
