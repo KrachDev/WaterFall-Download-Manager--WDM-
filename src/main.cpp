@@ -8,12 +8,9 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <string>
+#include <vector>
 
-int main(int argc, char* argv[]) {
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-    std::cout << std::unitbuf;
-
+int RunWaterfall(int argc, char* argv[]) {
     bool use_rmlui = false;
     bool force_console = false;
     bool start_minimized = false;
@@ -31,10 +28,19 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Hide debug console window by default on startup
-    HWND consoleHwnd = GetConsoleWindow();
-    if (consoleHwnd && !force_console) {
-        ShowWindow(consoleHwnd, SW_HIDE);
+    // Attach or allocate console ONLY if explicitly requested via flag or config
+    if (force_console || waterfall::core::ConfigManager::Instance().GetConfig().show_console) {
+        if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+            AllocConsole();
+        }
+        FILE* fp = nullptr;
+        freopen_s(&fp, "CONOUT$", "w", stdout);
+        freopen_s(&fp, "CONOUT$", "w", stderr);
+        freopen_s(&fp, "CONIN$", "r", stdin);
+        setvbuf(stdout, NULL, _IONBF, 0);
+        setvbuf(stderr, NULL, _IONBF, 0);
+        std::cout << std::unitbuf;
+        SetConsoleTitleW(L"Waterfall Accelerator — Debug Console");
     }
 
     // 0. Single-Instance Mutex Guard
@@ -67,11 +73,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     std::cout << "[Core] SQLite WAL state store initialized at: " << db_path << std::endl;
-
-    // Show console window only if explicitly enabled in Settings or via CLI flag
-    if (consoleHwnd && (force_console || waterfall::core::ConfigManager::Instance().GetConfig().show_console)) {
-        ShowWindow(consoleHwnd, SW_SHOW);
-    }
 
     // 2. Start Companion Extension Server & Static Web UI Host (Port 4567)
     waterfall::server::ExtensionServer extension_server(4567);
@@ -123,4 +124,39 @@ int main(int argc, char* argv[]) {
     }
 
     return 0;
+}
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow) {
+    UNREFERENCED_PARAMETER(hInstance);
+    UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(lpCmdLine);
+    UNREFERENCED_PARAMETER(nCmdShow);
+
+    int argc = 0;
+    LPWSTR* argvW = CommandLineToArgvW(GetCommandLineW(), &argc);
+    std::vector<std::string> argsUtf8;
+    std::vector<char*> argvList;
+    if (argvW) {
+        for (int i = 0; i < argc; ++i) {
+            int size = WideCharToMultiByte(CP_UTF8, 0, argvW[i], -1, nullptr, 0, nullptr, nullptr);
+            if (size > 1) {
+                std::string s(size - 1, 0);
+                WideCharToMultiByte(CP_UTF8, 0, argvW[i], -1, &s[0], size, nullptr, nullptr);
+                argsUtf8.push_back(s);
+            } else {
+                argsUtf8.push_back("");
+            }
+        }
+        LocalFree(argvW);
+    }
+    for (auto& s : argsUtf8) {
+        argvList.push_back(&s[0]);
+    }
+    argvList.push_back(nullptr);
+
+    return RunWaterfall(static_cast<int>(argvList.size() - 1), argvList.data());
+}
+
+int main(int argc, char* argv[]) {
+    return RunWaterfall(argc, argv);
 }

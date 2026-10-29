@@ -94,7 +94,7 @@ configure_file(
 )
 
 # Main Waterfall Executable
-add_executable(waterfall
+add_executable(waterfall WIN32
     src/main.cpp
     src/core/DownloadTask.cpp
     src/core/DownloadManager.cpp
