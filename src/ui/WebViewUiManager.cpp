@@ -37,11 +37,9 @@ static const wchar_t* s_bridge_script =
     L"window.waterfallDesktop = {"
     L"  openConfirmWindow: function(data) {"
     L"    fetch('/api/window/open-confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) }).catch(function(){});"
-    L"    try { window.open('/confirm.html', 'waterfall_confirm_window', 'width=680,height=750'); } catch(e){}"
     L"  },"
     L"  openWelcomeWindow: function() {"
     L"    fetch('/api/window/open-welcome', { method: 'POST' }).catch(function(){});"
-    L"    try { window.open('/welcome.html', 'waterfall_welcome_window', 'width=760,height=660'); } catch(e){}"
     L"  },"
     L"  completeFirstRun: function(data) {"
     L"    return fetch('/api/system/complete-first-run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });"
@@ -49,7 +47,6 @@ static const wchar_t* s_bridge_script =
     L"  openProgressWindow: function(taskId) {"
     L"    var id = (typeof taskId === 'object' && taskId !== null) ? (taskId.id || 0) : (taskId || 0);"
     L"    fetch('/api/window/open-progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId: id, topmost: false }) }).catch(function(){});"
-    L"    try { window.open('/download-progress.html?taskId=' + encodeURIComponent(id), 'progress_' + id, 'width=660,height=600'); } catch(e){}"
     L"  },"
     L"  setAlwaysOnTop: function(topmost, taskId) {"
     L"    var id = (typeof taskId === 'object' && taskId !== null) ? (taskId.id || 0) : (taskId || 0);"
@@ -470,6 +467,9 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
         }
     }
 
+    HWND prevFg = GetForegroundWindow();
+    bool mainWasForeground = (prevFg != nullptr && (prevFg == hwnd_ || IsChild(hwnd_, prevFg)));
+
     if (existing_hwnd) {
         ShowWindow(existing_hwnd, SW_RESTORE);
         if (is_topmost) {
@@ -477,6 +477,14 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
         }
         SetForegroundWindow(existing_hwnd);
         BringWindowToTop(existing_hwnd);
+
+        if (!mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
+            if (prevFg && IsWindow(prevFg)) {
+                SetWindowPos(hwnd_, prevFg, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            } else {
+                SetWindowPos(hwnd_, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
         return existing_hwnd;
     }
 
@@ -538,6 +546,17 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
         SetWindowPos(dlgHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         SetForegroundWindow(dlgHwnd);
         BringWindowToTop(dlgHwnd);
+    } else {
+        SetForegroundWindow(dlgHwnd);
+    }
+
+    // Keep main application window from jumping over the user's active browser window (Chrome, Edge, etc.)
+    if (!mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
+        if (prevFg && IsWindow(prevFg)) {
+            SetWindowPos(hwnd_, prevFg, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        } else {
+            SetWindowPos(hwnd_, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
     }
 
     auto info = std::make_shared<DialogWindowInfo>();
@@ -559,7 +578,7 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
     env_->CreateCoreWebView2Controller(
         dlgHwnd,
         Microsoft::WRL::Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-            [this, dlgHwnd, full_url, width, height](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+            [this, dlgHwnd, full_url, width, height, prevFg, mainWasForeground](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
                 if (FAILED(result) || !controller) {
                     std::cerr << "[WebView2] Failed to create dialog controller: hr=0x" << std::hex << result << std::endl;
                     return result;
@@ -603,6 +622,14 @@ HWND WebViewUiManager::OpenDialogWindowInternal(const std::string& url, int widt
                 }
                 controller->put_Bounds(bounds);
                 controller->put_IsVisible(TRUE);
+
+                if (!mainWasForeground && hwnd_ && IsWindow(hwnd_) && !IsIconic(hwnd_)) {
+                    if (prevFg && IsWindow(prevFg)) {
+                        SetWindowPos(hwnd_, prevFg, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    } else {
+                        SetWindowPos(hwnd_, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    }
+                }
 
                 // Inject bridge script
                 win_info->webview->AddScriptToExecuteOnDocumentCreated(s_bridge_script, nullptr);

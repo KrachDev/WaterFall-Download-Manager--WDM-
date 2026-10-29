@@ -4116,11 +4116,6 @@ document.addEventListener('DOMContentLoaded', () => {
     closeAllModals();
     modalIdmConfirm.classList.add('open');
     if (nameEl) setTimeout(() => nameEl.focus(), 60);
-
-    // Force window to top when download confirmation is shown
-    if (window.waterfallDesktop && window.waterfallDesktop.forceTop) {
-      window.waterfallDesktop.forceTop();
-    }
   }
 
   window.addEventListener('download:confirm', (e) => {
@@ -4128,9 +4123,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.waterfallDesktop && typeof window.waterfallDesktop.openConfirmWindow === 'function') {
         window.waterfallDesktop.openConfirmWindow(e.detail);
         return;
-      }
-      if (window.waterfallDesktop && window.waterfallDesktop.focusWindow) {
-        window.waterfallDesktop.focusWindow();
       }
       if (e.detail.existingMatch) {
         showDuplicatePrompt(e.detail, (opts = {}) => {

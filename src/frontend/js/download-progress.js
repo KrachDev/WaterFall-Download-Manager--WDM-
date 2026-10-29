@@ -981,18 +981,27 @@
     const status = data.status || 'downloading';
 
     let pct = 0;
+    const isDynamicStream = (total <= 0);
     if (total > 0) {
       pct = Math.min(100, Math.max(0, (downloaded / total) * 100));
     } else if (data.progress !== undefined) {
       pct = Math.min(100, Math.max(0, data.progress));
     }
 
-    if (dlgPercent) dlgPercent.textContent = pct.toFixed(1) + '%';
-    if (dlgBarFill) dlgBarFill.style.width = pct.toFixed(1) + '%';
+    if (dlgPercent) dlgPercent.textContent = isDynamicStream ? (status === 'completed' ? '100%' : 'Stream') : (pct.toFixed(1) + '%');
+    if (dlgBarFill) {
+      if (isDynamicStream && status !== 'completed') {
+        dlgBarFill.style.width = '100%';
+        dlgBarFill.style.opacity = '0.85';
+      } else {
+        dlgBarFill.style.width = pct.toFixed(1) + '%';
+        dlgBarFill.style.opacity = '1';
+      }
+    }
 
     if (dlgSpeed) dlgSpeed.textContent = formatSpeed(speed);
-    if (dlgDownloaded) dlgDownloaded.textContent = `${formatBytes(downloaded)} of ${total > 0 ? formatBytes(total) : '--'}`;
-    if (dlgEta) dlgEta.textContent = formatETA(eta);
+    if (dlgDownloaded) dlgDownloaded.textContent = isDynamicStream ? `${formatBytes(downloaded)} (Live Stream)` : `${formatBytes(downloaded)} of ${formatBytes(total)}`;
+    if (dlgEta) dlgEta.textContent = isDynamicStream ? (status === 'completed' ? '0s' : 'Dynamic') : formatETA(eta);
 
     // Update status dot & text
     if (dlgStatus && statusDot) {

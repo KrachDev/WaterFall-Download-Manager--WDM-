@@ -166,6 +166,98 @@ function extractCanonicalYoutubeUrl(url, sourceUrl) {
 }
 
 /**
+ * Helper to collect comprehensive session cookies and resolve referrer for downloads
+ * Reads cookies for exact URL, apex/root domain, and active tab/referrer
+ */
+async function collectCookiesAndReferrer(url, initialReferrer) {
+  let resolvedReferrer = (initialReferrer || '').trim();
+
+  // If no referrer passed, query the active tab
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs && tabs.length > 0 && tabs[0].url && !tabs[0].url.startsWith('chrome://')) {
+      if (!resolvedReferrer) {
+        resolvedReferrer = tabs[0].url;
+      }
+    }
+  } catch (_) {}
+
+  function getRootDomain(rawUrl) {
+    try {
+      const u = new URL(rawUrl);
+      const hostParts = u.hostname.split('.');
+      if (hostParts.length >= 2) {
+        return hostParts.slice(-2).join('.');
+      }
+      return u.hostname;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  const urlsToQuery = new Set();
+  const domainsToQuery = new Set();
+
+  if (url) {
+    urlsToQuery.add(url);
+    const rootD = getRootDomain(url);
+    if (rootD) {
+      domainsToQuery.add(rootD);
+      domainsToQuery.add('.' + rootD);
+    }
+  }
+
+  if (resolvedReferrer) {
+    urlsToQuery.add(resolvedReferrer);
+    const rootD = getRootDomain(resolvedReferrer);
+    if (rootD) {
+      domainsToQuery.add(rootD);
+      domainsToQuery.add('.' + rootD);
+    }
+  }
+
+  let cookieHeader = '';
+  if (chrome.cookies) {
+    const seenNames = new Set();
+    const pairs = [];
+
+    // 1. By exact URL
+    for (const u of urlsToQuery) {
+      try {
+        const cks = await chrome.cookies.getAll({ url: u });
+        if (cks) {
+          for (const c of cks) {
+            if (!seenNames.has(c.name)) {
+              seenNames.add(c.name);
+              pairs.push(`${c.name}=${c.value}`);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. By domain
+    for (const d of domainsToQuery) {
+      try {
+        const cks = await chrome.cookies.getAll({ domain: d });
+        if (cks) {
+          for (const c of cks) {
+            if (!seenNames.has(c.name)) {
+              seenNames.add(c.name);
+              pairs.push(`${c.name}=${c.value}`);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    cookieHeader = pairs.join('; ');
+  }
+
+  return { cookieHeader, referrer: resolvedReferrer };
+}
+
+/**
  * Dispatch downloads to Hydra Engine
  */
 async function sendToHydra({ urls, packageName, source, autostartOverride, isMedia, mediaOptions, filename, cookies, fileSize }) {
@@ -183,15 +275,15 @@ async function sendToHydra({ urls, packageName, source, autostartOverride, isMed
   }
 
   let cookieHeader = cookies || '';
-  if (!cookieHeader && cleanUrls.length > 0) {
-    try {
-      if (chrome.cookies) {
-        const cks = await chrome.cookies.getAll({ url: cleanUrls[0] });
-        if (cks && cks.length > 0) {
-          cookieHeader = cks.map(c => `${c.name}=${c.value}`).join('; ');
-        }
-      }
-    } catch (_) {}
+  let resolvedSource = source || '';
+  if (cleanUrls.length > 0) {
+    const authData = await collectCookiesAndReferrer(cleanUrls[0], resolvedSource);
+    if (!cookieHeader && authData.cookieHeader) {
+      cookieHeader = authData.cookieHeader;
+    }
+    if (!resolvedSource && authData.referrer) {
+      resolvedSource = authData.referrer;
+    }
   }
 
   let cleanFilename = (filename || '').trim();
@@ -231,8 +323,8 @@ async function sendToHydra({ urls, packageName, source, autostartOverride, isMed
         url: targetUrl,
         filename: cleanFilename || undefined,
         packageName: pkgName,
-        referrer: source || undefined,
-        source: source || undefined,
+        referrer: resolvedSource || source || undefined,
+        source: resolvedSource || source || undefined,
         cookies: cookieHeader || undefined,
         userAgent: navigator.userAgent,
         totalBytes: fileSize || 0,
@@ -662,22 +754,14 @@ async function handleDownloadInterception(downloadItem, candidateFilename) {
 
   const pkgName = cleanName || 'Intercepted Download';
 
-  let cookieHeader = '';
-  try {
-    if (chrome.cookies) {
-      const cks = await chrome.cookies.getAll({ url });
-      if (cks && cks.length > 0) {
-        cookieHeader = cks.map(c => `${c.name}=${c.value}`).join('; ');
-      }
-    }
-  } catch (_) {}
+  const authData = await collectCookiesAndReferrer(url, downloadItem.referrer || '');
 
   await sendToHydra({
     urls: [url],
     filename: cleanName,
     packageName: pkgName,
-    source: downloadItem.referrer || '',
-    cookies: cookieHeader,
+    source: authData.referrer,
+    cookies: authData.cookieHeader,
     fileSize: downloadItem.fileSize || downloadItem.totalBytes || 0
   });
 

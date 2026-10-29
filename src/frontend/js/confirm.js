@@ -121,8 +121,13 @@
     }
 
     if (resumableEl) {
-      resumableEl.textContent = data.acceptRanges ? '✓ Resumable (Range byte headers supported)' : '⚠️ Single Stream / Direct';
-      resumableEl.style.color = data.acceptRanges ? '#3fb950' : '#d29922';
+      if (data.status_code >= 400) {
+        resumableEl.textContent = `⚠️ HTTP ${data.status_code} (${data.status_code === 401 ? 'Unauthorized - Login required' : (data.status_code === 403 ? 'Forbidden - Host login required' : 'Server error')})`;
+        resumableEl.style.color = '#ef4444';
+      } else {
+        resumableEl.textContent = data.acceptRanges ? '✓ Resumable (Range byte headers supported)' : '⚠️ Single Stream / Direct';
+        resumableEl.style.color = data.acceptRanges ? '#3fb950' : '#d29922';
+      }
     }
 
     const avgSpeed = data.avgSpeed || 10 * 1024 * 1024;
@@ -186,7 +191,11 @@
     }
 
     if (engineModeEl) {
-      engineModeEl.value = data.initialModeVal || (isMedia ? 'singleStream' : 'inPlace-8');
+      if (data.acceptRanges === false || totalBytes <= 0 || isMedia) {
+        engineModeEl.value = 'singleStream';
+      } else {
+        engineModeEl.value = data.initialModeVal || 'inPlace-8';
+      }
     }
 
     // Archive card

@@ -151,6 +151,7 @@ RemoteFileInfo ChunkEngine::ProbeUrl(const std::string& url,
     }
 
     DWORD flags = (url_comp.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
+    flags |= WINHTTP_FLAG_ESCAPE_DISABLE | WINHTTP_FLAG_ESCAPE_DISABLE_QUERY;
 
     std::wstring custom_headers;
     if (!referrer.empty()) {
@@ -247,7 +248,11 @@ RemoteFileInfo ChunkEngine::ProbeUrl(const std::string& url,
 
     // 2. If HEAD returned 403, 405, or size <= 0, fallback to GET Range: bytes=0-0
     if (!success || info.total_size <= 0) {
-        probe_request(L"GET", L"Range: bytes=0-0\r\n");
+        bool range_ok = probe_request(L"GET", L"Range: bytes=0-0\r\n");
+        // 3. If Range request failed (some CDNs/servers reject Range on probe), try standard GET headers
+        if (!range_ok && info.status_code >= 400) {
+            probe_request(L"GET", L"");
+        }
     }
 
     WinHttpCloseHandle(h_connect);
@@ -373,12 +378,17 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
             path.append(url_comp.lpszExtraInfo, url_comp.dwExtraInfoLength);
         }
         DWORD flags = (url_comp.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
+        flags |= WINHTTP_FLAG_ESCAPE_DISABLE | WINHTTP_FLAG_ESCAPE_DISABLE_QUERY;
 
         std::atomic<int64_t> total_bytes_downloaded{task.downloaded_bytes};
         std::atomic<int> completed_chunks{0};
+        std::atomic<bool> any_worker_failed{false};
+        std::atomic<int> active_workers{static_cast<int>(task.chunks.size())};
+        std::string failure_error_msg;
+        std::mutex failure_mutex;
 
         // 4. Concurrent chunk worker with auto-retry and stall watchdog
-        auto run_chunk_download = [worker, h_file, host, path, url_comp, flags, &total_bytes_downloaded, &completed_chunks](int chunk_idx) {
+        auto run_chunk_download = [worker, h_file, host, path, url_comp, flags, &total_bytes_downloaded, &completed_chunks, &any_worker_failed, &active_workers, &failure_error_msg, &failure_mutex](int chunk_idx) {
             DownloadTask& task = worker->task_state;
             if (chunk_idx < 0 || chunk_idx >= static_cast<int>(task.chunks.size())) return;
             ChunkInfo& my_chunk = task.chunks[chunk_idx];
@@ -530,6 +540,15 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
                 WinHttpCloseHandle(h_connect);
                 WinHttpCloseHandle(h_session);
             }
+
+            if (!my_chunk.is_completed && !worker->cancel_requested) {
+                std::lock_guard<std::mutex> lk(failure_mutex);
+                any_worker_failed = true;
+                if (failure_error_msg.empty()) {
+                    failure_error_msg = "Download stream failed after retries (check host login/session)";
+                }
+            }
+            active_workers--;
         };
 
         // 5. Launch chunk threads
@@ -542,8 +561,10 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
         int64_t last_bytes = total_bytes_downloaded.load();
 
         while (!worker->cancel_requested &&
+               !any_worker_failed.load() &&
                (task.total_bytes <= 0 || total_bytes_downloaded.load() < task.total_bytes) &&
-               completed_chunks.load() < static_cast<int>(task.chunks.size())) {
+               completed_chunks.load() < static_cast<int>(task.chunks.size()) &&
+               active_workers.load() > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
             auto now = std::chrono::steady_clock::now();
@@ -585,6 +606,11 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
             task.status = TaskStatus::Paused;
             task.speed_bps = 0;
             if (on_complete) on_complete(task.id, false, "Download paused");
+        } else if (any_worker_failed.load()) {
+            task.status = TaskStatus::Error;
+            task.speed_bps = 0;
+            task.error_message = failure_error_msg.empty() ? "Download failed: connection interrupted or rejected by server" : failure_error_msg;
+            if (on_complete) on_complete(task.id, false, task.error_message);
         } else {
             task.status = TaskStatus::Completed;
             task.speed_bps = 0;
