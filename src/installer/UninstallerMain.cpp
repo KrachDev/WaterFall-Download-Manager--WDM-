@@ -77,6 +77,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     GetModuleFileNameW(nullptr, exePath, MAX_PATH);
     fs::path installDir = fs::path(exePath).parent_path();
 
+    // Safety guard: Never delete source repo, dist folder, or drive root
+    if (installDir.filename() == "dist" || 
+        fs::exists(installDir / ".git") || 
+        fs::exists(installDir / "CMakeLists.txt") ||
+        fs::exists(installDir / "src" / "main.cpp") ||
+        installDir == installDir.root_path()) {
+        MessageBoxW(nullptr, L"Uninstaller cannot be executed inside the build or repository directory.", L"Waterfall Uninstall", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
     // 6. Delete directory via detached self-deleting script
     WCHAR tempPath[MAX_PATH];
     GetTempPathW(MAX_PATH, tempPath);
