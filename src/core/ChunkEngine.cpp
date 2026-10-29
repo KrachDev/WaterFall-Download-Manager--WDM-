@@ -33,19 +33,22 @@ static std::string ToUtf8(const std::wstring& str) {
     return result;
 }
 
-static std::string UrlDecode(const std::string& in) {
+std::string ChunkEngine::UrlDecode(const std::string& in) {
     std::string out;
     out.reserve(in.size());
     for (size_t i = 0; i < in.size(); ++i) {
-        if (in[i] == '%' && i + 2 < in.size()) {
-            int val = 0;
-            std::istringstream is(in.substr(i + 1, 2));
-            if (is >> std::hex >> val) {
-                out += static_cast<char>(val);
-                i += 2;
-            } else {
-                out += in[i];
-            }
+        if (in[i] == '%' && i + 2 < in.size() &&
+            std::isxdigit(static_cast<unsigned char>(in[i + 1])) &&
+            std::isxdigit(static_cast<unsigned char>(in[i + 2]))) {
+            auto from_hex = [](char c) -> int {
+                if (c >= '0' && c <= '9') return c - '0';
+                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                return 0;
+            };
+            int val = (from_hex(in[i + 1]) << 4) | from_hex(in[i + 2]);
+            out += static_cast<char>(val);
+            i += 2;
         } else if (in[i] == '+') {
             out += ' ';
         } else {
@@ -160,7 +163,16 @@ RemoteFileInfo ChunkEngine::ProbeUrl(const std::string& url,
     if (!cookies.empty()) {
         custom_headers += L"Cookie: " + ToWide(cookies) + L"\r\n";
     }
-    custom_headers += L"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\nAccept-Language: en-US,en;q=0.9\r\n";
+    custom_headers += L"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n";
+    custom_headers += L"Accept-Language: en-US,en;q=0.9\r\n";
+    custom_headers += L"Sec-Ch-Ua: \"Chromium\";v=\"130\", \"Google Chrome\";v=\"130\"\r\n";
+    custom_headers += L"Sec-Ch-Ua-Mobile: ?0\r\n";
+    custom_headers += L"Sec-Ch-Ua-Platform: \"Windows\"\r\n";
+    custom_headers += L"Sec-Fetch-Dest: document\r\n";
+    custom_headers += L"Sec-Fetch-Mode: navigate\r\n";
+    custom_headers += L"Sec-Fetch-Site: cross-site\r\n";
+    custom_headers += L"Sec-Fetch-User: ?1\r\n";
+    custom_headers += L"Upgrade-Insecure-Requests: 1\r\n";
 
     auto probe_request = [&](const wchar_t* method, const std::wstring& extra_hdr) -> bool {
         HINTERNET h_req = WinHttpOpenRequest(h_connect, method, path.c_str(),
@@ -266,6 +278,32 @@ struct ChunkEngine::TaskWorkerContext {
     std::atomic<bool> cancel_requested{false};
     std::thread coordinator_thread;
     std::vector<std::thread> chunk_threads;
+    std::mutex handles_mutex;
+    std::vector<HINTERNET> active_handles;
+
+    void RegisterHandle(HINTERNET h) {
+        if (!h) return;
+        std::lock_guard<std::mutex> lk(handles_mutex);
+        active_handles.push_back(h);
+    }
+
+    void UnregisterHandle(HINTERNET h) {
+        if (!h) return;
+        std::lock_guard<std::mutex> lk(handles_mutex);
+        active_handles.erase(std::remove(active_handles.begin(), active_handles.end(), h), active_handles.end());
+    }
+
+    void AbortAllHandles() {
+        std::vector<HINTERNET> copy;
+        {
+            std::lock_guard<std::mutex> lk(handles_mutex);
+            copy = active_handles;
+            active_handles.clear();
+        }
+        for (auto h : copy) {
+            if (h) WinHttpCloseHandle(h);
+        }
+    }
 };
 
 void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, CompleteCallback on_complete) {
@@ -275,6 +313,15 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
 
     {
         std::lock_guard<std::mutex> lk(workers_mutex_);
+        for (auto it = active_workers_.begin(); it != active_workers_.end(); ) {
+            if ((*it)->task_id == task.id) {
+                (*it)->cancel_requested = true;
+                (*it)->AbortAllHandles();
+                it = active_workers_.erase(it);
+            } else {
+                ++it;
+            }
+        }
         active_workers_.push_back(worker);
     }
 
@@ -381,7 +428,13 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
         flags |= WINHTTP_FLAG_ESCAPE_DISABLE | WINHTTP_FLAG_ESCAPE_DISABLE_QUERY;
 
         std::atomic<int64_t> total_bytes_downloaded{task.downloaded_bytes};
-        std::atomic<int> completed_chunks{0};
+        int already_completed = 0;
+        for (const auto& c : task.chunks) {
+            if (c.is_completed || (c.end_byte >= 0 && c.current_byte > c.end_byte)) {
+                already_completed++;
+            }
+        }
+        std::atomic<int> completed_chunks{already_completed};
         std::atomic<bool> any_worker_failed{false};
         std::atomic<int> active_workers{static_cast<int>(task.chunks.size())};
         std::string failure_error_msg;
@@ -393,6 +446,11 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
             if (chunk_idx < 0 || chunk_idx >= static_cast<int>(task.chunks.size())) return;
             ChunkInfo& my_chunk = task.chunks[chunk_idx];
             bool is_stream = (my_chunk.end_byte == -1 || task.total_bytes <= 0);
+
+            if (my_chunk.is_completed || (!is_stream && my_chunk.current_byte > my_chunk.end_byte)) {
+                active_workers--;
+                return;
+            }
 
             int retries = 0;
             while (!worker->cancel_requested && (is_stream || my_chunk.current_byte <= my_chunk.end_byte) && retries < 5) {
@@ -429,6 +487,7 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
                 }
+                worker->RegisterHandle(h_request);
 
                 DWORD opt = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
                 WinHttpSetOption(h_request, WINHTTP_OPTION_REDIRECT_POLICY, &opt, sizeof(opt));
@@ -452,7 +511,16 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
                 if (!task.cookies.empty()) {
                     custom_headers += L"Cookie: " + ToWide(task.cookies) + L"\r\n";
                 }
-                custom_headers += L"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n";
+                custom_headers += L"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n";
+                custom_headers += L"Accept-Language: en-US,en;q=0.9\r\n";
+                custom_headers += L"Sec-Ch-Ua: \"Chromium\";v=\"130\", \"Google Chrome\";v=\"130\"\r\n";
+                custom_headers += L"Sec-Ch-Ua-Mobile: ?0\r\n";
+                custom_headers += L"Sec-Ch-Ua-Platform: \"Windows\"\r\n";
+                custom_headers += L"Sec-Fetch-Dest: document\r\n";
+                custom_headers += L"Sec-Fetch-Mode: navigate\r\n";
+                custom_headers += L"Sec-Fetch-Site: cross-site\r\n";
+                custom_headers += L"Sec-Fetch-User: ?1\r\n";
+                custom_headers += L"Upgrade-Insecure-Requests: 1\r\n";
 
                 if (WinHttpSendRequest(h_request, custom_headers.c_str(), static_cast<DWORD>(-1),
                                        WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
@@ -522,12 +590,21 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
                                 SetEndOfFile(h_file);
                             }
                             completed_chunks++;
+                            worker->UnregisterHandle(h_request);
                             WinHttpCloseHandle(h_request);
                             WinHttpCloseHandle(h_connect);
                             WinHttpCloseHandle(h_session);
                             break;
                         }
                     } else {
+                        {
+                            std::lock_guard<std::mutex> lk(failure_mutex);
+                            if (status_code == 403) failure_error_msg = "HTTP 403 Forbidden: Host rejected access (check login/cookies)";
+                            else if (status_code == 401) failure_error_msg = "HTTP 401 Unauthorized: Remote host requires authentication";
+                            else if (status_code == 404) failure_error_msg = "HTTP 404 Not Found: File no longer exists on remote server";
+                            else if (status_code == 416) failure_error_msg = "HTTP 416 Range Not Satisfiable: Server rejected resuming";
+                            else if (status_code > 0) failure_error_msg = "HTTP " + std::to_string(status_code) + " error from remote server";
+                        }
                         retries++;
                         std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     }
@@ -536,6 +613,7 @@ void ChunkEngine::StartTask(DownloadTask& task, ProgressCallback on_progress, Co
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 }
 
+                worker->UnregisterHandle(h_request);
                 WinHttpCloseHandle(h_request);
                 WinHttpCloseHandle(h_connect);
                 WinHttpCloseHandle(h_session);
@@ -630,7 +708,7 @@ void ChunkEngine::PauseTask(int task_id) {
     for (auto& w : active_workers_) {
         if (w->task_id == task_id) {
             w->cancel_requested = true;
-            break;
+            w->AbortAllHandles();
         }
     }
 }

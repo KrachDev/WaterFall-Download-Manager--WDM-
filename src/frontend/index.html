@@ -93,6 +93,26 @@
         Delete
       </button>
 
+      <div class="toolbar-sep"></div>
+
+      <!-- Quick Queue Limit Control -->
+      <div class="queue-limit-wrap" style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; color: var(--text-secondary); padding: 0 4px;" title="Maximum concurrent active downloads allowed at once">
+        <span style="font-weight: 600; color: #a855f7; display: inline-flex; align-items: center; gap: 3px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          Queue:
+        </span>
+        <select id="toolbar-max-concurrent" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 6px; font-size: 0.74rem; cursor: pointer; outline: none; font-weight: 500;">
+          <option value="1">1 Active</option>
+          <option value="2">2 Active</option>
+          <option value="3" selected>3 Active</option>
+          <option value="4">4 Active</option>
+          <option value="5">5 Active</option>
+          <option value="8">8 Active</option>
+          <option value="10">10 Active</option>
+          <option value="0">Unlimited</option>
+        </select>
+      </div>
+
       <!-- Topbar Queue Sorting (Same split & rich dropdown treatment as Add Download) -->
       <div class="add-download-dropdown-wrap sort-dropdown-wrap" id="topbar-sort-wrap">
         <button class="tool-btn sort-btn sort-main-btn" id="btn-topbar-sort" title="Queue Sorting (Change order of downloads)">
@@ -103,6 +123,16 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </button>
         <div class="add-download-dropdown-menu sort-dropdown-menu" id="topbar-sort-menu">
+          <div class="add-dropdown-item sort-option" data-sort="queue">
+            <div class="add-item-icon-box" style="background: rgba(139, 92, 246, 0.15); color: #a855f7;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Queue Order</span>
+              <span class="add-item-sub">Follow prioritized download queue</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
           <div class="add-dropdown-item sort-option selected" data-sort="active-first">
             <div class="add-item-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
@@ -380,6 +410,16 @@
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="sort-chevron-icon"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </button>
             <div class="add-download-dropdown-menu sort-dropdown-menu" id="sort-dropdown-menu">
+              <div class="add-dropdown-item sort-option" data-sort="queue">
+            <div class="add-item-icon-box" style="background: rgba(139, 92, 246, 0.15); color: #a855f7;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            </div>
+            <div class="add-item-text">
+              <span class="add-item-title">Queue Order</span>
+              <span class="add-item-sub">Follow prioritized download queue</span>
+            </div>
+            <span class="sort-check"></span>
+          </div>
               <div class="add-dropdown-item sort-option selected" data-sort="active-first">
                 <div class="add-item-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
@@ -2295,6 +2335,10 @@
     <div class="context-menu-item" id="ctx-pause-resume">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
       Pause / Resume
+    </div>
+    <div class="context-menu-item" id="ctx-force-start" style="color: #38bdf8;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+      ⚡ Force Start Now (Bypass Queue)
     </div>
     <div class="context-menu-sep"></div>
     <div class="context-menu-item" id="ctx-move-top">

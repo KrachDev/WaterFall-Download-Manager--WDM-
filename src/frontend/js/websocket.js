@@ -42,20 +42,35 @@ class WSClient {
           const tasks = await res.json();
           const prevTasks = window.appState.tasks || [];
 
+          let structureChanged = false;
+          if (prevTasks.length !== tasks.length) {
+            structureChanged = true;
+          }
+
           // Detect new tasks and state changes during polling fallback
           if (prevTasks.length > 0 && Array.isArray(tasks)) {
             for (const t of tasks) {
               const prev = prevTasks.find(p => String(p.id) === String(t.id));
               if (!prev) {
+                structureChanged = true;
                 window.dispatchEvent(new CustomEvent('task:created', { detail: t }));
               } else {
+                if (prev.status !== t.status) {
+                  structureChanged = true;
+                }
                 if (prev.status !== 'completed' && t.status === 'completed') {
                   window.dispatchEvent(new CustomEvent('task:completed', { detail: t }));
                 } else if (prev.status !== 'failed' && prev.status !== 'error' && (t.status === 'failed' || t.status === 'error')) {
-                  window.dispatchEvent(new CustomEvent('task:failed', { detail: t }));
+                  if (t.status === 'paused' || t.error === 'Download paused' || (t.statusText && t.statusText.toLowerCase() === 'paused')) {
+                    // Pausing is not a task failure
+                  } else {
+                    window.dispatchEvent(new CustomEvent('task:failed', { detail: t }));
+                  }
                 }
               }
             }
+          } else if (prevTasks.length === 0 && tasks.length > 0) {
+            structureChanged = true;
           }
 
           window.appState.tasks = tasks;
@@ -66,7 +81,11 @@ class WSClient {
           }
           window.appState.globalSpeed = globalSpeed;
           this.handleMessage({ type: 'tick', tasks, globalSpeed });
-          window.dispatchEvent(new CustomEvent('state:change'));
+
+          // ONLY trigger full DOM destruction (renderDownloads) if list structure or task statuses changed!
+          if (structureChanged) {
+            window.dispatchEvent(new CustomEvent('state:change'));
+          }
         }
       } catch (_) {}
     }, 400);
@@ -177,6 +196,9 @@ class WSClient {
         break;
 
       case 'taskFailed':
+        if (msg.error === 'Download paused' || (msg.task && msg.task.status === 'paused')) {
+          break;
+        }
         const failedTask = window.appState.tasks.find(t => t.id === msg.task.id);
         if (failedTask) {
           Object.assign(failedTask, msg.task);

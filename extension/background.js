@@ -710,7 +710,8 @@ async function handleDownloadInterception(downloadItem, candidateFilename) {
   }
 
   const filename = candidateFilename || downloadItem.filename || url.split('?')[0];
-  const cleanName = filename.split(/[\\/]/).pop().split('?')[0];
+  let cleanName = filename.split(/[\\/]/).pop().split('?')[0];
+  try { cleanName = decodeURIComponent(cleanName); } catch (_) {}
   const ext = ('.' + cleanName.split('.').pop()).toLowerCase();
 
   const isGeneric = !cleanName || cleanName.toLowerCase() === 'download' || cleanName.toLowerCase() === 'download.php' || cleanName.toLowerCase().startsWith('file_');

@@ -144,7 +144,16 @@
   }
 
   function formatETA(seconds) {
-    if (!seconds || seconds <= 0 || !isFinite(seconds)) return '--:--:--';
+    if (typeof seconds === 'string') {
+      if (seconds === '--' || seconds === '' || seconds === '0s') return seconds || '--';
+      const parsed = parseInt(seconds, 10);
+      if (isFinite(parsed) && !seconds.includes(':') && !seconds.includes('m') && !seconds.includes('h') && !seconds.includes('s')) {
+        seconds = parsed;
+      } else {
+        return seconds;
+      }
+    }
+    if (!seconds || seconds <= 0 || !isFinite(seconds)) return '--';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -558,18 +567,21 @@
 
     if (task.totalBytes > 0) {
       if (dlgSize) dlgSize.textContent = formatBytes(task.totalBytes);
-    } else if (task.formattedSize) {
+    } else if (task.formattedSize && task.formattedSize !== 'Unknown') {
       if (dlgSize) dlgSize.textContent = task.formattedSize;
+    } else if (task.downloadedBytes > 0) {
+      if (dlgSize) dlgSize.textContent = `${formatBytes(task.downloadedBytes)} (Stream)`;
     } else {
       if (dlgSize) dlgSize.textContent = 'Unknown / Stream';
     }
 
-    if (task.acceptRanges !== undefined && dlgResumable) {
-      dlgResumable.textContent = task.acceptRanges ? 'Yes' : 'No';
-      dlgResumable.className = 'stat-val ' + (task.acceptRanges ? 'resumable-yes' : 'resumable-no');
+    const isResumable = (task.acceptRanges !== undefined) ? task.acceptRanges : ((task.isResumable !== undefined) ? task.isResumable : (task.is_resumable !== undefined ? task.is_resumable : true));
+    if (dlgResumable) {
+      dlgResumable.textContent = isResumable ? 'Yes' : 'No';
+      dlgResumable.className = 'stat-val ' + (isResumable ? 'resumable-yes' : 'resumable-no');
     }
 
-    const segCount = task.segmentsCount || (task.segments && task.segments.length) || 8;
+    const segCount = task.segmentsCount || (task.segments && task.segments.length) || task.connections || 8;
     if (dlgThreads) dlgThreads.textContent = `${segCount} Segments`;
 
     // Populate Save Destination Label in Extraction Tab
@@ -820,6 +832,7 @@
               body: JSON.stringify({ filePath: finalTarget })
             }).catch(() => {});
           }
+          closeWindow();
         };
 
         if (isOpenWhenDone) {
@@ -974,10 +987,14 @@
       return;
     }
 
-    const downloaded = data.downloadedBytes || 0;
-    const total = data.totalBytes || 0;
-    const speed = data.speed || 0;
-    const eta = data.eta || 0;
+    const downloaded = data.downloadedBytes || data.downloaded || data.downloaded_bytes || 0;
+    const total = data.totalBytes || data.total_bytes || data.size || 0;
+    const speed = data.speed || data.speed_bps || 0;
+    let eta = (data.eta !== undefined && data.eta !== null) ? data.eta : (data.etaSeconds || data.eta_seconds || 0);
+    if (!eta && total > 0 && speed > 0 && downloaded < total) {
+      eta = Math.ceil((total - downloaded) / speed);
+    }
+    const etaFormatted = data.etaFormatted || data.eta_formatted || null;
     const status = data.status || 'downloading';
 
     let pct = 0;
@@ -999,9 +1016,36 @@
       }
     }
 
-    if (dlgSpeed) dlgSpeed.textContent = formatSpeed(speed);
+    if (dlgSpeed) dlgSpeed.textContent = data.formattedSpeed || data.speed_formatted || formatSpeed(speed);
     if (dlgDownloaded) dlgDownloaded.textContent = isDynamicStream ? `${formatBytes(downloaded)} (Live Stream)` : `${formatBytes(downloaded)} of ${formatBytes(total)}`;
-    if (dlgEta) dlgEta.textContent = isDynamicStream ? (status === 'completed' ? '0s' : 'Dynamic') : formatETA(eta);
+    if (dlgEta) {
+      if (isDynamicStream) {
+        dlgEta.textContent = (status === 'completed' ? '0s' : 'Dynamic');
+      } else if (eta > 0) {
+        dlgEta.textContent = formatETA(eta);
+      } else if (etaFormatted && etaFormatted !== '--') {
+        dlgEta.textContent = etaFormatted;
+      } else {
+        dlgEta.textContent = (status === 'completed' ? '0s' : '--');
+      }
+    }
+
+    if (dlgSize) {
+      if (total > 0) dlgSize.textContent = formatBytes(total);
+      else if (downloaded > 0) dlgSize.textContent = `${formatBytes(downloaded)} (Stream)`;
+      else dlgSize.textContent = data.formattedSize || 'Unknown / Stream';
+    }
+
+    if (dlgResumable && (data.acceptRanges !== undefined || data.isResumable !== undefined)) {
+      const isResumable = (data.acceptRanges !== undefined) ? data.acceptRanges : data.isResumable;
+      dlgResumable.textContent = isResumable ? 'Yes' : 'No';
+      dlgResumable.className = 'stat-val ' + (isResumable ? 'resumable-yes' : 'resumable-no');
+    }
+
+    if (dlgThreads && (data.segmentsCount || (data.segments && data.segments.length))) {
+      const segCount = data.segmentsCount || data.segments.length;
+      dlgThreads.textContent = `${segCount} Segments`;
+    }
 
     // Update status dot & text
     if (dlgStatus && statusDot) {
@@ -1064,14 +1108,27 @@
   }
 
   function renderSegments(segments) {
-    if (!dlgSegmentsBar) return;
-    const chunkEls = dlgSegmentsBar.querySelectorAll('.segment-chunk');
+    if (!dlgSegmentsBar || !Array.isArray(segments) || segments.length === 0) return;
+    let chunkEls = dlgSegmentsBar.querySelectorAll('.segment-chunk');
+    if (chunkEls.length !== segments.length) {
+      dlgSegmentsBar.innerHTML = '';
+      for (let i = 0; i < segments.length; i++) {
+        const div = document.createElement('div');
+        div.className = 'segment-chunk';
+        const fill = document.createElement('div');
+        fill.className = 'segment-chunk-fill';
+        div.appendChild(fill);
+        dlgSegmentsBar.appendChild(div);
+      }
+      chunkEls = dlgSegmentsBar.querySelectorAll('.segment-chunk');
+    }
+
     segments.forEach((seg, idx) => {
       if (chunkEls[idx]) {
         const fillEl = chunkEls[idx].querySelector('.segment-chunk-fill');
         if (fillEl) {
-          const segTotal = (seg.endByte - seg.startByte + 1) || (seg.totalBytes) || 1;
-          const segDownloaded = seg.downloadedBytes || seg.downloaded || 0;
+          const segTotal = (seg.endByte - seg.startByte + 1) || (seg.totalBytes) || (seg.total) || 1;
+          const segDownloaded = (seg.downloadedBytes !== undefined) ? seg.downloadedBytes : (seg.downloaded || 0);
           const segPct = Math.min(100, Math.max(0, (segDownloaded / segTotal) * 100));
           fillEl.style.width = segPct + '%';
         }
@@ -1162,6 +1219,7 @@
             body: JSON.stringify({ filePath: savePath })
           }).catch(() => {});
         }
+        closeWindow();
       };
     }
 
@@ -1179,6 +1237,7 @@
             body: JSON.stringify({ filePath: finalTarget })
           }).catch(() => {});
         }
+        closeWindow();
       };
     }
 
@@ -1218,22 +1277,41 @@
 
   // --- Initial Task Fetch ---
   async function initTask() {
-    if (!currentTaskId) return;
-    if (window.waterfallDesktop && typeof window.waterfallDesktop.getProgressData === 'function') {
+    if (!currentTaskId || currentTaskId === '0' || currentTaskId === 'null' || currentTaskId === 'undefined') {
       try {
-        const desktopTask = await window.waterfallDesktop.getProgressData(currentTaskId);
-        if (desktopTask) {
-          applyTaskData(desktopTask);
-          return;
+        const res = await fetch(`${apiBase}/api/downloads`);
+        if (res.ok) {
+          const all = await res.json();
+          if (Array.isArray(all) && all.length > 0) {
+            const active = all.filter(t => t.status === 'downloading' || t.status === 'queued' || t.status === 'probing');
+            const target = active.length > 0 ? active[active.length - 1] : all[all.length - 1];
+            if (target && target.id) {
+              currentTaskId = String(target.id);
+              applyTaskData(target);
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+    } else {
+      if (window.waterfallDesktop && typeof window.waterfallDesktop.getProgressData === 'function') {
+        try {
+          const desktopTask = await window.waterfallDesktop.getProgressData(currentTaskId);
+          if (desktopTask) {
+            applyTaskData(desktopTask);
+            return;
+          }
+        } catch (_) {}
+      }
+      try {
+        const res = await fetch(`${apiBase}/api/downloads`);
+        if (res.ok) {
+          const all = await res.json();
+          const match = all.find(t => String(t.id) === String(currentTaskId));
+          if (match) applyTaskData(match);
         }
       } catch (_) {}
     }
-    try {
-      const res = await fetch(`${apiBase}/api/downloads`);
-      const all = await res.json();
-      const match = all.find(t => String(t.id) === String(currentTaskId));
-      if (match) applyTaskData(match);
-    } catch (_) {}
   }
 
   // --- Real-time Polling Engine ---
@@ -1241,19 +1319,31 @@
   function startPolling() {
     if (pollInterval) return;
     pollInterval = setInterval(async () => {
-      if (!currentTaskId) return;
       try {
         const res = await fetch(`${apiBase}/api/downloads`);
         if (res.ok) {
           const all = await res.json();
-          const match = all.find(t => String(t.id) === String(currentTaskId));
-          if (match) {
-            updateProgressMetrics(match);
-            if (match.status === 'completed' && !isCompletedState) {
-              showCompletionView(match);
-            } else if ((match.status === 'failed' || match.status === 'error' || match.status === 'canceled') && !isCompletedState) {
-              applyTaskData(match);
-              bringProgressWindowToFront();
+          if (!Array.isArray(all) || all.length === 0) return;
+
+          if (!currentTaskId || currentTaskId === '0' || currentTaskId === 'null' || currentTaskId === 'undefined') {
+            const active = all.filter(t => t.status === 'downloading' || t.status === 'queued' || t.status === 'probing');
+            const target = active.length > 0 ? active[active.length - 1] : all[all.length - 1];
+            if (target && target.id) {
+              currentTaskId = String(target.id);
+              applyTaskData(target);
+            }
+          }
+
+          if (currentTaskId) {
+            const match = all.find(t => String(t.id) === String(currentTaskId));
+            if (match) {
+              updateProgressMetrics(match);
+              if (match.status === 'completed' && !isCompletedState) {
+                showCompletionView(match);
+              } else if ((match.status === 'failed' || match.status === 'error' || match.status === 'canceled') && !isCompletedState) {
+                applyTaskData(match);
+                bringProgressWindowToFront();
+              }
             }
           }
         }

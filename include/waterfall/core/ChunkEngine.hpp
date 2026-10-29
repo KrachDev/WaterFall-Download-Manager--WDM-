@@ -32,6 +32,9 @@ public:
                                    const std::string& cookies = "",
                                    const std::string& user_agent = "");
 
+    // Utility: Percent-decode URL and filenames
+    static std::string UrlDecode(const std::string& in);
+
     // Compute hardware-accelerated SHA-256 checksum of a file on disk
     static std::string CalculateSha256(const std::string& file_path);
 

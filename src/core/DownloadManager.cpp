@@ -228,20 +228,20 @@ int DownloadManager::AddDownload(const std::string& url,
     task.user_agent = user_agent;
     task.total_bytes = total_bytes;
 
-    // Use custom name or extract from URL
-    std::string base_name = custom_name;
+    // Use custom name or extract from URL with URL decoding
+    std::string base_name = ChunkEngine::UrlDecode(custom_name);
     if (base_name.empty()) {
         size_t q = url.find('?');
         std::string clean = (q != std::string::npos) ? url.substr(0, q) : url;
         size_t slash = clean.find_last_of("/\\");
         if (slash != std::string::npos && slash + 1 < clean.size()) {
-            base_name = clean.substr(slash + 1);
+            base_name = ChunkEngine::UrlDecode(clean.substr(slash + 1));
         }
         if (base_name.empty() || base_name == "/") {
             base_name = "download.bin";
         }
-        base_name = StorageRouter::Instance().SanitizeFilename(base_name);
     }
+    base_name = StorageRouter::Instance().SanitizeFilename(base_name);
     task.filename = base_name;
 
     // Check multipart archive status
@@ -275,7 +275,7 @@ int DownloadManager::AddDownload(const std::string& url,
 
     // Schedule next downloads
     QueueScheduler::Instance().Schedule(tasks_, [this](int id) {
-        ResumeDownload(id);
+        StartTaskInternal(id);
     });
 
     NotifyUpdate();
@@ -289,12 +289,13 @@ bool DownloadManager::PauseDownload(int task_id) {
             chunk_engine_.PauseTask(task_id);
             t.status = TaskStatus::Paused;
             t.speed_bps = 0;
+            t.error_message = "";
             SaveTaskToDb(t);
             NotifyUpdate();
 
-            // Slot freed up: schedule next
+            // Slot freed up: schedule next queued task
             QueueScheduler::Instance().Schedule(tasks_, [this](int id) {
-                ResumeDownload(id);
+                StartTaskInternal(id);
             });
             return true;
         }
@@ -302,11 +303,11 @@ bool DownloadManager::PauseDownload(int task_id) {
     return false;
 }
 
-bool DownloadManager::ResumeDownload(int task_id) {
-    std::lock_guard lock(tasks_mutex_);
+bool DownloadManager::StartTaskInternal(int task_id) {
     for (auto& t : tasks_) {
         if (t.id == task_id) {
             t.status = TaskStatus::Downloading;
+            t.error_message = "";
 
             if (t.is_media) {
                 // Route to MediaEngine
@@ -352,11 +353,37 @@ bool DownloadManager::ResumeDownload(int task_id) {
                     });
             }
 
+            SaveTaskToDb(t);
             NotifyUpdate();
             return true;
         }
     }
     return false;
+}
+
+bool DownloadManager::ResumeDownload(int task_id) {
+    std::lock_guard lock(tasks_mutex_);
+    for (auto& t : tasks_) {
+        if (t.id == task_id) {
+            if (t.status == TaskStatus::Downloading) return true;
+            t.status = TaskStatus::Queued;
+            t.error_message = "";
+            SaveTaskToDb(t);
+            NotifyUpdate();
+
+            // Run queue scheduler to start immediately if slots available
+            QueueScheduler::Instance().Schedule(tasks_, [this](int id) {
+                StartTaskInternal(id);
+            });
+            return true;
+        }
+    }
+    return false;
+}
+
+bool DownloadManager::ForceStartDownload(int task_id) {
+    std::lock_guard lock(tasks_mutex_);
+    return StartTaskInternal(task_id);
 }
 
 void DownloadManager::OnTaskFinished(int task_id, bool success, const std::string& err) {
@@ -367,6 +394,16 @@ void DownloadManager::OnTaskFinished(int task_id, bool success, const std::strin
         std::lock_guard lk(tasks_mutex_);
         for (auto& item : tasks_) {
             if (item.id == task_id) {
+                // If paused or aborted due to user pause, preserve Paused status without error
+                if (item.status == TaskStatus::Paused || err == "Download paused") {
+                    item.status = TaskStatus::Paused;
+                    item.speed_bps = 0;
+                    item.error_message = "";
+                    SaveTaskToDb(item);
+                    found = true;
+                    break;
+                }
+
                 item.status = success ? TaskStatus::Completed : TaskStatus::Error;
                 if (!success) item.error_message = err;
                 item.speed_bps = 0;
@@ -380,7 +417,7 @@ void DownloadManager::OnTaskFinished(int task_id, bool success, const std::strin
 
     if (!found) return;
 
-    if (success) {
+    if (finished_task.status == TaskStatus::Completed) {
         // 1. Show native OS balloon notification
         ShellIntegration::Instance().ShowNotification("Download Complete", finished_task.filename + " has finished downloading.");
 
@@ -419,13 +456,16 @@ void DownloadManager::OnTaskFinished(int task_id, bool success, const std::strin
                 NotifyUpdate();
             }).detach();
         }
+    } else if (finished_task.status == TaskStatus::Error) {
+        // Only notify if truly in Error status (not paused)
+        ShellIntegration::Instance().ShowNotification("Download Failed", finished_task.filename + ": " + err);
     }
 
     NotifyUpdate();
 
     // 3. Queue Scheduler: Kick off next available download!
     QueueScheduler::Instance().Schedule(tasks_, [this](int id) {
-        ResumeDownload(id);
+        StartTaskInternal(id);
     });
 
     // 4. Power action check if entire queue has completed
@@ -528,7 +568,7 @@ bool DownloadManager::DeleteDownload(int task_id, bool delete_file_from_disk) {
 
             // Schedule next if slot opened
             QueueScheduler::Instance().Schedule(tasks_, [this](int id) {
-                ResumeDownload(id);
+                StartTaskInternal(id);
             });
             return true;
         }
@@ -581,23 +621,47 @@ void DownloadManager::ClearCompleted() {
 }
 
 void DownloadManager::MoveTaskTop(int task_id) {
+    std::lock_guard lock(tasks_mutex_);
     QueueScheduler::Instance().MoveTaskTop(tasks_, task_id);
+    for (size_t i = 0; i < tasks_.size(); ++i) {
+        tasks_[i].queue_order = static_cast<int>(i);
+        SaveTaskToDb(tasks_[i]);
+    }
     NotifyUpdate();
+    QueueScheduler::Instance().Schedule(tasks_, [this](int id) { StartTaskInternal(id); });
 }
 
 void DownloadManager::MoveTaskUp(int task_id) {
+    std::lock_guard lock(tasks_mutex_);
     QueueScheduler::Instance().MoveTaskUp(tasks_, task_id);
+    for (size_t i = 0; i < tasks_.size(); ++i) {
+        tasks_[i].queue_order = static_cast<int>(i);
+        SaveTaskToDb(tasks_[i]);
+    }
     NotifyUpdate();
+    QueueScheduler::Instance().Schedule(tasks_, [this](int id) { StartTaskInternal(id); });
 }
 
 void DownloadManager::MoveTaskDown(int task_id) {
+    std::lock_guard lock(tasks_mutex_);
     QueueScheduler::Instance().MoveTaskDown(tasks_, task_id);
+    for (size_t i = 0; i < tasks_.size(); ++i) {
+        tasks_[i].queue_order = static_cast<int>(i);
+        SaveTaskToDb(tasks_[i]);
+    }
     NotifyUpdate();
+    QueueScheduler::Instance().Schedule(tasks_, [this](int id) { StartTaskInternal(id); });
 }
 
 void DownloadManager::MoveTaskBottom(int task_id) {
+    std::lock_guard lock(tasks_mutex_);
     QueueScheduler::Instance().MoveTaskBottom(tasks_, task_id);
+    for (size_t i = 0; i < tasks_.size(); ++i) {
+        tasks_[i].queue_order = static_cast<int>(i);
+        SaveTaskToDb(tasks_[i]);
+    }
     NotifyUpdate();
+    QueueScheduler::Instance().Schedule(tasks_, [this](int id) { StartTaskInternal(id); });
 }
 
 void DownloadManager::SortQueue(QueueScheduler::SortMode mode) {

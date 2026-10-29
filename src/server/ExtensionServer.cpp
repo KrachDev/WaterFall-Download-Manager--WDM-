@@ -35,15 +35,25 @@ static json TaskToJson(const core::DownloadTask& t) {
     for (const auto& c : t.chunks) {
         int64_t chunk_done = std::max<int64_t>(0, c.current_byte - c.start_byte);
         int64_t chunk_total = std::max<int64_t>(0, c.end_byte - c.start_byte + 1);
+        if (chunk_done > chunk_total && chunk_total > 0) chunk_done = chunk_total;
+
         segments.push_back({
             {"id", c.id},
             {"start", c.start_byte},
+            {"startByte", c.start_byte},
             {"end", c.end_byte},
+            {"endByte", c.end_byte},
+            {"current", c.current_byte},
+            {"currentByte", c.current_byte},
             {"downloaded", chunk_done},
+            {"downloadedBytes", chunk_done},
             {"total", chunk_total},
+            {"totalBytes", chunk_total},
             {"speed", c.speed_bps},
             {"is_active", c.is_active},
+            {"isActive", c.is_active},
             {"is_completed", c.is_completed},
+            {"isCompleted", c.is_completed},
             {"progress", c.GetProgress()}
         });
     }
@@ -81,23 +91,83 @@ static json TaskToJson(const core::DownloadTask& t) {
         {"isRootPart", t.is_root_part}
     };
 
+    int64_t eta_sec = 0;
+    if (t.status == core::TaskStatus::Downloading && t.speed_bps > 0 && t.total_bytes > t.downloaded_bytes) {
+        eta_sec = (t.total_bytes - t.downloaded_bytes) / t.speed_bps;
+    }
+
+    int64_t added_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t.created_at.time_since_epoch()).count();
+    int64_t completed_ms = 0;
+    if (t.completed_at.time_since_epoch().count() > 0) {
+        completed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t.completed_at.time_since_epoch()).count();
+    }
+
+    std::string save_dir = "";
+    if (!t.save_path.empty()) {
+        auto last_slash = t.save_path.find_last_of("\\/");
+        if (last_slash != std::string::npos) {
+            save_dir = t.save_path.substr(0, last_slash);
+        }
+    }
+
+    int seg_count = t.chunks.empty() ? t.active_connections : static_cast<int>(t.chunks.size());
+
+    int queue_pos = 0;
+    if (t.status == core::TaskStatus::Queued) {
+        queue_pos = 1;
+        auto all_tasks = core::DownloadManager::Instance().GetTasks();
+        for (const auto& item : all_tasks) {
+            if (item.status == core::TaskStatus::Queued) {
+                if (item.id == t.id) break;
+                queue_pos++;
+            }
+        }
+    }
+
     return json{
+        {"queueOrder", t.queue_order},
+        {"queuePosition", queue_pos},
+        {"queuePos", queue_pos},
         {"id", t.id},
         {"name", t.filename},
         {"filename", t.filename},
         {"url", t.url},
+        {"directUrl", t.direct_url},
+        {"direct_url", t.direct_url},
         {"savePath", t.save_path},
         {"save_path", t.save_path},
+        {"saveDir", save_dir},
+        {"directory", save_dir},
         {"totalBytes", t.total_bytes},
         {"total_bytes", t.total_bytes},
+        {"size", t.total_bytes},
+        {"formattedSize", t.GetTotalFormatted()},
         {"downloadedBytes", t.downloaded_bytes},
         {"downloaded_bytes", t.downloaded_bytes},
+        {"downloaded", t.downloaded_bytes},
+        {"formattedDownloaded", t.GetDownloadedFormatted()},
         {"speed", t.speed_bps},
         {"speed_bps", t.speed_bps},
         {"speed_formatted", t.GetSpeedFormatted()},
+        {"formattedSpeed", t.GetSpeedFormatted()},
         {"progress", t.GetProgressPercent()},
         {"progress_percent", t.GetProgressPercent()},
-        {"eta", t.GetEtaFormatted()},
+        {"eta", eta_sec},
+        {"etaSeconds", eta_sec},
+        {"eta_seconds", eta_sec},
+        {"etaFormatted", t.GetEtaFormatted()},
+        {"eta_formatted", t.GetEtaFormatted()},
+        {"addedAt", added_ms},
+        {"createdAt", added_ms},
+        {"created_at", added_ms},
+        {"completedAt", completed_ms},
+        {"completed_at", completed_ms},
+        {"isResumable", t.is_resumable},
+        {"is_resumable", t.is_resumable},
+        {"acceptRanges", t.is_resumable},
+        {"connections", t.active_connections},
+        {"activeConnections", t.active_connections},
+        {"segmentsCount", seg_count},
         {"category", t.category},
         {"hoster", t.hoster},
         {"packageName", t.package_name},
@@ -343,8 +413,9 @@ void ExtensionServer::SetupRoutes() {
                 probe["cookies"] = cookies;
                 probe["userAgent"] = user_agent;
 
-                std::string fname = filename;
+                std::string fname = core::ChunkEngine::UrlDecode(filename);
                 bool accept_ranges = true;
+                int probe_status = 200;
 
                 // Probe URL headers for real filename & size
                 try {
@@ -352,17 +423,49 @@ void ExtensionServer::SetupRoutes() {
                     if (!info.filename.empty() && fname.empty()) fname = info.filename;
                     if (info.total_size > 0 && total_size == 0) total_size = info.total_size;
                     accept_ranges = info.supports_range;
+                    if (info.status_code > 0) probe_status = info.status_code;
                 } catch (...) {}
 
                 if (fname.empty()) {
                     fname = url.substr(url.find_last_of("/\\") + 1);
                     size_t q = fname.find('?');
                     if (q != std::string::npos) fname = fname.substr(0, q);
+                    fname = core::ChunkEngine::UrlDecode(fname);
                     if (fname.empty()) fname = "download";
                 }
                 probe["filename"] = fname;
                 probe["totalBytes"] = total_size;
                 probe["acceptRanges"] = accept_ranges;
+                probe["statusCode"] = probe_status;
+                probe["status_code"] = probe_status;
+
+                // Duplicate Detection for incoming downloads
+                auto existing_tasks = core::DownloadManager::Instance().GetTasks();
+                for (const auto& et : existing_tasks) {
+                    bool url_match = (et.url == url);
+                    bool name_match = (!fname.empty() && (et.filename == fname));
+                    if (url_match || name_match) {
+                        json match;
+                        match["id"] = et.id;
+                        match["name"] = et.filename;
+                        match["savePath"] = et.save_path;
+                        match["isDone"] = (et.status == core::TaskStatus::Completed);
+                        match["status"] = (et.status == core::TaskStatus::Completed) ? "completed"
+                            : (et.status == core::TaskStatus::Downloading) ? "downloading"
+                            : (et.status == core::TaskStatus::Paused) ? "paused"
+                            : (et.status == core::TaskStatus::Queued) ? "queued" : "error";
+                        int pct = 0;
+                        if (et.total_bytes > 0) {
+                            pct = static_cast<int>((static_cast<double>(et.downloaded_bytes) / static_cast<double>(et.total_bytes)) * 100.0);
+                        }
+                        match["percent"] = pct;
+                        match["downloadedBytes"] = et.downloaded_bytes;
+                        match["totalBytes"] = et.total_bytes;
+                        match["isArchive"] = et.is_multipart || (et.filename.find(".zip") != std::string::npos) || (et.filename.find(".rar") != std::string::npos) || (et.filename.find(".7z") != std::string::npos);
+                        probe["existingMatch"] = match;
+                        break;
+                    }
+                }
 
                 std::string def_dir = folder.empty() ? core::ConfigManager::Instance().GetDownloadDirectory() : folder;
                 probe["defaultSaveDir"] = def_dir;
@@ -441,10 +544,17 @@ void ExtensionServer::SetupRoutes() {
         res.set_content(json({{"success", ok}}).dump(), "application/json");
     });
 
-    // Resume download
+    // Resume download (respects queue limits)
     server_->Post(R"(/api/downloads/(\d+)/resume)", [](const httplib::Request& req, httplib::Response& res) {
         int id = std::stoi(req.matches[1]);
         bool ok = core::DownloadManager::Instance().ResumeDownload(id);
+        res.set_content(json({{"success", ok}}).dump(), "application/json");
+    });
+
+    // Force start download (bypasses queue limit)
+    server_->Post(R"(/api/downloads/(\d+)/force-start)", [](const httplib::Request& req, httplib::Response& res) {
+        int id = std::stoi(req.matches[1]);
+        bool ok = core::DownloadManager::Instance().ForceStartDownload(id);
         res.set_content(json({{"success", ok}}).dump(), "application/json");
     });
 
@@ -494,8 +604,12 @@ void ExtensionServer::SetupRoutes() {
         try {
             auto body = json::parse(req.body);
             std::string action = body.value("action", "");
-            if (body.contains("taskIds") && body["taskIds"].is_array()) {
-                for (auto& item : body["taskIds"]) {
+            const json* arr = nullptr;
+            if (body.contains("taskIds") && body["taskIds"].is_array()) arr = &body["taskIds"];
+            else if (body.contains("ids") && body["ids"].is_array()) arr = &body["ids"];
+
+            if (arr) {
+                for (auto& item : *arr) {
                     int id = item.is_number() ? item.get<int>() : std::stoi(item.get<std::string>());
                     if (action == "resume") core::DownloadManager::Instance().ResumeDownload(id);
                     else if (action == "pause") core::DownloadManager::Instance().PauseDownload(id);
@@ -748,13 +862,29 @@ void ExtensionServer::SetupRoutes() {
             auto body = json::parse(req.body);
             auto cfg = core::ConfigManager::Instance().GetConfig();
             if (body.contains("download_directory")) cfg.download_directory = body["download_directory"];
+            else if (body.contains("downloadDir")) cfg.download_directory = body["downloadDir"];
+
             if (body.contains("max_concurrent_downloads")) cfg.max_concurrent_downloads = body["max_concurrent_downloads"];
+            else if (body.contains("maxConcurrentDownloads")) cfg.max_concurrent_downloads = body["maxConcurrentDownloads"];
+
             if (body.contains("max_concurrent_per_host")) cfg.max_concurrent_per_host = body["max_concurrent_per_host"];
+            else if (body.contains("maxConcurrentPerHost")) cfg.max_concurrent_per_host = body["maxConcurrentPerHost"];
+
             if (body.contains("default_connections_per_task")) cfg.default_connections_per_task = body["default_connections_per_task"];
+            else if (body.contains("segmentsPerFile")) cfg.default_connections_per_task = body["segmentsPerFile"];
+
             if (body.contains("speed_limit_enabled")) cfg.speed_limit_enabled = body["speed_limit_enabled"];
+            else if (body.contains("speedLimitEnabled")) cfg.speed_limit_enabled = body["speedLimitEnabled"];
+
             if (body.contains("speed_limit_bps")) cfg.speed_limit_bps = body["speed_limit_bps"];
+            else if (body.contains("speedLimitBytesPerSec")) cfg.speed_limit_bps = body["speedLimitBytesPerSec"];
+
             if (body.contains("auto_extract_archives")) cfg.auto_extract_archives = body["auto_extract_archives"];
+            else if (body.contains("autoExtractArchives")) cfg.auto_extract_archives = body["autoExtractArchives"];
+
             if (body.contains("delete_archive_after_extract")) cfg.delete_archive_after_extract = body["delete_archive_after_extract"];
+            else if (body.contains("deleteArchiveAfterExtract")) cfg.delete_archive_after_extract = body["deleteArchiveAfterExtract"];
+
             if (body.contains("archive_passwords") && body["archive_passwords"].is_array()) {
                 cfg.archive_passwords = body["archive_passwords"].get<std::vector<std::string>>();
             }
@@ -778,10 +908,38 @@ void ExtensionServer::SetupRoutes() {
                 core::ShellIntegration::Instance().SetStartWithWindows(start_win);
             }
             core::ConfigManager::Instance().UpdateConfig(cfg);
+
+            // Re-schedule queue immediately in case slots opened up
+            auto all_tasks = core::DownloadManager::Instance().GetTasks();
+            core::QueueScheduler::Instance().Schedule(all_tasks, [](int id) {
+                core::DownloadManager::Instance().StartTaskInternal(id);
+            });
+            core::DownloadManager::Instance().NotifyUpdate();
+
             res.set_content(R"({"success":true})", "application/json");
         } catch (const std::exception& e) {
             res.status = 400;
             res.set_content(json({{"error", e.what()}}).dump(), "application/json");
+        }
+    });
+
+    server_->Post("/api/queue/max-concurrent", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            auto body = json::parse(req.body);
+            int max_dl = body.value("maxConcurrent", body.value("max_concurrent", 3));
+            if (max_dl < 1) max_dl = 1;
+            auto cfg = core::ConfigManager::Instance().GetConfig();
+            cfg.max_concurrent_downloads = max_dl;
+            core::ConfigManager::Instance().UpdateConfig(cfg);
+            auto all_tasks = core::DownloadManager::Instance().GetTasks();
+            core::QueueScheduler::Instance().Schedule(all_tasks, [](int id) {
+                core::DownloadManager::Instance().StartTaskInternal(id);
+            });
+            core::DownloadManager::Instance().NotifyUpdate();
+            res.set_content(json({{"success", true}, {"maxConcurrent", max_dl}}).dump(), "application/json");
+        } catch (...) {
+            res.status = 400;
+            res.set_content(R"({"error":"Invalid request"})", "application/json");
         }
     });
 
@@ -1490,10 +1648,23 @@ void ExtensionServer::SetupRoutes() {
                         taskId = body["taskId"].value("id", 0);
                     }
                 }
+                if (taskId == 0 && body.contains("id")) {
+                    if (body["id"].is_number()) {
+                        taskId = body["id"].get<int>();
+                    } else if (body["id"].is_string()) {
+                        taskId = std::stoi(body["id"].get<std::string>());
+                    }
+                }
                 if (body.contains("topmost")) {
                     topmost = body["topmost"].get<bool>();
                 }
             } catch (...) {}
+        }
+        if (taskId == 0 && req.has_param("taskId")) {
+            try { taskId = std::stoi(req.get_param_value("taskId")); } catch (...) {}
+        }
+        if (taskId == 0 && req.has_param("id")) {
+            try { taskId = std::stoi(req.get_param_value("id")); } catch (...) {}
         }
         std::string url = "http://127.0.0.1:4567/download-progress.html?taskId=" + std::to_string(taskId);
         ui::WebViewUiManager::Instance().OpenDialogWindow(

@@ -35,6 +35,8 @@ public:
 
     bool PauseDownload(int task_id);
     bool ResumeDownload(int task_id);
+    bool ForceStartDownload(int task_id);
+    bool StartTaskInternal(int task_id);
     bool DeleteDownload(int task_id, bool delete_file_from_disk = false);
     void PauseAll();
     void ResumeAll();

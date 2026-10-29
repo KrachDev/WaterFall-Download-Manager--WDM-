@@ -216,6 +216,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function formatETADuration(seconds) {
+    if (typeof seconds === 'string') {
+      const parsed = parseInt(seconds, 10);
+      if (isFinite(parsed) && !seconds.includes('m') && !seconds.includes('h') && !seconds.includes('s')) {
+        seconds = parsed;
+      } else {
+        return seconds;
+      }
+    }
     if (!seconds || seconds <= 0 || !isFinite(seconds)) return '';
     const d = Math.floor(seconds / 86400);
     const h = Math.floor((seconds % 86400) / 3600);
@@ -228,6 +236,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function formatETA(seconds) {
+    if (typeof seconds === 'string') {
+      const parsed = parseInt(seconds, 10);
+      if (isFinite(parsed) && !seconds.includes('m') && !seconds.includes('h') && !seconds.includes('s') && !seconds.includes(':')) {
+        seconds = parsed;
+      } else {
+        return seconds;
+      }
+    }
     if (!seconds || seconds <= 0 || !isFinite(seconds)) return '--';
 
     const now = new Date();
@@ -642,11 +658,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      items.push({ type: 'single', task: t, addedAt: t.addedAt || t.createdAt || 0 });
+      items.push({ type: 'single', task: t, addedAt: t.addedAt || t.createdAt || 0, orderIndex: items.length });
     }
-
-    // Always sort newest first (most recent timestamp at the top)
-    items.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
 
     return items;
   }
@@ -660,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const badge = getTypeBadge(t);
     const isDl = t.status === 'downloading';
     const isDone = t.status === 'completed';
-    const isSelected = selectedTaskIds.has(t.id);
+    const isSelected = selectedTaskIds.has(t.id) || selectedTaskIds.has(String(t.id)) || selectedTaskIds.has(Number(t.id));
     const extractionBadge = renderExtractionBadge(t);
 
     const ext = t.name && t.name.includes('.') ? ('.' + t.name.split('.').pop().toLowerCase()) : '';
@@ -705,6 +718,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const priorityTag = t.priority === 'high'
       ? `<span class="priority-tag priority-high" title="High Queue Priority">High</span>`
       : (t.priority === 'low' ? `<span class="priority-tag priority-low" title="Low Queue Priority">Low</span>` : '');
+
+    const queueBadge = t.status === 'queued'
+      ? `<span class="badge-queue-pos" style="font-size: 0.68rem; background: rgba(139, 92, 246, 0.18); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.35); border-radius: 3px; padding: 1px 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;" title="Queue Position #${t.queuePosition || 1}">#${t.queuePosition || 1} in Queue</span>`
+      : '';
 
     const childBranchPrefix = isChild
       ? `<span class="child-indent-branch">↳</span><span class="group-parts-badge" style="margin-right: 4px;">${t.playlistGroup?.index ? `Track ${t.playlistGroup.index}` : (t.multipart?.partNumber ? `Part ${t.multipart.partNumber}` : 'Item')}</span>`
@@ -780,6 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${childBranchPrefix}
                 <span class="file-title" style="flex: 1; min-width: 0;" title="${escapeHtml(t.name)}" onclick="window.segmentVisualizer.open('${encodeURIComponent(t.id)}')">${escapeHtml(t.name)}</span>
                 ${priorityTag}
+                ${queueBadge}
                 ${extractionBadge}
                 ${t.streamPreResolved && t.status === 'queued' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Media stream URL pre-fetched in background. Starts instantly!">⚡ Pre-cached</span>' : ''}
                 ${t.singleStream ? '<span class="badge-single-stream" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="Whole File Mode (Single Stream - 1 Socket, No Chunks)">📦 Whole File</span>' : (t.downloadEngineMode === 'inPlace' ? '<span class="badge-inplace" style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 3px; padding: 1px 5px; white-space: nowrap;" title="In-Place Direct Writing (Zero Lag, Instant Completion)">⚡ Direct</span>' : '')}
@@ -797,7 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
         </td>
-        <td><span style="font-family: var(--font-mono); font-weight: 600;">${formatBytes(t.totalBytes)}</span></td>
+        <td><span style="font-family: var(--font-mono); font-weight: 600;">${t.totalBytes > 0 ? formatBytes(t.totalBytes) : (t.downloadedBytes > 0 ? `${formatBytes(t.downloadedBytes)} (Stream)` : 'Unknown / Stream')}</span></td>
         <td>
           <span class="state-tag ${t.status}">
             ${t.streamPreResolved && t.status === 'queued' ? '⚡ ready' : t.status}
@@ -814,8 +832,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <td title="${isDl ? `${formatETADuration(t.eta)} (Added: ${formatTaskDateFull(t.addedAt)})` : (isDone ? `Completed: ${formatTaskDateFull(t.completedAt || t.addedAt)}` : `Added: ${formatTaskDateFull(t.addedAt)}`)}">
           <div class="date-finish-cell">
             ${isDl ? `
-              <span class="date-finish-eta">${formatETA(t.eta)}</span>
-              <span class="date-finish-sub">Added: ${formatTaskDate(t.addedAt)}</span>
+              <span class="date-finish-eta">${t.totalBytes > 0 ? formatETA((!t.eta && t.speed > 0 && t.downloadedBytes < t.totalBytes) ? Math.ceil((t.totalBytes - t.downloadedBytes) / t.speed) : t.eta) : 'Dynamic Stream'}</span>
+              <span class="date-finish-sub">${t.totalBytes > 0 ? formatETADuration((!t.eta && t.speed > 0 && t.downloadedBytes < t.totalBytes) ? Math.ceil((t.totalBytes - t.downloadedBytes) / t.speed) : t.eta) : 'Stream / Unknown Size'}</span>
             ` : (isDone ? `
               <span class="date-finish-done">✓ ${formatTaskDate(t.completedAt || t.addedAt)}</span>
               ${t.completedAt && t.addedAt && Math.abs(t.completedAt - t.addedAt) > 60000 ? `<span class="date-finish-sub">Added: ${formatTaskDate(t.addedAt)}</span>` : ''}
@@ -834,15 +852,31 @@ document.addEventListener('DOMContentLoaded', () => {
                  </button>`
               : ''
             }
-            ${t.status === 'downloading'
+            ${t.status === 'queued' ? `
+              <button class="icon-btn btn-force-start" data-id="${encodeURIComponent(t.id)}" title="Force Start Now (Bypass Queue Limits)" style="color: #38bdf8;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              </button>
+              <button class="icon-btn btn-queue-up" data-id="${encodeURIComponent(t.id)}" title="Move Up in Queue">
+                ▲
+              </button>
+              <button class="icon-btn btn-queue-down" data-id="${encodeURIComponent(t.id)}" title="Move Down in Queue">
+                ▼
+              </button>
+              <button class="icon-btn btn-pause" data-id="${encodeURIComponent(t.id)}" title="Pause (Remove from Queue)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+              </button>
+            ` : (t.status === 'downloading'
               ? `<button class="icon-btn btn-pause" data-id="${encodeURIComponent(t.id)}" title="Pause">
                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
                  </button>`
               : (t.status !== 'completed'
-                ? `<button class="icon-btn btn-resume" data-id="${encodeURIComponent(t.id)}" title="Resume">
+                ? `<button class="icon-btn btn-force-start" data-id="${encodeURIComponent(t.id)}" title="Force Start Now" style="color: #38bdf8;">
+                     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                   </button>
+                   <button class="icon-btn btn-resume" data-id="${encodeURIComponent(t.id)}" title="Resume (Add to Queue)">
                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                    </button>`
-                : '')
+                : ''))
             }
             ${t.status === 'error' || t.status === 'paused'
               ? `<button class="icon-btn btn-update-url" data-id="${encodeURIComponent(t.id)}" title="Refresh / Update Download URL & Resume">
@@ -1158,9 +1192,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return 100;
       case 'extracting':
         return 95;
-      case 'paused':
-        return 80;
       case 'queued':
+        return 85;
+      case 'paused':
         return 75;
       case 'error':
       case 'canceled':
@@ -1193,11 +1227,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     switch (sortMode) {
+      case 'queue':
+        items.sort((a, b) => {
+          const posA = a.task ? (a.task.queuePosition || a.task.queuePos || 999999) : 999999;
+          const posB = b.task ? (b.task.queuePosition || b.task.queuePos || 999999) : 999999;
+          if (posA !== posB) return posA - posB;
+          return (a.orderIndex || 0) - (b.orderIndex || 0);
+        });
+        break;
+
       case 'active-first':
         items.sort((a, b) => {
           const weightA = getItemValue(a, 'status');
           const weightB = getItemValue(b, 'status');
           if (weightB !== weightA) return weightB - weightA;
+          const posA = a.task ? (a.task.queuePosition || a.task.queuePos || 999999) : 999999;
+          const posB = b.task ? (b.task.queuePosition || b.task.queuePos || 999999) : 999999;
+          if (posA !== posB) return posA - posB;
           const timeA = a.addedAt || 0;
           const timeB = b.addedAt || 0;
           return timeB - timeA;
@@ -1464,7 +1510,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tableBody.querySelectorAll('tr.download-row').forEach(row => {
       const id = row.dataset.id;
       if (!id) return;
-      rowDomCache.set(id, {
+      const ref = {
         row,
         fill: row.querySelector('.meter-fill'),
         stat: row.querySelector('.meter-stat'),
@@ -1472,7 +1518,9 @@ document.addEventListener('DOMContentLoaded', () => {
         etaSpan: row.children[6]?.querySelector('.date-finish-eta') || row.children[6]?.querySelector('span'),
         etaTd: row.children[6],
         statusTag: row.children[3]?.querySelector('.state-tag')
-      });
+      };
+      rowDomCache.set(String(id), ref);
+      if (!isNaN(Number(id))) rowDomCache.set(Number(id), ref);
     });
 
     tableBody.querySelectorAll('tr.group-parent-row').forEach(gRow => {
@@ -1525,9 +1573,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (target.classList.contains('task-checkbox')) {
         const id = target.dataset.id;
         if (target.checked) {
-          selectedTaskIds.add(id);
+          selectedTaskIds.add(String(id));
+          if (!isNaN(Number(id))) selectedTaskIds.add(Number(id));
         } else {
-          selectedTaskIds.delete(id);
+          selectedTaskIds.delete(String(id));
+          if (!isNaN(Number(id))) selectedTaskIds.delete(Number(id));
         }
         updateBatchBar();
         const row = target.closest('tr');
@@ -1540,9 +1590,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const siblings = getGroupSiblings(gk);
         for (const s of siblings) {
           if (target.checked) {
-            selectedTaskIds.add(s.id);
+            selectedTaskIds.add(String(s.id));
+            if (!isNaN(Number(s.id))) selectedTaskIds.add(Number(s.id));
           } else {
-            selectedTaskIds.delete(s.id);
+            selectedTaskIds.delete(String(s.id));
+            if (!isNaN(Number(s.id))) selectedTaskIds.delete(Number(s.id));
           }
         }
         updateBatchBar();
@@ -1551,10 +1603,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // 2. Delegated Click Events (Buttons, Badges, Toggles)
+    // 2. Delegated Click Events (Buttons, Badges, Toggles, Row Selection)
     tableBody.addEventListener('click', (e) => {
       const target = e.target;
       if (!target) return;
+
+      // Row Selection Click (toggle checkbox when clicking non-interactive parts of row)
+      const downloadRow = target.closest('tr.download-row');
+      if (downloadRow && !target.closest('button') && !target.closest('.tool-btn') && !target.closest('input') && !target.closest('.file-title') && !target.closest('.group-expand-toggle') && !target.closest('.file-app-icon-wrap')) {
+        const cb = downloadRow.querySelector('.task-checkbox');
+        if (cb) {
+          cb.checked = !cb.checked;
+          const id = cb.dataset.id;
+          if (cb.checked) {
+            selectedTaskIds.add(String(id));
+            if (!isNaN(Number(id))) selectedTaskIds.add(Number(id));
+          } else {
+            selectedTaskIds.delete(String(id));
+            if (!isNaN(Number(id))) selectedTaskIds.delete(Number(id));
+          }
+          downloadRow.classList.toggle('row-selected', cb.checked);
+          updateBatchBar();
+        }
+      }
 
       // Group expand/collapse toggle
       const expandToggle = target.closest('.group-expand-toggle');
@@ -1691,6 +1762,44 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // Task Force Start
+      const btnForceStart = target.closest('.btn-force-start');
+      if (btnForceStart) {
+        e.stopPropagation();
+        fetch(`/api/downloads/${btnForceStart.dataset.id}/force-start`, { method: 'POST' });
+        return;
+      }
+
+      // Queue Move Up
+      const btnQueueUp = target.closest('.btn-queue-up');
+      if (btnQueueUp) {
+        e.stopPropagation();
+        fetch('/api/queue/move-up', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: Number(btnQueueUp.dataset.id) })
+        }).then(() => fetch('/api/downloads')).then(r => r.json()).then(tasks => {
+          window.appState.tasks = tasks;
+          renderDownloads();
+        }).catch(() => {});
+        return;
+      }
+
+      // Queue Move Down
+      const btnQueueDown = target.closest('.btn-queue-down');
+      if (btnQueueDown) {
+        e.stopPropagation();
+        fetch('/api/queue/move-down', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: Number(btnQueueDown.dataset.id) })
+        }).then(() => fetch('/api/downloads')).then(r => r.json()).then(tasks => {
+          window.appState.tasks = tasks;
+          renderDownloads();
+        }).catch(() => {});
+        return;
+      }
+
       // Task Delete
       const btnDel = target.closest('.btn-del');
       if (btnDel) {
@@ -1755,7 +1864,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const row = e.target.closest('tr.download-row');
       if (row) {
         e.preventDefault();
-        const task = window.appState.tasks.find(t => t.id === row.dataset.id);
+        const task = (window.appState.tasks || []).find(t => String(t.id) === String(row.dataset.id));
         if (task) {
           openContextMenu(e.clientX, e.clientY, task);
         }
@@ -1767,7 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target.closest('button, input, a, select')) return;
       const row = e.target.closest('tr.download-row');
       if (row) {
-        const task = window.appState.tasks.find(t => t.id === row.dataset.id);
+        const task = (window.appState.tasks || []).find(t => String(t.id) === String(row.dataset.id));
         if (task) {
           if (task.status === 'completed' && task.savePath) {
             openFile(task.savePath);
@@ -1787,10 +1896,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const isChecked = checkSelectAllDownloads.checked;
       tableBody.querySelectorAll('.task-checkbox').forEach(cb => {
         cb.checked = isChecked;
+        const id = cb.dataset.id;
         if (isChecked) {
-          selectedTaskIds.add(cb.dataset.id);
+          selectedTaskIds.add(String(id));
+          if (!isNaN(Number(id))) selectedTaskIds.add(Number(id));
         } else {
-          selectedTaskIds.delete(cb.dataset.id);
+          selectedTaskIds.delete(String(id));
+          if (!isNaN(Number(id))) selectedTaskIds.delete(Number(id));
         }
         const row = cb.closest('tr');
         if (row) row.classList.toggle('row-selected', isChecked);
@@ -1803,10 +1915,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnBatchResume) {
     btnBatchResume.onclick = async () => {
       if (selectedTaskIds.size === 0) return;
+      const idList = Array.from(selectedTaskIds).map(x => Number(x)).filter(x => !isNaN(x) && x > 0);
       await fetch('/api/downloads/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'resume', ids: Array.from(selectedTaskIds) })
+        body: JSON.stringify({ action: 'resume', ids: idList, taskIds: idList })
       });
     };
   }
@@ -1814,10 +1927,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnBatchPause) {
     btnBatchPause.onclick = async () => {
       if (selectedTaskIds.size === 0) return;
+      const idList = Array.from(selectedTaskIds).map(x => Number(x)).filter(x => !isNaN(x) && x > 0);
       await fetch('/api/downloads/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'pause', ids: Array.from(selectedTaskIds) })
+        body: JSON.stringify({ action: 'pause', ids: idList, taskIds: idList })
       });
     };
   }
@@ -1868,6 +1982,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (itemPauseResume) {
       itemPauseResume.textContent = (task.status === 'downloading') ? '⏸️ Pause Download' : '▶️ Resume Download';
       itemPauseResume.style.display = isCompleted ? 'none' : 'flex';
+    }
+
+    const itemForceStart = document.getElementById('ctx-force-start');
+    if (itemForceStart) {
+      itemForceStart.style.display = (task.status === 'queued' || task.status === 'paused' || task.status === 'error') ? 'flex' : 'none';
+      itemForceStart.onclick = async () => {
+        if (contextTask) {
+          const id = contextTask.id;
+          hideContextMenu();
+          await fetch(`/api/downloads/${id}/force-start`, { method: 'POST' });
+        }
+      };
     }
 
     // Queue reordering options (only for incomplete downloads)
@@ -2042,6 +2168,10 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id })
         });
+        try {
+          const r = await fetch('/api/downloads');
+          if (r.ok) { window.appState.tasks = await r.json(); renderDownloads(); }
+        } catch (_) {}
       }
     };
   }
@@ -2201,7 +2331,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const touchedGroups = new Set();
 
         for (const update of activeUpdates) {
-          const cached = rowDomCache.get(update.id);
+          const cached = rowDomCache.get(String(update.id)) || rowDomCache.get(Number(update.id)) || rowDomCache.get(update.id);
           if (cached) {
             if (update.extractStatus === 'extracting') {
               const extPct = update.extractProgress !== undefined ? update.extractProgress : 0;
@@ -2385,6 +2515,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('state:init', () => {
+    const selMax = document.getElementById('toolbar-max-concurrent');
+    if (selMax && window.appState.config?.maxConcurrentDownloads !== undefined) {
+      selMax.value = String(window.appState.config.maxConcurrentDownloads);
+    }
     renderDownloads();
     renderGrabber();
     updateBadges();
@@ -2654,8 +2788,9 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/window/open-progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: taskId, topmost: false })
+      body: JSON.stringify({ taskId: taskId, id: taskId, topmost: false })
     }).catch(() => {});
+    return;
 
     // 3. Tauri fallback
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
@@ -2691,6 +2826,7 @@ document.addEventListener('DOMContentLoaded', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(probeData)
     }).catch(() => {});
+    return;
 
     // 3. Tauri 2 Native Invocation
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
@@ -2714,8 +2850,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('task:created', (e) => {
     const task = e.detail;
+    if (!task || !task.id) return;
+    const key = 'waterfall_progress_opened_' + task.id;
+    let lastOpened = null;
+    try { lastOpened = localStorage.getItem(key); } catch (_) {}
+    if (lastOpened && (Date.now() - parseInt(lastOpened, 10)) < 4000) {
+      return;
+    }
+    try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
+
     const cfg = window.appState.config || {};
-    if (cfg.showDownloadProgressDialog !== false && task && (task.status === 'downloading' || task.status === 'pending') && !task.isPlaylist) {
+    if (cfg.showDownloadProgressDialog !== false && (task.status === 'downloading' || task.status === 'pending') && !task.isPlaylist) {
       openDesktopProgressWindow(task);
     }
   });
@@ -2737,6 +2882,10 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('task:failed', (e) => {
     const detail = e.detail;
     const task = (detail && detail.task) ? detail.task : detail;
+    const err = (detail && detail.error) ? detail.error : (task ? task.error : '');
+    if ((task && task.status === 'paused') || err === 'Download paused' || (task && task.statusText === 'Paused')) {
+      return;
+    }
     showFailureNotification(detail);
     if (task) {
       // Bring error window to top
@@ -3945,7 +4094,9 @@ document.addEventListener('DOMContentLoaded', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(probeData)
     }).catch(() => {});
-    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+    return;
+
+    // 3. Tauri fallback
       window.__TAURI__.core.invoke('open_confirm_window').catch(() => {});
       return;
     }
@@ -5715,6 +5866,24 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnQuitCancelX) btnQuitCancelX.addEventListener('click', hideQuitOptionsModal);
 
   // Initialize table resizers, column sorting & initial filter tabs bar visibility
+  // Toolbar Queue Limit Synchronization
+  const selMaxConcurrent = document.getElementById('toolbar-max-concurrent');
+  if (selMaxConcurrent) {
+    selMaxConcurrent.onchange = async () => {
+      const val = parseInt(selMaxConcurrent.value, 10);
+      try {
+        await fetch('/api/queue/max-concurrent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ max: val, maxConcurrentDownloads: val })
+        });
+        if (window.appState.config) {
+          window.appState.config.maxConcurrentDownloads = val;
+        }
+      } catch (_) {}
+    };
+  }
+
   initTableColumnResizing();
   initTableColumnSorting();
   updateSortControlsUI();

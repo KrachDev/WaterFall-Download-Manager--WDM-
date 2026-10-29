@@ -107,7 +107,9 @@
 
     if (urlEl) urlEl.value = data.url || '';
     if (serverEl) serverEl.textContent = data.server ? `Server: ${data.server}` : '';
-    if (filenameEl) filenameEl.value = data.filename || 'download';
+    let rawFn = data.filename || 'download';
+    try { rawFn = decodeURIComponent(rawFn); } catch (_) {}
+    if (filenameEl) filenameEl.value = rawFn;
 
     const cat = data.category || 'General';
     if (categoryBadge) {
@@ -120,9 +122,18 @@
       sizeEl.textContent = totalBytes > 0 ? formatBytes(totalBytes) : (data.formattedSize || 'Unknown / Stream');
     }
 
+    const sc = data.statusCode || data.status_code || 0;
     if (resumableEl) {
-      if (data.status_code >= 400) {
-        resumableEl.textContent = `⚠️ HTTP ${data.status_code} (${data.status_code === 401 ? 'Unauthorized - Login required' : (data.status_code === 403 ? 'Forbidden - Host login required' : 'Server error')})`;
+      if (sc >= 400) {
+        if (sc === 403) {
+          resumableEl.textContent = '⚠️ HTTP 403 (Host Forbidden / Cloudflare protection: Session login required)';
+        } else if (sc === 401) {
+          resumableEl.textContent = '⚠️ HTTP 401 (Host Unauthorized: Login required)';
+        } else if (sc === 404) {
+          resumableEl.textContent = '⚠️ HTTP 404 (File not found on remote server)';
+        } else {
+          resumableEl.textContent = `⚠️ HTTP ${sc} (Remote server error)`;
+        }
         resumableEl.style.color = '#ef4444';
       } else {
         resumableEl.textContent = data.acceptRanges ? '✓ Resumable (Range byte headers supported)' : '⚠️ Single Stream / Direct';
@@ -232,10 +243,23 @@
           dupActions.innerHTML = `
             <button type="button" class="tool-btn" id="btn-dup-open" style="padding: 3px 10px; font-size: 0.72rem;">Open File</button>
             <button type="button" class="tool-btn" id="btn-dup-folder" style="padding: 3px 10px; font-size: 0.72rem;">Show in Folder</button>
+            <button type="button" class="tool-btn" id="btn-dup-copy-done" style="padding: 3px 10px; font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">Download as (1)</button>
             ${extractedPath ? `
             <button type="button" class="tool-btn" id="btn-dup-extracted" style="padding: 3px 10px; font-size: 0.72rem; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.45); color: #d8b4fe;" title="Open Extracted Directory (${extractedPath})">Open Extracted Folder</button>
             ` : ''}
           `;
+          const btnCopyDone = document.getElementById('btn-dup-copy-done');
+          if (btnCopyDone) {
+            btnCopyDone.onclick = () => {
+              const cur = filenameEl ? filenameEl.value.trim() : rawFn;
+              const dot = cur.lastIndexOf('.');
+              const base = dot !== -1 ? cur.substring(0, dot) : cur;
+              const ext = dot !== -1 ? cur.substring(dot) : '';
+              if (filenameEl) filenameEl.value = `${base} (1)${ext}`;
+              dupBanner.style.display = 'none';
+              currentProbeData.allowDuplicate = true;
+            };
+          }
           document.getElementById('btn-dup-open').onclick = () => {
             fetch(`${apiBase}/api/open-file`, {
               method: 'POST',
@@ -277,7 +301,22 @@
             <button type="button" class="tool-btn primary" id="btn-dup-update" style="padding: 3px 12px; font-size: 0.72rem; background: #238636; border-color: #2ea043; color: #fff; font-weight: 700;">
               🔄 Update Link & Resume (${match.percent}%)
             </button>
+            <button type="button" class="tool-btn" id="btn-dup-copy-active" style="padding: 3px 10px; font-size: 0.72rem; background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+              Download as (1)
+            </button>
           `;
+          const btnCopyActive = document.getElementById('btn-dup-copy-active');
+          if (btnCopyActive) {
+            btnCopyActive.onclick = () => {
+              const cur = filenameEl ? filenameEl.value.trim() : rawFn;
+              const dot = cur.lastIndexOf('.');
+              const base = dot !== -1 ? cur.substring(0, dot) : cur;
+              const ext = dot !== -1 ? cur.substring(dot) : '';
+              if (filenameEl) filenameEl.value = `${base} (1)${ext}`;
+              dupBanner.style.display = 'none';
+              currentProbeData.allowDuplicate = true;
+            };
+          }
           document.getElementById('btn-dup-update').onclick = async () => {
             try {
               await fetch(`${apiBase}/api/downloads/${match.id}/update-url`, {
@@ -396,15 +435,22 @@
 
       if (!res.ok) throw new Error(await res.text());
       const task = await res.json();
+      const actualTaskId = (task && task.id) ? task.id : task;
+      if (actualTaskId) {
+        sessionStorage.setItem('waterfall_progress_opened_' + actualTaskId, String(Date.now()));
+        try { localStorage.setItem('waterfall_progress_opened_' + actualTaskId, String(Date.now())); } catch (_) {}
+      }
 
-      if (autoStart && window.waterfallDesktop && typeof window.waterfallDesktop.openProgressWindow === 'function') {
-        window.waterfallDesktop.openProgressWindow(task);
-      } else if (autoStart) {
-        fetch(`${apiBase}/api/window/open-progress`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId: (task && task.id) ? task.id : (task || 0), topmost: false })
-        }).catch(() => {});
+      if (autoStart) {
+        if (window.waterfallDesktop && typeof window.waterfallDesktop.openProgressWindow === 'function') {
+          window.waterfallDesktop.openProgressWindow(actualTaskId);
+        } else {
+          fetch(`${apiBase}/api/window/open-progress`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: actualTaskId, id: actualTaskId, topmost: false })
+          }).catch(() => {});
+        }
       }
 
       closeThisWindow();

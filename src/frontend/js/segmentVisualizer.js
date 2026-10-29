@@ -144,7 +144,7 @@ class SegmentVisualizer {
 
   open(taskId) {
     this.currentTaskId = taskId;
-    const task = window.appState.tasks.find(t => t.id === taskId);
+    const task = (window.appState.tasks || []).find(t => String(t.id) === String(taskId));
     if (task && task.multipart && task.multipart.isMultipart) {
       this.currentGroupKey = task.multipart.groupKey;
     } else {
@@ -229,9 +229,8 @@ class SegmentVisualizer {
   update() {
     if (!this.currentTaskId || !this.isOpen()) return;
 
-    const task = window.appState.tasks.find(t => t.id === this.currentTaskId);
+    const task = (window.appState.tasks || []).find(t => String(t.id) === String(this.currentTaskId));
     if (!task) {
-      this.close();
       return;
     }
 

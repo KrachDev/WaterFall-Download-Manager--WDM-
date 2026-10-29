@@ -28,10 +28,21 @@ int RunWaterfall(int argc, char* argv[]) {
         }
     }
 
+    HWND consoleWnd = GetConsoleWindow();
+    if (consoleWnd && !force_console && !waterfall::core::ConfigManager::Instance().GetConfig().show_console) {
+        ShowWindow(consoleWnd, SW_HIDE);
+    }
+
     // Attach or allocate console ONLY if explicitly requested via flag or config
     if (force_console || waterfall::core::ConfigManager::Instance().GetConfig().show_console) {
-        if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
-            AllocConsole();
+        if (!consoleWnd) {
+            if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+                AllocConsole();
+            }
+            consoleWnd = GetConsoleWindow();
+        }
+        if (consoleWnd) {
+            ShowWindow(consoleWnd, SW_SHOW);
         }
         FILE* fp = nullptr;
         freopen_s(&fp, "CONOUT$", "w", stdout);
