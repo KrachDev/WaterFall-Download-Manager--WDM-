@@ -5,12 +5,16 @@
 #include "waterfall/ui/UiManager.hpp"
 #include "waterfall/ui/WebViewUiManager.hpp"
 #include <iostream>
+#include <fstream>
 #include <windows.h>
 #include <shellapi.h>
 #include <string>
 #include <vector>
 
 int RunWaterfall(int argc, char* argv[]) {
+    std::ofstream bootLog("waterfall_boot.log", std::ios::trunc);
+    bootLog << std::unitbuf;
+    bootLog << "[Boot] RunWaterfall started, argc=" << argc << std::endl;
     bool use_rmlui = false;
     bool force_console = false;
     bool start_minimized = false;
@@ -55,8 +59,10 @@ int RunWaterfall(int argc, char* argv[]) {
     }
 
     // 0. Single-Instance Mutex Guard
+    bootLog << "[Boot] Creating mutex..." << std::endl;
     HANDLE h_mutex = CreateMutexW(nullptr, TRUE, L"Local\\WaterfallAccelerator_SingleInstance_Mutex");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        bootLog << "[Boot] Mutex ALREADY EXISTS -> Exiting duplicate instance!" << std::endl;
         std::cout << "[Core] Another instance of Waterfall is already running." << std::endl;
         HWND existing_hwnd = FindWindowW(L"Waterfall_WebView2_Class", nullptr);
         if (!existing_hwnd) {
@@ -72,25 +78,33 @@ int RunWaterfall(int argc, char* argv[]) {
         if (h_mutex) CloseHandle(h_mutex);
         return 0;
     }
+    bootLog << "[Boot] Mutex acquired successfully." << std::endl;
 
     std::cout << "=================================================" << std::endl;
     std::cout << "  🌊 WATERFALL DOWNLOAD ACCELERATOR v2.0 (C++20) " << std::endl;
     std::cout << "=================================================" << std::endl;
 
     // 1. Initialize SQLite State Engine in %APPDATA%\Waterfall
+    bootLog << "[Boot] Resolving DB path..." << std::endl;
     std::string db_path = (waterfall::core::StorageRouter::Instance().GetAppDataDir() / "waterfall.db").string();
+    bootLog << "[Boot] DB path is " << db_path << ", initializing DownloadManager..." << std::endl;
     if (!waterfall::core::DownloadManager::Instance().Initialize(db_path)) {
+        bootLog << "[Boot] DownloadManager::Initialize FAILED!" << std::endl;
         std::cerr << "Failed to initialize state database at: " << db_path << std::endl;
         return 1;
     }
+    bootLog << "[Boot] DownloadManager initialized." << std::endl;
     std::cout << "[Core] SQLite WAL state store initialized at: " << db_path << std::endl;
 
     // 2. Start Companion Extension Server & Static Web UI Host (Port 4567)
+    bootLog << "[Boot] Starting ExtensionServer on 4567..." << std::endl;
     waterfall::server::ExtensionServer extension_server(4567);
     extension_server.Start();
+    bootLog << "[Boot] ExtensionServer started." << std::endl;
 
     // 3. Launch UI: WebView2 rich Web UI by default, with RmlUi fallback/flag
     if (use_rmlui) {
+        bootLog << "[Boot] Using RmlUi" << std::endl;
         std::cout << "[UI] Launching native RmlUi/OpenGL interface (--rmlui flag detected)..." << std::endl;
         waterfall::ui::UiManager ui_manager;
         if (ui_manager.Initialize(1480, 780)) {
@@ -99,8 +113,11 @@ int RunWaterfall(int argc, char* argv[]) {
             ui_manager.Shutdown();
         }
     } else {
+        bootLog << "[Boot] Initializing WebViewUiManager..." << std::endl;
         std::cout << "[UI] Launching native WebView2 high-fidelity UI..." << std::endl;
         if (waterfall::ui::WebViewUiManager::Instance().Initialize(1480, 780, "http://127.0.0.1:4567/")) {
+            bootLog << "[Boot] WebViewUiManager initialized successfully! Calling Run()..." << std::endl;
+            bootLog.flush();
             std::cout << "[UI] Native WebView2 interface initialized." << std::endl;
             if (show_extension_guide) {
                 waterfall::ui::WebViewUiManager::Instance().OpenDialogWindow(
@@ -112,8 +129,11 @@ int RunWaterfall(int argc, char* argv[]) {
             if (start_minimized) {
                 waterfall::ui::WebViewUiManager::Instance().MinimizeToTray();
             }
+            bootLog << "[Boot] Calling Run()..." << std::endl;
             waterfall::ui::WebViewUiManager::Instance().Run();
+            bootLog << "[Boot] Run() returned! Calling Shutdown()..." << std::endl;
             waterfall::ui::WebViewUiManager::Instance().Shutdown();
+            bootLog << "[Boot] Shutdown() finished." << std::endl;
         } else {
             std::cerr << "[UI] WebView2 initialization failed. Falling back to native RmlUi..." << std::endl;
             waterfall::ui::UiManager ui_manager;
