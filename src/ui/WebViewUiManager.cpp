@@ -435,7 +435,6 @@ bool WebViewUiManager::Initialize(int width, int height, const std::string& star
 
                             std::cout << "[WebView2] Connected to native C++ engine at: " << start_url << std::endl;
 
-                            // Preload Download File Info confirmation dialog in RAM (warm standby)
                             PreloadConfirmDialog();
 
                             // Automatically launch IDM-like Welcome Setup Wizard on first run

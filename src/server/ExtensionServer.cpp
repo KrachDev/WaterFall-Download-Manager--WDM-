@@ -1761,8 +1761,12 @@ bool ExtensionServer::Start() {
     is_running_ = true;
 
     server_thread_ = std::thread([this]() {
-        std::cout << "[ExtensionServer] Listening on http://127.0.0.1:" << port_ << std::endl;
-        server_->listen("127.0.0.1", port_);
+        for (int attempt = 0; attempt < 10 && is_running_; ++attempt) {
+            bool ok = server_->listen("127.0.0.1", port_);
+            if (ok) break;
+            if (!is_running_) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
         is_running_ = false;
     });
 

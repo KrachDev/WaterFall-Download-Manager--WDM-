@@ -13,7 +13,7 @@ ConfigManager& ConfigManager::Instance() {
 
 ConfigManager::ConfigManager() {
     // Default download directory to Windows Downloads folder
-    config_.download_directory = StorageRouter::Instance().GetDefaultDownloadDir().string();
+    config_.download_directory = StorageRouter::Instance().GetBaseDownloadDir().string();
 }
 
 ConfigManager::~ConfigManager() = default;
