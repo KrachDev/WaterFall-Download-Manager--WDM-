@@ -18,6 +18,8 @@ struct DialogWindowInfo {
     std::string type; // "confirm", "progress", etc.
     int task_id = 0;
     bool is_topmost = false;
+    bool is_preloaded = false;
+    bool is_visible_requested = false;
 };
 
 class WebViewUiManager {
@@ -41,6 +43,9 @@ public:
     bool SetWindowTopmostByTypeInternal(const std::string& type, bool topmost, bool bring_to_front = true);
     void CloseDialogWindow(HWND hwnd);
     bool CloseDialogWindowByType(const std::string& type, int task_id = 0);
+
+    // Warm Standby Preloading (instant snappy dialogs in RAM)
+    void PreloadConfirmDialog();
 
     // Tray & Application Lifecycle
     void MinimizeToTray();

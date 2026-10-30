@@ -253,22 +253,46 @@ int DownloadManager::AddDownload(const std::string& url,
         task.is_root_part = mp_info.is_root_part;
     }
 
-    // Resolve storage location
-    std::string folder = target_folder.empty() ? ConfigManager::Instance().GetDownloadDirectory() : target_folder;
-    std::filesystem::path folder_path = folder.empty() ? StorageRouter::Instance().ResolveTargetDirectory(task.filename) : std::filesystem::path(folder);
-    task.save_path = (folder_path / task.filename).string();
-    task.status = TaskStatus::Queued;
-
     // Determine category
     auto cat = StorageRouter::Instance().CategorizeFile(task.filename);
-    switch (cat) {
-        case FileCategory::Audio: task.category = "Audio"; break;
-        case FileCategory::Media: task.category = "Video"; break;
-        case FileCategory::Compressed: task.category = "Compressed"; break;
-        case FileCategory::Programs: task.category = "Programs"; break;
-        case FileCategory::Documents: task.category = "Documents"; break;
-        default: task.category = "Other"; break;
+    if (is_media) {
+        std::string fmt = media_format;
+        std::transform(fmt.begin(), fmt.end(), fmt.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+        if (fmt == "mp3" || fmt == "m4a" || fmt == "flac" || fmt == "wav" || fmt == "audio") {
+            cat = FileCategory::Audio;
+        } else {
+            cat = FileCategory::Media;
+        }
     }
+    task.category = StorageRouter::Instance().CategoryToString(cat);
+
+    // Resolve storage location: auto-sort into category subfolders if no specific folder chosen
+    std::string root_dir = ConfigManager::Instance().GetDownloadDirectory();
+    if (root_dir.empty()) {
+        root_dir = StorageRouter::Instance().GetDefaultDownloadDir().string();
+    }
+
+    std::filesystem::path folder_path;
+    if (target_folder.empty()) {
+        folder_path = StorageRouter::Instance().ResolveCategoryDirectory(cat, std::filesystem::path(root_dir));
+    } else {
+        std::filesystem::path passed_path(target_folder);
+        std::error_code ec;
+        auto norm_passed = std::filesystem::weakly_canonical(passed_path, ec);
+        auto norm_root = std::filesystem::weakly_canonical(std::filesystem::path(root_dir), ec);
+        if (!ec && norm_passed == norm_root) {
+            // Passed folder was generic root Downloads: auto-route into category subfolder!
+            folder_path = StorageRouter::Instance().ResolveCategoryDirectory(cat, std::filesystem::path(root_dir));
+        } else {
+            // Specific category or custom folder chosen by user: respect it!
+            folder_path = passed_path;
+        }
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(folder_path, ec);
+    task.save_path = (folder_path / task.filename).string();
+    task.status = TaskStatus::Queued;
 
     tasks_.insert(tasks_.begin(), task);
     SaveTaskToDb(task);

@@ -5,6 +5,39 @@
 
   let currentProbeData = null;
 
+  const EXTENSION_CATEGORIES = {
+    zip: 'Compressed', rar: 'Compressed', '7z': 'Compressed', tar: 'Compressed', gz: 'Compressed', bz2: 'Compressed',
+    xz: 'Compressed', iso: 'Compressed', '001': 'Compressed', cab: 'Compressed', dmg: 'Compressed', pkg: 'Compressed',
+    tgz: 'Compressed', z: 'Compressed', lzma: 'Compressed',
+    mp4: 'Video', mkv: 'Video', avi: 'Video', mov: 'Video', webm: 'Video', flv: 'Video', wmv: 'Video',
+    m4v: 'Video', ts: 'Video', '3gp': 'Video', vob: 'Video', ogv: 'Video',
+    mp3: 'Audio', flac: 'Audio', wav: 'Audio', m4a: 'Audio', ogg: 'Audio', aac: 'Audio', opus: 'Audio',
+    alac: 'Audio', wma: 'Audio', aiff: 'Audio', mid: 'Audio', midi: 'Audio',
+    pdf: 'Documents', docx: 'Documents', doc: 'Documents', xlsx: 'Documents', xls: 'Documents', pptx: 'Documents',
+    ppt: 'Documents', txt: 'Documents', epub: 'Documents', odt: 'Documents', rtf: 'Documents', csv: 'Documents',
+    cbz: 'Documents', cbr: 'Documents', md: 'Documents', chm: 'Documents',
+    exe: 'Programs', msi: 'Programs', apk: 'Programs', bat: 'Programs', cmd: 'Programs', bin: 'Programs',
+    appimage: 'Programs', deb: 'Programs', rpm: 'Programs', sh: 'Programs', vbs: 'Programs', jar: 'Programs',
+    png: 'Pictures', jpg: 'Pictures', jpeg: 'Pictures', webp: 'Pictures', gif: 'Pictures', svg: 'Pictures',
+    bmp: 'Pictures', tiff: 'Pictures', ico: 'Pictures', psd: 'Pictures', ai: 'Pictures', raw: 'Pictures', heic: 'Pictures'
+  };
+
+  function detectCategoryFromFilename(filename = '') {
+    if (!filename) return 'General';
+    const lower = filename.toLowerCase();
+    if (lower.endsWith('.tar.gz') || lower.endsWith('.tar.bz2')) return 'Compressed';
+    const parts = lower.split('.');
+    if (parts.length > 1) {
+      const ext = parts.pop();
+      if (EXTENSION_CATEGORIES[ext]) return EXTENSION_CATEGORIES[ext];
+    }
+    return 'General';
+  }
+
+  let activeCategoryDirs = {};
+  let activeRootDir = '';
+  let activeCurrentCat = 'General';
+
   const isHttp = window.location.protocol.startsWith('http');
   const apiBase = isHttp ? '' : 'http://localhost:4567';
   const wsBase = isHttp
@@ -91,6 +124,7 @@
   }
 
   function closeThisWindow() {
+    resetConfirmState();
     fetch(`${apiBase}/api/window/close-dialog`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -640,6 +674,54 @@
       filename: params.get('filename') || 'download',
       totalBytes: parseInt(params.get('size'), 10) || 0,
       category: params.get('category') || 'General'
+    });
+  }
+
+    // Warm Standby State Management
+  function resetConfirmState() {
+    currentProbeData = null;
+    if (urlEl) urlEl.value = '';
+    if (filenameEl) filenameEl.value = '';
+    if (serverEl) serverEl.textContent = '';
+    if (sizeEl) sizeEl.textContent = '';
+    if (resumableEl) resumableEl.textContent = '';
+    if (etaEl) etaEl.textContent = '';
+    if (avgSpeedEl) avgSpeedEl.textContent = '';
+    if (dupBanner) dupBanner.style.display = 'none';
+    if (mediaBox) mediaBox.style.display = 'none';
+    if (extractBox) extractBox.style.display = 'none';
+    if (btnStart) {
+      btnStart.disabled = false;
+      btnStart.textContent = '📥 Download Now';
+    }
+  }
+  window.resetConfirmState = resetConfirmState;
+
+  function refreshConfirmData(customData) {
+    if (customData && customData.url) {
+      applyProbeData(customData);
+      return;
+    }
+    fetch(`${apiBase}/api/downloads/pending-confirm?_t=${Date.now()}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.url) {
+          applyProbeData(data);
+        }
+      })
+      .catch(() => {});
+  }
+  window.refreshConfirmData = refreshConfirmData;
+
+  // Native WebView2 IPC message listener
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', (event) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data && data.url) {
+          applyProbeData(data);
+        }
+      } catch (_) {}
     });
   }
 

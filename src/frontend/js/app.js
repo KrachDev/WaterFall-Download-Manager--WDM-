@@ -4204,10 +4204,51 @@ document.addEventListener('DOMContentLoaded', () => {
     if (serverEl) serverEl.textContent = probeData.server ? `Server: ${probeData.server}` : '';
     if (nameEl) nameEl.value = probeData.filename || 'download';
 
+    const idmCatSelect = document.getElementById('idm-confirm-category-select');
     const cat = probeData.category || 'General';
+    if (idmCatSelect) idmCatSelect.value = cat;
     if (catBadge) {
       catBadge.textContent = cat;
       catBadge.className = 'type-badge badge-' + cat.toLowerCase();
+    }
+
+    if (idmCatSelect) {
+      idmCatSelect.onchange = () => {
+        const selectedCat = idmCatSelect.value;
+        if (catBadge) {
+          catBadge.textContent = selectedCat;
+          catBadge.className = 'type-badge badge-' + selectedCat.toLowerCase();
+        }
+        const dirs = probeData.categoryDirs || window.appState.config?.categoryDirs;
+        if (dirs && dirs[selectedCat] && folderEl) {
+          folderEl.value = dirs[selectedCat];
+        }
+      };
+    }
+
+    if (nameEl) {
+      nameEl.oninput = () => {
+        const fn = nameEl.value.trim().toLowerCase();
+        let detected = 'General';
+        if (fn.endsWith('.zip') || fn.endsWith('.rar') || fn.endsWith('.7z') || fn.endsWith('.tar.gz') || fn.endsWith('.tar') || fn.endsWith('.iso')) detected = 'Compressed';
+        else if (fn.endsWith('.mp4') || fn.endsWith('.mkv') || fn.endsWith('.webm') || fn.endsWith('.avi')) detected = 'Video';
+        else if (fn.endsWith('.mp3') || fn.endsWith('.wav') || fn.endsWith('.flac') || fn.endsWith('.m4a')) detected = 'Audio';
+        else if (fn.endsWith('.exe') || fn.endsWith('.msi') || fn.endsWith('.apk')) detected = 'Programs';
+        else if (fn.endsWith('.pdf') || fn.endsWith('.docx') || fn.endsWith('.doc') || fn.endsWith('.txt')) detected = 'Documents';
+        else if (fn.endsWith('.png') || fn.endsWith('.jpg') || fn.endsWith('.jpeg') || fn.endsWith('.webp')) detected = 'Pictures';
+
+        if (detected !== 'General' && idmCatSelect && idmCatSelect.value !== detected) {
+          idmCatSelect.value = detected;
+          if (catBadge) {
+            catBadge.textContent = detected;
+            catBadge.className = 'type-badge badge-' + detected.toLowerCase();
+          }
+          const dirs = probeData.categoryDirs || window.appState.config?.categoryDirs;
+          if (dirs && dirs[detected] && folderEl) {
+            folderEl.value = dirs[detected];
+          }
+        }
+      };
     }
 
     const totalBytes = probeData.totalBytes || 0;

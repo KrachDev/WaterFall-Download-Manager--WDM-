@@ -7,6 +7,7 @@
 #include "waterfall/core/ArchiveEngine.hpp"
 #include "waterfall/core/UpdateManager.hpp"
 #include "waterfall/core/ShellIntegration.hpp"
+#include "waterfall/core/StorageRouter.hpp"
 #include "waterfall/ui/WebViewUiManager.hpp"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
@@ -343,11 +344,15 @@ void ExtensionServer::SetupRoutes() {
         }
 
         auto cfg = core::ConfigManager::Instance().GetConfig();
+        auto base_dir = core::StorageRouter::Instance().GetDefaultDownloadDir();
+        auto all_cat_dirs = core::StorageRouter::Instance().GetAllCategoryDirectories(base_dir);
         json resp = {
             {"tasks", tasks_json},
             {"staged", staged_json},
             {"config", {
                 {"downloadDirectory", cfg.download_directory},
+                {"downloadDir", cfg.download_directory},
+                {"categoryDirs", all_cat_dirs},
                 {"maxConcurrentDownloads", cfg.max_concurrent_downloads},
                 {"maxConcurrentPerHost", cfg.max_concurrent_per_host},
                 {"speedLimitEnabled", cfg.speed_limit_enabled},
@@ -470,24 +475,18 @@ void ExtensionServer::SetupRoutes() {
                     }
                 }
 
-                std::string def_dir = folder.empty() ? core::ConfigManager::Instance().GetDownloadDirectory() : folder;
-                probe["defaultSaveDir"] = def_dir;
+                auto cat = core::StorageRouter::Instance().CategorizeFile(fname);
+                std::string cat_str = core::StorageRouter::Instance().CategoryToString(cat);
+                auto base_dir = core::StorageRouter::Instance().GetDefaultDownloadDir();
+                auto target_dir = folder.empty()
+                    ? core::StorageRouter::Instance().ResolveCategoryDirectory(cat, base_dir)
+                    : std::filesystem::path(folder);
+                auto all_cat_dirs = core::StorageRouter::Instance().GetAllCategoryDirectories(base_dir);
 
-                // File categorization
-                std::string ext = "";
-                size_t dot = fname.find_last_of('.');
-                if (dot != std::string::npos) {
-                    ext = fname.substr(dot + 1);
-                    for (auto& c : ext) c = (char)tolower(c);
-                }
-                std::string cat = "General";
-                if (ext == "zip" || ext == "rar" || ext == "7z" || ext == "tar" || ext == "gz" || ext == "iso") cat = "Compressed";
-                else if (ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "webm") cat = "Video";
-                else if (ext == "mp3" || ext == "flac" || ext == "wav" || ext == "m4a" || ext == "aac") cat = "Audio";
-                else if (ext == "exe" || ext == "msi" || ext == "apk") cat = "Programs";
-                else if (ext == "pdf" || ext == "doc" || ext == "docx" || ext == "txt" || ext == "epub") cat = "Documents";
-                else if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "gif" || ext == "webp") cat = "Pictures";
-                probe["category"] = cat;
+                probe["category"] = cat_str;
+                probe["defaultSaveDir"] = target_dir.string();
+                probe["rootDownloadDir"] = base_dir.string();
+                probe["categoryDirs"] = all_cat_dirs;
 
                 g_pending_confirm_json = probe.dump();
 
@@ -1225,6 +1224,12 @@ void ExtensionServer::SetupRoutes() {
                 return;
             }
             auto info = core::ChunkEngine::ProbeUrl(url);
+            auto cat = core::StorageRouter::Instance().CategorizeFile(info.filename);
+            std::string cat_str = core::StorageRouter::Instance().CategoryToString(cat);
+            auto base_dir = core::StorageRouter::Instance().GetDefaultDownloadDir();
+            auto target_dir = core::StorageRouter::Instance().ResolveCategoryDirectory(cat, base_dir);
+            auto all_cat_dirs = core::StorageRouter::Instance().GetAllCategoryDirectories(base_dir);
+
             json j = {
                 {"success", true},
                 {"filename", info.filename},
@@ -1232,7 +1237,11 @@ void ExtensionServer::SetupRoutes() {
                 {"totalBytes", info.total_size},
                 {"resumable", info.supports_range},
                 {"supports_range", info.supports_range},
-                {"status_code", info.status_code}
+                {"status_code", info.status_code},
+                {"category", cat_str},
+                {"defaultSaveDir", target_dir.string()},
+                {"rootDownloadDir", base_dir.string()},
+                {"categoryDirs", all_cat_dirs}
             };
             res.set_content(j.dump(), "application/json");
         } catch (const std::exception& e) {

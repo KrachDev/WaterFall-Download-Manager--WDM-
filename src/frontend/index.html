@@ -862,8 +862,19 @@
             <input type="text" id="idm-confirm-filename" class="text-input" style="font-weight: 600;">
           </div>
           <div class="form-group" style="margin-bottom: 0;">
-            <label class="input-label">Category</label>
-            <span id="idm-confirm-category-badge" class="type-badge badge-other" style="padding: 6px 12px; font-size: 0.75rem; border-radius: var(--radius-xs); display: inline-block;">General</span>
+            <label class="input-label" for="idm-confirm-category-select">Category</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <select id="idm-confirm-category-select" class="text-input" style="padding: 2px 8px; font-size: 0.74rem; height: 32px; border-radius: var(--radius-xs); font-weight: 600; width: auto; min-width: 125px; background: #070b14; color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">
+                <option value="Compressed">📦 Compressed</option>
+                <option value="Programs">⚙️ Programs</option>
+                <option value="Video">🎬 Video</option>
+                <option value="Audio">🎵 Audio</option>
+                <option value="Documents">📄 Documents</option>
+                <option value="Pictures">🖼️ Pictures</option>
+                <option value="General">📁 General</option>
+              </select>
+              <span id="idm-confirm-category-badge" class="type-badge badge-other" style="padding: 6px 12px; font-size: 0.75rem; border-radius: var(--radius-xs); display: inline-block;">General</span>
+            </div>
           </div>
         </div>
 
